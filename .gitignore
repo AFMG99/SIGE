@@ -1,0 +1,29 @@
+# Test credentials — never commit
+test-users.txt
+admin_cookies.txt
+
+# Dependencies and build output
+node_modules/
+.next/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+*.tsbuildinfo
+
+coverage/
+dist/
+
+.DS_Store
+.vscode/
+.idea/
+*storybook.log
+storybook-static
+
+# Python
+__pycache__/
+*.pyc

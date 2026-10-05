@@ -1,0 +1,241 @@
+// Prisma Schema for PostgreSQL Authentication
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+model User {
+  id                    String                    @id @default(cuid())
+  email                 String                    @unique
+  passwordHash          String?
+  name                  String?
+  role                  Role                      @default(COMUNIDAD_UNIVERSITARIA)
+  status                UserStatus                @default(ACTIVE)
+  phone                 String?
+  lastLoginAt           DateTime?
+  twoFactorEnabled      Boolean                   @default(false)
+  emailVerified         DateTime?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  sessions              Session[]
+  permissionOverrides   UserPermissionOverride[]
+
+  @@map("users")
+}
+
+model UserPermissionOverride {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  moduleId        String
+  action          String
+  expiresAt       DateTime?
+  grantedBy       String
+  grantedByEmail  String
+  createdAt       DateTime @default(now())
+  @@unique([userId, moduleId, action])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([email, token])
+  @@map("verification_tokens")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String
+  actorEmail  String
+  action      String
+  targetId    String
+  targetEmail String
+  detail      String?
+  createdAt   DateTime @default(now())
+
+  @@index([targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum Role {
+  ADMIN_TI // Administrador (TI)
+  GESTOR_ENERGETICO // Gestor Energético
+  COORD_INFRAESTRUCTURA // Coord. Infraestructura
+  DIRECTIVO // Directivo
+  COMUNIDAD_UNIVERSITARIA // Comunidad Universitaria
+}
+
+// ============================================================
+// SIGE-TdeA — Modelos del módulo de carga energética
+// Resolución UPME 0016/2024
+// ============================================================
+
+model Edificacion {
+  id        String   @id @default(cuid())
+  nombre    String
+  // Código del catálogo CATALOGO_EDIFICACIONES (ej. EDUCATIVO_CAMPUS)
+  tipo      String
+  createdAt DateTime @default(now())
+
+  bloques  Bloque[]
+  facturas FacturaEnergia[]
+
+  @@map("edificaciones")
+}
+
+model Bloque {
+  id                   String   @id @default(cuid())
+  codigo               String   @unique
+  nombre               String
+  areaUtil             Float
+  factorInfraestructura Float
+  edificacionId        String
+  createdAt            DateTime @default(now())
+
+  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+
+  equipos    EquipoElectrico[]
+  espacios   Espacio[]
+  variables  VariableOperativa[]
+  lineasBase LineaBaseEnergia[]
+  ajustes    AjusteEnergetico[]
+
+  @@index([edificacionId])
+  @@map("bloques")
+}
+
+model Espacio {
+  id        String   @id @default(cuid())
+  bloqueId  String
+  nombre    String
+  createdAt DateTime @default(now())
+
+  bloque  Bloque   @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  equipos EquipoElectrico[]
+
+  @@unique([bloqueId, nombre])
+  @@map("espacios")
+}
+
+model EquipoElectrico {
+  id             String   @id @default(cuid())
+  bloqueId       String
+  espacioId      String
+  tipo           String
+  cantidad       Int
+  potenciaNominal Float
+  horasUsoDia    Int
+  diasUsoMes     Int
+  usenIndicador  String
+  createdAt      DateTime @default(now())
+
+  bloque  Bloque  @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  espacio Espacio @relation(fields: [espacioId], references: [id], onDelete: Cascade)
+
+  @@unique([bloqueId, espacioId, tipo])
+  @@index([bloqueId])
+  @@index([espacioId])
+  @@map("equipos_electricos")
+}
+
+model FacturaEnergia {
+  id                String   @id @default(cuid())
+  // Obligatoria tras el backfill (scripts/backfill-facturas-edificacion.mjs).
+  edificacionId     String
+  periodo           String
+  diasFacturados    Int
+  consumoKwh        Float
+  consumoNormalizado Float
+  costoCop          Float
+  creadoAt          DateTime @default(now())
+  actualizadoAt     DateTime @default(now()) @updatedAt
+
+  // Restrict (no Cascade): la BD nunca borra facturas en silencio al
+  // eliminar una edificación; el bloqueo amigable lo hace la app.
+  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Restrict)
+
+  @@unique([periodo, edificacionId])
+  @@index([edificacionId])
+  @@map("facturas_energia")
+}
+
+model VariableOperativa {
+  id                        String   @id @default(cuid())
+  bloqueId                  String
+  mes                       Int
+  ano                       Int
+  poblacionFija             Int
+  poblacionFlotante         Int
+  diasLectivosLaborales     Int
+  gradesDiaEnfriamiento     Float
+  createdAt                 DateTime @default(now())
+
+  bloque Bloque @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+
+  @@unique([bloqueId, mes, ano])
+  @@index([bloqueId])
+  @@map("variables_operativas")
+}
+
+model LineaBaseEnergia {
+  id              String   @id @default(cuid())
+  bloqueId        String
+  tipo            String
+  coeficientes    Json
+  r2              Float?
+  pValue          Float?
+  rangosConfianza Float
+  createdAt       DateTime @default(now())
+
+  bloque Bloque @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+
+  // Una línea base por bloque y tipo: el guardado es un upsert explícito.
+  @@unique([bloqueId, tipo])
+  @@map("lineas_base_energia")
+}
+
+model AjusteEnergetico {
+  id           String   @id @default(cuid())
+  bloqueId     String
+  tipo         String
+  descripcion  String
+  periodoInicio DateTime
+  periodoFin   DateTime
+  valorAjuste  Float
+  observaciones String?
+  createdAt    DateTime @default(now())
+
+  bloque Bloque @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+
+  @@index([bloqueId])
+  @@map("ajustes_energeticos")
+}

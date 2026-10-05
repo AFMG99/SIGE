@@ -1,0 +1,301 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-inter: 'Inter', system-ui, sans-serif;
+  --font-serif: 'Georgia', 'Cambria', 'Times New Roman', serif;
+  
+  /* =====================================================================
+     BRAND PALETTE — single source of truth for every module.
+     Principales: verde claro (146,189,36) · verde oscuro (0,101,46)
+                  negro/gris oscuro (33,25,21) · gris medio (175,175,180)
+     Complementarios (secundario): azul claro · verde suave · turquesa
+                  azul oscuro · morado · amarillo suave
+     ===================================================================== */
+
+  /* -- Primitivos de marca (bg-uv-*, text-uv-*, border-uv-*) -- */
+  --color-uv-lime: #92bd24;       /* verde claro */
+  --color-uv-forest: #00652e;     /* verde oscuro */
+  --color-uv-ink: #211915;        /* negro/gris oscuro */
+  --color-uv-mid: #afafb4;        /* gris medio */
+  --color-uv-sky: #82c7e6;        /* azul claro */
+  --color-uv-soft: #46b258;       /* verde suave */
+  --color-uv-turquoise: #45a78f;  /* turquesa */
+  --color-uv-deep: #1d4851;       /* azul oscuro */
+  --color-uv-purple: #7357c1;     /* morado */
+  --color-uv-yellow: #d7db4d;     /* amarillo suave */
+
+  /* -- Escala emerald re-mapeada: 500 = verde claro (decorativo),
+        600+ = verde oscuro (acciones primarias, AA sobre blanco) -- */
+  --color-emerald-50: #f6f9ec;
+  --color-emerald-100: #edf3da;
+  --color-emerald-200: #dbe8b7;
+  --color-emerald-300: #c4d88c;
+  --color-emerald-400: #a7c94e;
+  --color-emerald-500: #92bd24;   /* verde claro */
+  --color-emerald-600: #00652e;   /* verde oscuro */
+  --color-emerald-700: #005226;
+  --color-emerald-800: #003f1e;
+  --color-emerald-900: #002c15;
+  --color-emerald-950: #00170b;
+
+  /* -- Escala gris templada hacia la paleta (texto = AA sobre blanco;
+        400 = gris medio decorativo, 900 = tinta) -- */
+  --color-gray-50: #faf9f8;
+  --color-gray-100: #f3f2f1;
+  --color-gray-200: #e7e6e6;
+  --color-gray-300: #d6d5d6;
+  --color-gray-400: #afafb4;      /* gris medio (spec) */
+  --color-gray-500: #6f6e75;
+  --color-gray-600: #5a5960;
+  --color-gray-700: #45444a;
+  --color-gray-800: #3a3630;
+  --color-gray-900: #211915;      /* tinta (spec) */
+  --color-gray-950: #171210;
+
+  /* -- Superficies oscuras (dark:) — misma familia cálida -- */
+  --color-slate-50: #f8f7f6;
+  --color-slate-100: #f1f0ef;
+  --color-slate-200: #e3e2e1;
+  --color-slate-300: #cfcecd;
+  --color-slate-400: #b6b5b5;
+  --color-slate-500: #94928f;
+  --color-slate-600: #75726e;
+  --color-slate-700: #544e49;
+  --color-slate-800: #2e2622;
+  --color-slate-900: #1e1815;
+  --color-slate-950: #14100d;
+  --color-neutral-800: #2e2622;
+  --color-neutral-900: #1e1815;
+  --color-neutral-950: #14100d;
+
+  /* -- Escala amber girada hacia el amarillo suave (avisos/pending) -- */
+  --color-amber-50: #fbfce8;
+  --color-amber-100: #f6f7d9;
+  --color-amber-200: #ecefae;
+  --color-amber-300: #e0e37f;
+  --color-amber-400: #d7db4d;     /* amarillo suave (spec) */
+  --color-amber-500: #c3c73e;
+  --color-amber-600: #a0a42f;
+  --color-amber-700: #7b7d26;
+  --color-amber-800: #5d5e21;
+  --color-amber-900: #4a4b20;
+  --color-amber-950: #2a2b10;
+  
+  --animate-fade-in: fadeIn 0.5s ease-out;
+  --animate-slide-up: slideUp 0.5s ease-out;
+  --animate-blur-in: blurIn 0.6s ease-out;
+  --animate-slide-in-right: slideInRight 0.25s ease-out;
+  
+  @keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  
+  @keyframes slideUp {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes blurIn {
+    0% { opacity: 0; filter: blur(8px); }
+    100% { opacity: 1; filter: blur(0); }
+  }
+
+  @keyframes slideInRight {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(0); }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-gray-200;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer components {
+  /* ================================================================
+     SHARED UI PRIMITIVES — one recipe per semantic role.
+     Conventions:
+       · Focus  : `.focus-ring` (focus-visible + ring-uv-lime + offset).
+                  On .chrome-forest surfaces use ring-uv-lime WITHOUT offset.
+       · Radius : 2xl page panel · xl card · lg input/button · md small control
+       · Type   : size lives in JSX (text-2xl / text-lg / text-base);
+                  .ui-title = semibold ink tone, .ui-muted = muted tone
+       · Dark   : dark tokens live HERE, so adopting a primitive grants dark
+                  mode for free. slate-* is the ONLY dark surface scale.
+       · Spacing: major stack space-y-6 · inner stack space-y-4 ·
+                  label->control via .ui-field gap-1.5 · helper/error mt-1
+     ================================================================ */
+
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950;
+  }
+
+  /* -- Surfaces -- */
+  .ui-panel {
+    @apply rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900;
+  }
+  .ui-card {
+    @apply rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900;
+  }
+  .ui-card-stat {
+    @apply rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-700;
+  }
+
+  /* -- Text roles (pair with a size utility in JSX) -- */
+  .ui-title {
+    @apply font-semibold text-gray-900 dark:text-gray-100;
+  }
+  .ui-muted {
+    @apply text-gray-500 dark:text-gray-400;
+  }
+
+  /* -- Buttons: `.ui-btn` + exactly one role (+ optional `.ui-btn-sm`) -- */
+  .ui-btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-offset-slate-950;
+  }
+  .ui-btn-primary {
+    @apply bg-emerald-600 text-white hover:bg-emerald-700;
+  }
+  .ui-btn-secondary {
+    @apply border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200 dark:hover:bg-slate-800;
+  }
+  .ui-btn-accent {
+    @apply border-emerald-600 bg-transparent text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/40;
+  }
+  .ui-btn-ghost {
+    @apply bg-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-slate-800 dark:hover:text-gray-200;
+  }
+  .ui-btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700;
+  }
+  .ui-btn-danger-outline {
+    @apply border border-red-300 bg-white text-red-600 hover:bg-red-50 dark:border-red-900 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/40;
+  }
+  .ui-btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  /* -- Form fields: `.ui-field` wrapper + `.ui-input` on input/select/textarea -- */
+  .ui-field {
+    @apply flex flex-col gap-1.5;
+  }
+  .ui-label {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300;
+  }
+  .ui-input {
+    @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 dark:focus-visible:ring-offset-slate-950;
+  }
+  .ui-input-error {
+    @apply border-red-300 bg-red-50 text-red-900 focus-visible:border-red-500 focus-visible:ring-red-500 dark:border-red-900 dark:bg-red-950/60 dark:text-red-200;
+  }
+
+  /* -- Callouts: `.ui-callout` + exactly one tone -- */
+  .ui-callout {
+    @apply rounded-xl border px-4 py-3 text-sm;
+  }
+  .ui-callout-info {
+    @apply border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/60 dark:text-sky-200;
+  }
+  .ui-callout-warn {
+    @apply border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-200;
+  }
+  .ui-callout-danger {
+    @apply border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/60 dark:text-red-200;
+  }
+  .ui-callout-success {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200;
+  }
+
+  /* -- Empty state (icon + lines go in JSX) -- */
+  .ui-empty {
+    @apply flex flex-col items-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-8 text-center text-sm text-gray-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-gray-400;
+  }
+
+  /* -- Compact stat / chip (number + label atom) -- */
+  .ui-stat {
+    @apply rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/60;
+  }
+
+  /* -- Tables: one shell, one header, one hover policy.
+        Row-state colors belong in JSX (utilities layer wins by layer order) -- */
+  .ui-table-shell {
+    @apply overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900;
+  }
+  .ui-table {
+    @apply w-full text-left text-sm;
+  }
+  .ui-table thead {
+    @apply bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-slate-800 dark:text-gray-400;
+  }
+  .ui-table th {
+    @apply px-3 py-2.5 font-medium;
+  }
+  .ui-table td {
+    @apply px-3 py-2.5 align-top;
+  }
+  .ui-table tbody {
+    @apply divide-y divide-gray-100 dark:divide-slate-800;
+  }
+  .ui-table tbody tr {
+    @apply transition-colors hover:bg-gray-50/70 dark:hover:bg-slate-800/60;
+  }
+
+  /* -- Progress: forest fill (AA against track; lime is decorative only) -- */
+  .ui-progress {
+    @apply h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800;
+  }
+  .ui-progress-fill {
+    @apply h-full rounded-full bg-emerald-600 transition-all duration-200;
+  }
+
+  /* -- Modal surface -- */
+  .ui-modal {
+    @apply w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-slate-900;
+  }
+
+  /* Shared surface for the dashboard chrome (header bar / docked sidebar and
+     the data-module sidebar). Layered so it reads the same horizontally and
+     vertically: diagonal texture + uv-lime glow top-left + forest gradient.
+     Text on this surface must use the light tokens (white / emerald-100) and
+     focus rings must use ring-uv-lime. */
+  .chrome-forest {
+    background-color: #003f1e;
+    background-image:
+      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 8px),
+      radial-gradient(140% 90% at 0% 0%, rgba(146, 189, 36, 0.18), transparent 55%),
+      linear-gradient(158deg, #005226 0%, #003f1e 48%, #00170b 100%);
+  }
+}
+@keyframes datos-fade-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.datos-row {
+  animation: datos-fade-up 0.28s ease-out backwards;
+}
+
