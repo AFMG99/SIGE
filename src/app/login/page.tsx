@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { TreeCanopyAnimation } from '@/components/TreeCanopyAnimation'
-import { EnergyLoader } from '@/components/EnergyLoader'
-import { SkipDropButton } from '@/components/SkipDropButton'
-import { LoginForm } from '@/components/LoginForm'
-import { toggleTheme, getCurrentTheme } from '@/lib/theme'
+import { TreeCanopyAnimation } from '@/shared/views/TreeCanopyAnimation'
+import { EnergyLoader } from '@/shared/views/EnergyLoader'
+import { SkipDropButton } from '@/shared/views/SkipDropButton'
+import { LoginForm } from '@/features/users/views/LoginForm'
+import { toggleTheme, getCurrentTheme } from '@/shared/utils/theme'
 
 const TREE_DURATION = 8000   // ramas crecen ~8s
 const ENERGY_DURATION = 7000  // cargador verde ~7s, explota y dispersa

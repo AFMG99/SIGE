@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { verifyToken, JWTPayload } from '@/lib/auth'
+import { verifyToken, JWTPayload } from '@/shared/models/auth'
 
 const protectedPaths = ['/dashboard']
-const authPaths = ['/login', '/register']
+const authPaths = ['/login']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -35,6 +35,5 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/login',
-    '/register',
   ],
 }

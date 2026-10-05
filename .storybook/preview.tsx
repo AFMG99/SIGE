@@ -1,8 +1,8 @@
 import type { Preview } from '@storybook/nextjs-vite'
 
 import '../src/app/globals.css'
-import { HeaderPosProvider, SubNavProvider } from '../src/components/nav/NavContext'
-import { ToastProvider } from '../src/components/ui/ToastProvider'
+import { HeaderPosProvider, SubNavProvider } from '../src/shared/views/nav/NavContext'
+import { ToastProvider } from '../src/shared/views/ui/ToastProvider'
 
 const preview: Preview = {
   decorators: [

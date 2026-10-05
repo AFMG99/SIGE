@@ -1,7 +1,7 @@
-import { getSession } from '@/lib/auth'
+import { getSession } from '@/shared/models/auth'
 import { redirect } from 'next/navigation'
-import { prisma } from '@/lib/prisma'
-import { ROLE_LABELS } from '@/lib/permissions'
+import { prisma } from '@/shared/models/prisma'
+import { ROLE_LABELS } from '@/shared/models/permissions'
 
 export default async function DashboardPage() {
   const session = await getSession()

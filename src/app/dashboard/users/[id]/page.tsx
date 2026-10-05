@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { requireAdmin } from '@/lib/authz'
-import { prisma } from '@/lib/prisma'
+import { requireAdmin } from '@/shared/models/authz'
+import { prisma } from '@/shared/models/prisma'
 import { UserDetailClient } from './UserDetailClient'
 
 export default async function UserDetailPage({ params }: { params: Promise<{ id: string }> }) {

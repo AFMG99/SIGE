@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { getOverrideActions, requireModuleAccess } from '@/lib/authz'
-import { ModulePlaceholder } from '@/components/ModulePlaceholder'
+import { getOverrideActions, requireModuleAccess } from '@/shared/models/authz'
+import { ModulePlaceholder } from '@/shared/views/ModulePlaceholder'
 
 export default async function EstimacionesPage() {
   const user = await requireModuleAccess('estimates')

@@ -13,11 +13,11 @@ import { dirname, join } from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 // Single source of truth for roles (same module the app guards use).
-import { ROLES } from '../src/lib/permissions.ts'
+import { ROLES } from '../src/shared/models/permissions.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const USERS_FILE = join(HERE, '..', 'test-users.txt')
-const BCRYPT_ROUNDS = 12 // matches hashPassword() in src/lib/auth.ts
+const BCRYPT_ROUNDS = 12 // matches hashPassword() in src/shared/models/auth.ts
 
 const prisma = new PrismaClient()
 

@@ -1,5 +1,5 @@
-import { ModulePlaceholder } from '@/components/ModulePlaceholder'
-import { getCurrentUser } from '@/lib/authz'
+import { ModulePlaceholder } from '@/shared/views/ModulePlaceholder'
+import { getCurrentUser } from '@/shared/models/authz'
 
 export default async function AnalisisPage() {
   const user = await getCurrentUser()

@@ -1,14 +1,14 @@
 import { redirect } from 'next/navigation'
-import { canWithOverrides, requireModuleAccess } from '@/lib/authz'
-import { prisma } from '@/lib/prisma'
-import { DatosContent } from './DatosContent'
+import { canWithOverrides, requireModuleAccess } from '@/shared/models/authz'
+import { prisma } from '@/shared/models/prisma'
+import { DatosContent } from '@/features/datos/views/DatosContent'
 import type {
   AjustesExistentes,
   EquiposExistentes,
   FacturasExistentes,
   LineaBaseExistente,
   VariablesExistentes,
-} from './existencias'
+} from '@/features/datos/views/existencias'
 
 export default async function DatosPage() {
   const user = await requireModuleAccess('consumption')

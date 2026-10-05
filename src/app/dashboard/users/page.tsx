@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
-import { requireAdmin } from '@/lib/authz'
-import { prisma } from '@/lib/prisma'
-import { UserManagement } from '@/components/users/UserManagement'
+import { requireAdmin } from '@/shared/models/authz'
+import { prisma } from '@/shared/models/prisma'
+import { UserManagement } from '@/features/users/views/UserManagement'
 
 export default async function UsersPage() {
   const admin = await requireAdmin()
