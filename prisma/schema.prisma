@@ -216,10 +216,12 @@ model AjusteEnergetico {
   id           String   @id @default(cuid())
   bloqueId     String
   tipo         String
+  modelo       String?  // VALOR_ABSOLUTO | COCIENTE | ESTADISTICO (para referencias Anexo 4)
   descripcion  String
   periodoInicio DateTime
   periodoFin   DateTime
   valorAjuste  Float
+  direccion    String?  // 'incremento' | 'reduccion' (default 'reduccion' para Anexo 4)
   observaciones String?
   createdAt    DateTime @default(now())
 

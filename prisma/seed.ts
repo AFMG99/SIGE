@@ -252,6 +252,56 @@ async function main() {
   });
   console.log("✅ Ajuste Energético creado: NO_RUTINARIO - Mantenimiento preventivo (3.0%)\n");
 
+  // 7. AJUSTES DE REFERENCIA ANEXO 4 (ejemplos normativos)
+  // ---------------------------------------------------------
+  // A4.1: Modelo Valor Absoluto - ahorro 9,35% → 4,2%
+  await prisma.ajusteEnergetico.create({
+    data: {
+      bloqueId: bloque.id,
+      tipo: "NO_RUTINARIO",
+      modelo: "VALOR_ABSOLUTO",
+      descripcion: "Remodelación piso (may-sep año 2) - AC apagado, −25% consumo. Ajuste Anexo 4 A4.1: ahorro 9,35% → 4,2%.",
+      periodoInicio: new Date("2024-05-01"),
+      periodoFin: new Date("2024-09-30"),
+      valorAjuste: 25.0,
+      direccion: "reduccion",
+      observaciones: "Ejemplo Anexo 4 A4.1: Valor Absoluto. Remodelación may-sep año 2 con AC apagado. Sin ajuste: 9,35%; con ajuste: 4,2%. Proporción = (prom_normal - prom_anom) / prom_normal.",
+    },
+  });
+  console.log("✅ Ajuste Referencia Anexo 4 A4.1 creado: VALOR_ABSOLUTO (25.0%)\n");
+
+  // A4.2: Modelo Cociente - ahorro 9,35% → 5,5%
+  await prisma.ajusteEnergetico.create({
+    data: {
+      bloqueId: bloque.id,
+      tipo: "NO_RUTINARIO",
+      modelo: "COCIENTE",
+      descripcion: "Remodelación piso (may-sep año 2) - AC apagado, −25% consumo. Ajuste Anexo 4 A4.2: ahorro 9,35% → 5,5%.",
+      periodoInicio: new Date("2024-05-01"),
+      periodoFin: new Date("2024-09-30"),
+      valorAjuste: 25.0,
+      direccion: "reduccion",
+      observaciones: "Ejemplo Anexo 4 A4.2: Cociente de Valores Medido. Mismo caso A4.1 aplicado al cociente. Sin ajuste: 9,35%; con ajuste: 5,5%.",
+    },
+  });
+  console.log("✅ Ajuste Referencia Anexo 4 A4.2 creado: COCIENTE (25.0%)\n");
+
+  // A4.3: Modelo Estadístico - ahorro → 4,42%
+  await prisma.ajusteEnergetico.create({
+    data: {
+      bloqueId: bloque.id,
+      tipo: "NO_RUTINARIO",
+      modelo: "ESTADISTICO",
+      descripcion: "Remodelación piso (may-sep) en periodo de reporte - AC apagado, −25% consumo. Ajuste Anexo 4 A4.3: ahorro 4,42%.",
+      periodoInicio: new Date("2025-05-01"),
+      periodoFin: new Date("2025-09-30"),
+      valorAjuste: 25.0,
+      direccion: "reduccion",
+      observaciones: "Ejemplo Anexo 4 A4.3: Modelo Estadístico (Regresión). Remodelación en periodo de reporte. Ajuste vía LBEn_m estimada + promedio personas/mes. Ahorro ajustado: 4,42%.",
+    },
+  });
+  console.log("✅ Ajuste Referencia Anexo 4 A4.3 creado: ESTADISTICO (25.0%)\n");
+
   console.log("🌱 Seed completado exitosamente!");
   console.log("\nResumen de datos creados:");
   console.log(`  - 1 Edificación (EDUCATIVO_CAMPUS)`);
@@ -261,7 +311,7 @@ async function main() {
   console.log(`  - 4 Facturas energéticas EPM (periodo agosto-julio 2024)`);
   console.log(`  - 4 Variables operativas mensuales`);
   console.log(`  - 1 Línea Base Energética (REGRESSION_ESTADISTICA)`);
-  console.log(`  - 3 Ajustes energéticos (1 rutinario + 2 no rutinarios)`);
+  console.log(`  - 6 Ajustes energéticos (1 rutinario + 5 no rutinarios, incluidos 3 de Anexo 4)`);
 }
 
 main()
