@@ -1,0 +1,33 @@
+name: ✨ Feature Request
+description: Proponer una nueva funcionalidad
+title: "[FEAT] "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "Describe la funcionalidad y su valor para el usuario."
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema que resuelve
+      placeholder: "Actualmente no es posible..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solución propuesta
+      placeholder: "Me gustaría que..."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+  - type: checkboxes
+    id: breaking
+    attributes:
+      label: ¿Rompe compatibilidad?
+      options:
+        - label: Sí, es breaking change
+          required: false

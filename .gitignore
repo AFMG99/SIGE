@@ -5,25 +5,66 @@ admin_cookies.txt
 # Dependencies and build output
 node_modules/
 .next/
+.turbo/
+.vercel/
+.netlify/
+dist/
+build/
 
-# Environment
+# Environment (secrets live only in GitHub Secrets / .env locally)
 .env
 .env.*
 !.env.example
+.env.local
+.env.production
 
 # Logs
 *.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*storybook.log
+
+# TypeScript / linters cache
 *.tsbuildinfo
+.eslintcache
+.stylelintcache
+.swc/
+.parcel-cache/
 
+# Test / coverage artifacts
 coverage/
-dist/
+playwright-report/
+test-results/
+.pytest_cache/
+htmlcov/
+.coverage
 
+# Storybook build
+storybook-static
+
+# IDE / OS
 .DS_Store
 .vscode/
 .idea/
-*storybook.log
-storybook-static
+*.swp
+*.swo
 
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Secrets / keys (defense in depth)
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*

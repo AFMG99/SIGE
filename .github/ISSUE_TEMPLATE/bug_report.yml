@@ -1,0 +1,40 @@
+name: 🐛 Bug Report
+description: Reportar un error reproducible
+title: "[BUG] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "Gracias por reportar. Completa los campos para ayudarnos a reproducir."
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducir
+      placeholder: |
+        1. Ve a...
+        2. Haz clic en...
+        3. Observa el error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamiento actual
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Entorno (OS, Node, navegador)
+      placeholder: "Windows 11, Node 20.12, Chrome 128"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      render: shell
