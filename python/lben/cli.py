@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CLI de la Linea Base Energetica (LBEn) — envuelve lben_engine.py.
+CLI de la Linea Base Energetica (LBEn) — envuelve el paquete lben (python/lben).
 
 Contrato:
   stdin  -> JSON:
@@ -47,16 +47,13 @@ los logs del motor van a stderr; la salida JSON va limpia a stdout.
 from __future__ import annotations
 
 import json
-import os
 import sys
 import traceback
 
-RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, RAIZ)
+import numpy as np
+import statsmodels.api as sm
 
-import numpy as np  # noqa: E402
-import statsmodels.api as sm  # noqa: E402
-from lben_engine import (  # noqa: E402
+from . import (
     DataValidationError,
     K_INTERVALO,
     MIN_DATOS_IC,
@@ -168,6 +165,7 @@ def main() -> int:
 
     bloque_id = entrada.get("bloque_id")
     registros = entrada.get("registros")
+    ajustes = entrada.get("ajustes")  # lista de ajustes no rutinarios (Anexo 4)
     if not bloque_id or not isinstance(registros, list) or not registros:
         json.dump({"ok": False, "error": "Falta bloque_id o registros vacios."},
                   sys.stdout, ensure_ascii=False)
@@ -175,10 +173,10 @@ def main() -> int:
 
     vars_reg = entrada.get("variables_regresion") or list(VARS_REGRESION_DEFECTO)
 
-    # ── 1. Depuracion unica para los 4 modelos (§7.5.1, ec. 1-5) ──────
+    # ── 1. Depuracion unica para los 4 modelos (§7.5.1, ec. 1-5 + Anexo 4) ─
     try:
-        limpio, bandas, criterio, desv_est = depurar_con_bandas(
-            {str(bloque_id): registros}
+        limpio, bandas, criterio, desv_est, ajustes_aplicados = depurar_con_bandas(
+            {str(bloque_id): registros}, ajustes
         )
     except Exception as e:  # noqa: BLE001
         json.dump(
@@ -305,6 +303,7 @@ def main() -> int:
             int(b["mes"]) for b in bandas if b["estimado"]
         ],
         "variables_regresion_usadas": vars_disp,
+        "ajustes_aplicados": ajustes_aplicados,
         "resultados": resultados,
         "serie": serie,
     }
