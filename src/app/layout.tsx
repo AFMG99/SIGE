@@ -9,8 +9,8 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Universidad Virtual - Iniciar Sesión',
-  description: 'Portal de acceso a la Universidad Virtual',
+  title: 'SIGE-TdeA - Iniciar Sesión',
+  description: 'Sistema de Información para la Gestión Energética del Tecnológico de Antioquia',
   robots: 'noindex, nofollow',
 }
 

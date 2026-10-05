@@ -1,5 +1,5 @@
 {
-  "name": "university-login",
+  "name": "sige",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest --project storybook run",
+    "validate": "npm run lint && npm run typecheck && npm run test && npm run build && npm run build-storybook",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
