@@ -166,6 +166,19 @@ export const AjustesSinCarga: Story = {
     ).toBeVisible()
     await expect(canvas.getByRole('button', { name: /nuevo ajuste/i })).toBeVisible()
 
+    // Los pills del toggle cambian el modo (onModoChange → setVista global).
+    await userEvent.click(canvas.getByRole('button', { name: /^datos$/i }))
+    await expect(
+      await canvas.findByText(/consulte los ejemplos del anexo 4/i)
+    ).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: /nuevo ajuste/i })).toBeNull()
+
+    await userEvent.click(canvas.getByRole('button', { name: /^carga$/i }))
+    await expect(
+      await canvas.findByText(/cree ajustes no rutinarios \(anexo 4\)/i)
+    ).toBeVisible()
+    await expect(canvas.getByRole('button', { name: /nuevo ajuste/i })).toBeVisible()
+
     // Pestaña Registrados en modo carga: solo lectura, sin acciones de gestión.
     await userEvent.click(canvas.getByRole('tab', { name: /registrados/i }))
     await expect(await canvas.findByText('Registros guardados')).toBeVisible()

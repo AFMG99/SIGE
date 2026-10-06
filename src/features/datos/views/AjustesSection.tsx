@@ -13,6 +13,7 @@ interface AjustesSectionProps {
   ajustesAplicados: { ano: number; mes: number; proporcion: number; direccion: string; descripcion: string }[]
   modo: 'carga' | 'datos' | 'gestion'
   puedeCargar: boolean
+  onModoChange?: (modo: 'carga' | 'datos' | 'gestion') => void
 }
 
 const TABS = [
@@ -47,6 +48,7 @@ export function AjustesSection({
   ajustesAplicados,
   modo,
   puedeCargar,
+  onModoChange,
 }: AjustesSectionProps) {
   const [tab, setTab] = useState<'referencia' | 'registrados' | 'aplicados'>('referencia')
   const [showForm, setShowForm] = useState(false)
@@ -128,7 +130,7 @@ export function AjustesSection({
             {(['carga', 'datos', 'gestion'] as const).map((m) => (
               <button
                 key={m}
-                onClick={() => {}}
+                onClick={() => onModoChange?.(m)}
                 disabled={!puedeCargar && (m === 'carga' || m === 'gestion')}
                 className={`px-3 py-1.5 text-sm rounded-lg transition ${modo === m ? 'bg-uv-purple text-white' : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-slate-800'} ${!puedeCargar && (m === 'carga' || m === 'gestion') ? 'opacity-50 cursor-not-allowed' : ''}`}
               >

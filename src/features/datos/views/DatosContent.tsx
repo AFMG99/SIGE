@@ -443,6 +443,7 @@ export function DatosContent({
               ajustesAplicados={[]}
               modo={modoAjustes}
               puedeCargar={puedeCargar}
+              onModoChange={setVista}
             />
           )}
         </section>
