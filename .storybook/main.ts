@@ -26,7 +26,7 @@ const config: StorybookConfig = {
     '@storybook/addon-mcp',
   ],
   framework: '@storybook/nextjs-vite',
-  staticDirs: ['..\\public'],
+  staticDirs: ['../public'],
   viteFinal(viteConfig) {
     const actual = viteConfig.resolve?.alias;
     const base = Array.isArray(actual)
