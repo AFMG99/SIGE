@@ -177,11 +177,9 @@ Una de las primeras etapas dentro del establecimiento del PGEE es el desarrollo 
 
 Como parte de la auditoria energética se debe establecer una la línea base de consumo energético (LBEn) que sirve como punto de partida de la caracterización energética de la edificación y proporciona datos históricos y un contexto fundamental para comprender el consumo energético actual. La auditoría energética entra en acción al evaluar minuciosamente las instalaciones y procesos, identificando áreas de mejora en la eficiencia energética. Una vez identificadas estas oportunidades el cálculo de ahorros potenciales se convierte en un paso crucial, utilizando la LBEn como punto de referencia para estimar cuánta energía podría ahorrarse mediante la implementación de las medidas recomendadas en la auditoría energética. Esta secuencia de pasos asegura un enfoque metódico y eficaz en la gestión de la eficiencia energética, lo que resulta en ahorros significativos y una utilización más sostenible de la energía.
 
-El presente documento proporciona una guía que busca orientar de forma práctica el cálculo de la LBEn y la estimación del ahorro de energía en edificios pertenecientes a las administraciones públicas, que deberán tener en cuenta para dar cumplimiento al artículo 237 de la Ley 2294 de
+El presente documento proporciona una guía que busca orientar de forma práctica el cálculo de la LBEn y la estimación del ahorro de energía en edificios pertenecientes a las administraciones públicas, que deberán tener en cuenta para dar cumplimiento al artículo 237 de la Ley 2294 de 2023. Teniendo en cuenta lo anterior el documento considera en primer lugar un primer contexto general en el cual se desarrolla el alcance, objetivo y el glosario de términos de la metodología. Posteriormente se aborda el marco de referencia donde se recoge el marco normativo relacionado con la estructuración de planes, programas y proyectos en materia de eficiencia energética, así como diferentes protocolos que se han revisado en la determinación de la línea base de consumo energético. Antes de describir el procedimiento detallado se refiere como marco conceptual la necesidad de determinar una LBEn, los aspectos clave que ello considera, y la caracterización de consumo energético en el sector público. 
 
-2023. Teniendo en cuenta lo anterior el documento considera en primer lugar un primer contexto general en el cual se desarrolla el alcance, objetivo y el glosario de términos de la metodología. Posteriormente se aborda el marco de referencia donde se recoge el marco normativo relacionado con la estructuración de planes, programas y proyectos en materia de eficiencia energética, así como diferentes protocolos que se han revisado en la determinación de la línea base de consumo energético. Antes de describir el procedimiento detallado se refiere como marco conceptual la necesidad de determinar una LBEn, los aspectos clave que ello considera, y la caracterización de consumo energético en el sector público. El capítulo 8 aborda de manera detalla el proceso sugerido para la determinación de la Línea
-
-Base de Consumo Energético en edificios pertenecientes a la administración pública. A continuación, y conforme al mandato establecido en la Ley, la UPME presenta la información de resultados que deberá ser reportada por cada entidad de acuerdo con lo definido en el artículo 2 de la presente Resolución.
+El capítulo 8 aborda de manera detalla el proceso sugerido para la determinación de la Línea Base de Consumo Energético en edificios pertenecientes a la administración pública. A continuación, y conforme al mandato establecido en la Ley, la UPME presenta la información de resultados que deberá ser reportada por cada entidad de acuerdo con lo definido en el artículo 2 de la presente Resolución.
 
 Este documento se ha beneficiado de valiosas contribuciones de externos y colaboradores de la UPME, por ello la Subdirección de Demanda agradece la participación y aporte de los Centros de Evaluación Industrial (Centros PEVI) de la Universidad Autónoma de Bucaramanga, Universidad Autónoma de Occidente, Universidad del Atlántico, esta última en alianza con la empresa E2 Energía Eficiente.
 
@@ -279,9 +277,7 @@ A continuación, se describen los referentes normativos que son soporte de esta 
 
 -**Protocolo Internacional de Medición y Verificación del Desempeño – IPMVP:** Es un protocolo de uso gratuito respaldado y mantenido por la ONG EVO (Efficiency Valuation Organisation). Consiste en un conjunto de recomendaciones y mejores prácticas reconocidas a nivel mundial para medir y verificar el desempeño de proyectos de eficiencia energética y conservación de energía. El IPMVP proporciona un marco estandarizado que se utiliza para evaluar y cuantificar los ahorros de energía logrados a través de medidas de eficiencia energética en edificaciones, sistemas industriales y procesos. El IPMVP se utiliza para establecer una línea de base de referencia, definir las mediciones de ahorro de energía y verificar si los resultados cumplen con las expectativas proyectadas. El protocolo se divide en tres métodos de medición y verificación, conocidos como "opciones", que se adaptan a diferentes situaciones: i. Medición del ahorro basada en mediciones directas; ii. Medición del ahorro basada en mediciones de submedidores o parámetros de sistemas; y, iii. Medición del ahorro basada en un modelo de cálculo.
 - I**SO 50001:2018** – Sistemas de Gestión de la Energía. Requisitos con Orientación para su Uso: Esta norma establece los requisitos para implementar un sistema de gestión de la energía efectivo en una organización. Proporciona una estructura para ayudar a las organizaciones a desarrollar políticas y metas energéticas, identificar oportunidades de mejora y establecer procesos para medir, seguir y revisar el desempeño energético; entre los que se encuentra el establecimiento de la línea base.
--**ISO 50002:2014** – Auditorías Energéticas Requisitos con Orientación para su Uso: Esta norma establece los requisitos para llevar a cabo auditorías energéticas en edificaciones y sistemas. <u>Las auditorías energéticas son un paso crítico en la evaluación de la eficiencia energética y el</u>
-
-establecimiento de la línea base, ya que ayudan a identificar oportunidades de ahorro y a recopilar datos necesarios.
+-**ISO 50002:2014** – Auditorías Energéticas Requisitos con Orientación para su Uso: Esta norma establece los requisitos para llevar a cabo auditorías energéticas en edificaciones y sistemas. Las auditorías energéticas son un paso crítico en la evaluación de la eficiencia energética y el establecimiento de la línea base, ya que ayudan a identificar oportunidades de ahorro y a recopilar datos necesarios.
 
 -**ISO 50006:2014** – Sistemas de Gestión de la Energía. Medición del Desempeño Energético Usando Líneas Base Energéticas (LBEn) e Indicadores de Desempeño Energético (IDEn). Principios Generales y Orientación: Esta norma se enfoca en la evaluación del desempeño energético utilizando la LBEn e IDEn. Proporciona orientación sobre cómo establecer, evaluar y comparar el desempeño energético en diferentes períodos de tiempo.
 -**ISO 50008** – Gestión de Energía y Ahorro de Energía. Gestión de Datos de Energía de Edificios para el Desempeño Energético. Orientación para un Enfoque de Intercambio de Datos Sistémico: Esta norma se centra en la gestión de datos relacionados con el desempeño energético. Proporciona directrices para recopilar, almacenar y analizar datos que son fundamentales para el proceso de establecimiento de la línea base.
@@ -382,21 +378,23 @@ Finalmente, es posible determinar el consumo energético considerando que este s
 
 Es importante que la información de consumos energéticos sea normalizada a periodos de mensuales de 30 días, toda vez que en la información registrada en la factura puede ser resultado de periodos de más o menos de 30 días. Por ello, se debe tomar el valor total del consumo de energía facturado, dividirlo entre los días del periodo de facturación registrado en la factura, y el resultado multiplicarlo por 30. Así:
 
+$$\text{Consumo Mensual Normalizado (kWh/mes)} = \frac{\text{Consumo Registrado en Factura (kWh)}}{\text{Días del Período de Facturación}} \times 30  \text{ (1)}$$
+
 **7.5.1. A partir del modelo de valor absoluto de energía** <Numeral corregido por el artículo 1 del Auto 444 de 2024. El nuevo texto es el siguiente:> Es necesario tener en cuenta el periodo base de la información que se recopila. Así, se sugiere tener al menos tres valores del mismo mes de consumo siempre y cuando las características arquitectónicas, de uso, o de infraestructura energética de la edificación no hayan sufrido variación. En caso contrario, se tomará como valor absoluto de energía la información de consumo energético en el periodo que se tome seleccione como base de consumo energético de referencia. La LBEn se debe calcular de forma mensual a partir del promedio simple de los consumos energéticos mensuales conocidos, así:
-**(2)**
+$$LBEn_m = \frac{\sum_{i=1}^{m} \text{Consumo mensual de energía}_i}{m} \text{ (2)}$$
 Donde,
 
 LBEnm= Línea base de consumo energético para el mes m
 
 Consumo de energía = cantidad de energía consumida en el mes i
 
-## m = número de meses
+m = número de meses
 
 De esta forma se deben obtener 12 valores promedio que corresponden a los 12 periodos mensuales del año.
 
 Se sugiere realizar una verificación de los resultados del modelo obtenidos, estableciendo el intervalo de confianza de los datos. Para ello, se define un límite superior como el promedio de simple de los consumos energéticos obtenidos más un 10%, y un límite inferior como el promedio de simple de los consumos energéticos obtenidos menos un 10%, así:
 
-**(3)**
+$$\text{Intervalo de confianza} = LBEn_m * 0,9 < LBEn_m <LBEn_m * 1,1 \text{ (3)}$$
 
 > Límite superior = promedio + 10 % del promedio
 > Límite inferior = promedio − 10 % del promedio
@@ -405,17 +403,15 @@ Se deberá eliminar de la base de información de consumos energéticos inicial 
 
 En caso de contar con un número significativo de datos de consumo energético mensual, por ejemplo 10 o más, se sugiere establecer el intervalo de confianza así(5):
 
-**(4)**
+$$\text{Intervalo de confianza} = LBEn_m - 2 * DesvEst < LBEn_m < LBEn_m + 2 * DesvEst \text{ (4)}$$
 
 > LBEn<sub>m</sub> ± 2·DesvEst
 
 Donde,
 
-**(5)**
+$$DesvEst = \sqrt{\frac{\sum_{i=1}^{N} |x_i - \mu|^2}{N}} \text{ (5)}$$
 
-> DesvEst = √( Σ(X − μ)² / N )
-
-## DesvEst = Desviación estándar.
+DesvEst = Desviación estándar.
 
 X = es un valor del conjunto de datos de consumo energético.
 
@@ -428,14 +424,14 @@ N = número de datos de consumo energético
 - Numeral corregido por el artículo 1 del Auto 444 de 2024, 'por medio del cual se corrige un error formal contenido en los numerales 75.1 y 7.5.2 del anexo de la Resolución número 016 de 2024', publicada en el Diario Oficial No. 52.787 de 14 de junio de 2024. Rige a partir de su publicación en el Diario Oficial.
 ## Legislación Anterior
 
-**Texto original del Decreto 16 de 2024:**
+### Texto original del Decreto 16 de 2024:
 
 ### 7.5.1. A partir del modelo de valor absoluto de energía
 
 Es necesario tener en cuenta el periodo base de la información que se recopila. Así, se sugiere tener al menos tres valores del mismo mes de consumo siempre y cuando las características arquitectónicas, de uso, o de infraestructura energética de la edificación no hayan sufrido variación. En caso contrario, se tomará como valor absoluto de energía la información de consumo energético en el periodo que se tome seleccione como base de consumo energético de referencia.
 
 La LBEn se debe calcular de forma mensual a partir del promedio simple de los consumos energéticos mensuales conocidos, así:
-
+$$LBEn_m = \frac{\sum_{i=1}^{m} \text{Consumo mensual de energía}_i}{m} \text{ (2)}$$
 Donde,
 
 <u>LBEn<sub>m</sub> = Línea base de consumo energético para el mes m</u>
@@ -447,39 +443,40 @@ m = número de meses
 De esta forma se deben obtener 12 valores promedio que corresponden a los 12 periodos mensuales del año.
 
 Se sugiere realizar una verificación de los resultados del modelo obtenidos, estableciendo el intervalo de confianza de los datos. Para ello, se define un límite superior como el promedio de simple de los consumos energéticos obtenidos más un 10%, y un límite inferior como el promedio de simple de los consumos energéticos obtenidos menos un 10%, así:
-
+$$\text{Intervalo de confianza} = LBEn_m * 1,1 < LBEn_m <LBEn_m * 0,9 \text{ (3)}$$
 Se deberá eliminar de la base de información de consumos energéticos inicial aquellos valores que estén por fuera del intervalo de confianza. Una vez depurada la base de información de consumos energéticos, se debe calcular la LBEn de acuerdo con la ecuación 2. Los valores obtenidos luego de la verificación del modelo, se constituyen en la línea base de consumo energético, LBEn.
 
 En caso de contar con un número significativo de datos de consumo energético mensual, por ejemplo 10 o más, se sugiere establecer el intervalo de confianza así<sup>(5)</sup>:
-
+$$\text{Intervalo de confianza} = LBEn_m + 2 * DesvEst < LBEn_m < LBEn_m - 2 * DesvEst \text{ (4)}$$
 Donde,
-
+$$DesvEst = \sqrt{\frac{\sum_{i=1}^{N} |x_i - \mu|^2}{N}} \text{ (5)}$$
 DesvEst = Desviación estándar.
 
 X = es un valor del conjunto de datos de consumo energético.
 
-media (promedio) del conjunto de datos de consumo energético.
+μ = media (promedio) del conjunto de datos de consumo energético.
 
 N = número de datos de consumo energético.
 
-**7.5.2. A partir del modelo de cociente de valores medido o relación simple** <Numeral corregido por el artículo 1 del Auto 444 de 2024. El nuevo texto es el siguiente:> Es necesario tener en cuenta el periodo base de la información que se recopila para el consumo energético y la variable relevante que determina dicho consumo. Así, se sugiere tener al menos tres valores del cociente de valores medido para el mismo mes de consumo, siempre y cuando las características arquitectónicas, de uso, o de infraestructura energética de la edificación no hayan sufrido variación. En caso contrario, se tomará como cociente de valores medido la información en el periodo que se tome seleccione como base de consumo energético de referencia. La LBEn se debe calcular de forma mensual a partir del promedio simple de los cocientes de
+**7.5.2. A partir del modelo de cociente de valores medido o relación simple** <Numeral corregido por el artículo 1 del Auto 444 de 2024. El nuevo texto es el siguiente:> 
 
-## valores medidos mensuales conocidos, así:
+Es necesario tener en cuenta el periodo base de la información que se recopila para el consumo energético y la variable relevante que determina dicho consumo. Así, se sugiere tener al menos tres valores del cociente de valores medido para el mismo mes de consumo, siempre y cuando las características arquitectónicas, de uso, o de infraestructura energética de la edificación no hayan sufrido variación. En caso contrario, se tomará como cociente de valores medido la información en el periodo que se tome seleccione como base de consumo energético de referencia. La LBEn se debe calcular de forma mensual a partir del promedio simple de los cocientes de
 
-**(6)**
+valores medidos mensuales conocidos, así:
+
+$$LBEn_m = \frac{\sum_{i=1}^{m} \text{cociente de valores medido}_{i}}{m} \text{ (6)}$$
 Donde,
 
 LBEn<sub>m</sub> = Línea base de consumo energético para el mes m.
 
 Cociente de valores medidos = cantidad de energía consumida por unidad de la variable relevante en el mes i.
 
-## m = número de meses.
+m = número de meses.
 
 De esta forma se deben obtener 12 valores promedio para el cociente de valores medido que corresponden a los 12 periodos mensuales del año.
 
 Se sugiere realizar una verificación de los resultados del modelo obtenidos, estableciendo el intervalo de confianza de los datos. Para ello, se define un límite superior como el promedio de simple de los cocientes de valores medido obtenidos más un 10%, y un límite inferior como el promedio de simple de cocientes de valores medido obtenidos menos un 10%, así:
-
-**(7)**
+$$\text{Intervalo de confianza} = LBEn_m * 0,9 < LBEn_m < LBEn_m * 1,1 \text{ (7)}$$
 Se deberá eliminar de la base de información de cocientes de valores medido inicial aquellos valores que estén por fuera del intervalo de confianza. Una vez depurada la base de información de cocientes de valores medidos, se debe calcular la LBEn de acuerdo con la ecuación 6. Los valores obtenidos luego de la verificación del modelo, se constituyen en la línea base de consumo energético, LBEn.
 
 En caso de contar con un número significativo de datos de consumo energético mensual, por ejemplo 10 o más, se sugiere establecer el intervalo de confianza de acuerdo con lo presentado en las ecuaciones 4 y 5.
@@ -489,9 +486,29 @@ En caso de contar con un número significativo de datos de consumo energético m
 - Numeral corregido por el artículo 1 del Auto 444 de 2024, 'por medio del cual se corrige un error formal contenido en los numerales 75.1 y 7.5.2 del anexo de la Resolución número 016 de 2024', publicada en el Diario Oficial No. 52.787 de 14 de junio de 2024. Rige a partir de su publicación en el Diario Oficial.
 ## Legislación Anterior
 
-**Texto original del Decreto 16 de 2024:**
+### Texto original del Decreto 16 de 2024:
 
-**7.5.2. A partir del modelo de cociente de valores medido o relación simple** Es necesario tener en cuenta el periodo base de la información que se recopila para el consumo energético y la variable relevante que determina dicho consumo. Así, se sugiere tener al menos tres valores del cociente de valores medido para el mismo mes de consumo, siempre y cuando las características arquitectónicas, de uso, o de infraestructura energética de la edificación no hayan sufrido variación. En caso contrario, se tomará como cociente de valores medido la información en el periodo que se tome seleccione como base de consumo energético de referencia. La LBEn se debe calcular de forma mensual a partir del promedio simple de los cocientes de valores medidos mensuales conocidos, así: Donde, LBEn<sub>m</sub> = Línea base de consumo energético para el mes m. Cociente de valores medidos = cantidad de energía consumida por unidad de la variable relevante en el mes i. m = número de meses. De esta forma se deben obtener 12 valores promedio para el cociente de valores medido que corresponden a los 12 periodos mensuales del año. Se sugiere realizar una verificación de los resultados del modelo obtenidos, estableciendo el intervalo de confianza de los datos. Para ello, se define un límite superior como el promedio de simple de los cocientes de valores medido obtenidos más un 10%, y un límite inferior como el promedio de simple de cocientes de valores medido obtenidos menos un 10%, así: Se deberá eliminar de la base de información de cocientes de valores medido inicial aquellos valores que estén por fuera del intervalo de confianza. Una vez depurada la base de información de cocientes de valores medidos, se debe calcular la LBEn de acuerdo con la ecuación 6. Los valores obtenidos luego de la verificación del modelo, se constituyen en la línea base de consumo energético, LBEn. En caso de contar con un número significativo de datos de consumo energético mensual, por ejemplo 10 o más, se sugiere establecer el intervalo de confianza de acuerdo con lo presentado en las ecuaciones 4 y 5.
+### 7.5.2. A partir del modelo de cociente de valores medido o relación simple
+
+Es necesario tener en cuenta el periodo base de la información que se recopila para el consumo energético y la variable relevante que determina dicho consumo. Así, se sugiere tener al menos tres valores del cociente de valores medido para el mismo mes de consumo, siempre y cuando las características arquitectónicas, de uso, o de infraestructura energética de la edificación no hayan sufrido variación. En caso contrario, se tomará como cociente de valores medido la información en el periodo que se tome seleccione como base de consumo energético de referencia. 
+
+La LBEn se debe calcular de forma mensual a partir del promedio simple de los cocientes de valores medidos mensuales conocidos, así: 
+$$LBEn_m = \frac{\sum_{i=1}^{m} \text{cociente de valores medido}_{i}}{m} \text{ (6)}$$
+Donde, 
+
+LBEn<sub>m</sub> = Línea base de consumo energético para el mes m. 
+
+Cociente de valores medidos = cantidad de energía consumida por unidad de la variable relevante en el mes i. 
+
+m = número de meses. 
+
+De esta forma se deben obtener 12 valores promedio para el cociente de valores medido que corresponden a los 12 periodos mensuales del año. 
+
+Se sugiere realizar una verificación de los resultados del modelo obtenidos, estableciendo el intervalo de confianza de los datos. Para ello, se define un límite superior como el promedio de simple de los cocientes de valores medido obtenidos más un 10%, y un límite inferior como el promedio de simple de cocientes de valores medido obtenidos menos un 10%, así: 
+$$\text{Intervalo de confianza} = LBEn_m * 1,1 < LBEn_m < LBEn_m * 0,9 \text{ (7)}$$
+Se deberá eliminar de la base de información de cocientes de valores medido inicial aquellos valores que estén por fuera del intervalo de confianza. Una vez depurada la base de información de cocientes de valores medidos, se debe calcular la LBEn de acuerdo con la ecuación 6. Los valores obtenidos luego de la verificación del modelo, se constituyen en la línea base de consumo energético, LBEn. 
+
+En caso de contar con un número significativo de datos de consumo energético mensual, por ejemplo 10 o más, se sugiere establecer el intervalo de confianza de acuerdo con lo presentado en las ecuaciones 4 y 5.
 ## 7.5.3. A partir del modelo estadístico
 
 Es necesario tener en cuenta el periodo base de la información que se recopila para el consumo energético y determinar las variables relevantes que influyen en el consumo de energía de la edificación. Para aplicar este modelo se sugiere hacer uso de una hoja de cálculo en Excel.
@@ -504,8 +521,37 @@ Los resultados del modelo presentarán la siguiente estructura:
 
 Resumen
 
-El resultado del modelo será una ecuación de línea base de consumo energético cuyos valores están presentados en el último cuadro y corresponde a la siguiente estructura:
+---
+Estadísticas de la regresión
 
+---
+- Coeficiente de correlación múltiple
+- Coeficiente de determinación R²
+- R² ajustado
+- Error típico
+- Observaciones
+
+---
+ANÁLISIS DE VARIANZA
+
+|           | Grados de libertad | Suma de cuadrados | Promedio de los cuadrados | F   | Valor crítico de F |
+| --------- | ------------------ | ----------------- | ------------------------- | --- | ------------------ |
+| Regresión |                    |                   |                           |     |                    |
+| Residuos  |                    |                   |                           |     |                    |
+| Total     |                    |                   |                           |     |                    |
+
+---
+
+|              | Coeficientes | Error típico | Estadístico t | Probabilidad |
+|--------------|--------------|--------------|---------------|--------------|
+| Intercepción |              |              |               |              |
+| Variable X 1 |              |              |               |              |
+| Variable X 2 |              |              |               |              |
+
+---
+
+El resultado del modelo será una ecuación de línea base de consumo energético cuyos valores están presentados en el último cuadro y corresponde a la siguiente estructura:
+$$\text{Consumo energético} = \sum^n_{i=1} (\text{coeficiente de la variable } X_n * X_n) + (\text{coeficiente de la intercepción}) \text{ (8)}$$
 Donde:
 
 X<sub>n</sub>= n-ésima variable relevante que influye en el valor del consumo energético de la edificación.
@@ -554,12 +600,22 @@ Estos ajustes rutinarios se pueden calcular utilizando valores constantes, propo
 - Cambios significativos en condiciones climáticas durante intervalos de tiempo, que aumentan las horas de funcionamiento de aires acondicionados.
 - Cambios en número de usuarios atendidos en la entidad por mejoras en sistemas de información o trámites.
 - Aumento de ocupación por cambios en protocolos de atención
-- Disminución de personal trabajando de manera presencial Para los casos donde se utilice un modelo de línea base de valor absoluto o de cociente, estos ajustes rutinarios se deben hacer cuando se tienen diferentes condiciones entre los períodos donde se mide el consumo de energía, por ejemplo, variaciones que se implementaron durante los periodos de medición o recolección de datos. Para los casos donde se tengan modelos de regresión para la construcción de la línea base, cualquier cambio rutinario de las variables o parámetros que afectan el consumo energético durante el periodo de reporte se refleja automáticamente en el valor de este consumo, por lo tanto, los ajustes rutinarios de la línea de base se incluyen automáticamente en el valor de la energía. En otras palabras, en el cálculo de los ahorros de energía ya se ha considerado cualquier cambio que se espere en las variables y parámetros cuando se tiene un modelo estadístico. Por lo tanto, no es necesario realizar un ajuste adicional a la línea de base energética. Los ajustes no rutinarios consideran los efectos de cambios en los Factores Estáticos dentro de la Frontera de Medición en el consumo de energía, es decir, los cambios en las condiciones que no se esperan que se mantengan en el tiempo (tamaño de la instalación, diseño u operación de los equipos, el número de semanas de producción o labor). Estos ajustes se pueden realizar realizando mediciones adicionales o utilizando un análisis de ingeniería y deben ser monitoreados para reportar cualquier cambio durante el periodo de reporte. Ejemplos de situaciones que hacen necesario este tipo de ajuste son:
-- Remodelación de un piso de una edificación durante 3 meses, lo que hace que parte de las cargas de iluminación o climatización no funcionen por ese tiempo.
+- Disminución de personal trabajando de manera presencial 
 
+Para los casos donde se utilice un modelo de línea base de valor absoluto o de cociente, estos ajustes rutinarios se deben hacer cuando se tienen diferentes condiciones entre los períodos donde se mide el consumo de energía, por ejemplo, variaciones que se implementaron durante los periodos de medición o recolección de datos. 
+
+Para los casos donde se tengan modelos de regresión para la construcción de la línea base, cualquier cambio rutinario de las variables o parámetros que afectan el consumo energético durante el periodo de reporte se refleja automáticamente en el valor de este consumo, por lo tanto, los ajustes rutinarios de la línea de base se incluyen automáticamente en el valor de la energía. En otras palabras, en el cálculo de los ahorros de energía ya se ha considerado cualquier cambio que se espere en las variables y parámetros cuando se tiene un modelo estadístico. Por lo tanto, no es necesario realizar un ajuste adicional a la línea de base energética. 
+
+Los ajustes no rutinarios consideran los efectos de cambios en los Factores Estáticos dentro de la Frontera de Medición en el consumo de energía, es decir, los cambios en las condiciones que no se esperan que se mantengan en el tiempo (tamaño de la instalación, diseño u operación de los equipos, el número de semanas de producción o labor). Estos ajustes se pueden realizar realizando mediciones adicionales o utilizando un análisis de ingeniería y deben ser monitoreados para reportar cualquier cambio durante el periodo de reporte. Ejemplos de situaciones que hacen necesario este tipo de ajuste son:
+
+- Remodelación de un piso de una edificación durante 3 meses, lo que hace que parte de las cargas de iluminación o climatización no funcionen por ese tiempo.
 - Situaciones de mantenimiento correctivos de equipos no programados
 - Situaciones anormales como huelgas, paros, manifestaciones, bloqueos, etc., que impidan el uso habitual de la edificación durante un intervalo de tiempo.
-- Se opta por subcontratar procesos, con el consecuente incremento de la rentabilidad y una reducción del consumo de energía al interior de la instalación. Al incluir esto ajustes, los ahorros de energía se pueden expresar de la siguiente forma:
+- Se opta por subcontratar procesos, con el consecuente incremento de la rentabilidad y una reducción del consumo de energía al interior de la instalación. 
+
+Al incluir esto ajustes, los ahorros de energía se pueden expresar de la siguiente forma:
+$$Ahorros_\text{modelo absoluto,cociente} = (E_{base} - E_{reporte}) \pm\text{ajustes rutinarios} \pm\text{ajustes o rutinarios (12)}$$
+$$Ahorros_\text{modelo estadistico} = (E_{base} - E_{reporte}) \pm\text{ajustes no rutinarios (13)}$$
 Para un correcto ajuste de la línea base, es importante utilizar un método apropiado para el tipo de cambios que se esperan en las condiciones de la instalación. Igualmente, se debe realizar un análisis completo de los datos del consumo de energía para identificar todos los cambios que puedan afectar este consumo. Finalmente, los ajustes realizados a la línea base energética deben ser documentados para que los ahorros energéticos puedan ser verificados y validados.
 
 A menudo, definir un ajuste no rutinario y sus efectos sobre el consumo de energía no es algo sencillo dada la falta de claridad sobre su definición y maneras de cuantificar sus efectos.
@@ -573,17 +629,16 @@ Para estimar los potenciales de ahorro energético se deben considerar los sigui
 ## 8.1. Mejor desempeño energético
 
 Cuando se hace uso de los modelos de valor absoluto de energía o el de cociente de valores medido, el potencial de ahorro energético en el primer caso se realiza como la diferencia entre valor mínimo de los consumos energéticos mensuales reales y conocidos, y aquel que resulta de la LBEn para el mismo periodo, así:
-
+$$\text{Potencial de ahorro en el mes m} = \text{mínimo de los consumos reales de energía del mes m} - \text{valor del consumo en m según LBEn (9)}$$
 Para obtener el potencial de ahorro por mejor desempeño energético cuando se hace uso del modelo estadístico, se debe determinar primero la diferencia entre el valor de consumo energía real o conocido y el valor consumo de la LBEn, así:
-
-Aquellos resultados donde la diferencia en el mes m es negativa representan el mejor
-
-desempeño energético. A continuación, se debe realizar un gráfico de correlación en Excel entre el consumo de energía que corresponde a los mejores desempeños energéticos y la variable relevante. Con la función línea de tendencia de Excel se halla la ecuación del modelo de consumo de los mejores desempeños energéticos del año y se calcula para cada mes el valor del consumo de energía según el modelo de mejores desempeños energéticos de acuerdo con el valor de la variable relevante.
+$$\text{Diferencia en el mes m} = \text{valor real de los consumos de energía del mes m} - \text{valor del consumo en m según LBEn (10)}$$
+Aquellos resultados donde la diferencia en el mes m es negativa representan el mejor desempeño energético. A continuación, se debe realizar un gráfico de correlación en Excel entre el consumo de energía que corresponde a los mejores desempeños energéticos y la variable relevante. Con la función línea de tendencia de Excel se halla la ecuación del modelo de consumo de los mejores desempeños energéticos del año y se calcula para cada mes el valor del consumo de energía según el modelo de mejores desempeños energéticos de acuerdo con el valor de la variable relevante.
 
 El potencial de ahorro mensual se obtiene de la diferencia entre el valor del consumo de la LBEn y el valor del consumo de los mejores desempeños energéticos, así:
+$$\text{Potencial de ahorro en el mes m} = \text{valor del consumo en m según LBEn} - \text{valor del consumo en m según modelo de mejores desempeños energéticos (11)}$$
 
 Finalmente, el potencial de ahorro puede ser expresado como un valor porcentual a través de la siguiente relación:
-
+$$\text{\%Ahorro} = \frac{\text{Potencial de ahorro en el mes m}}{\text{valor del consumo en m según LBEn}} \text{ (12)}$$
 ## 8.2. Oportunidades de mejora
 
 Una vez caracterizada energéticamente la institución, y como resultado de la auditoría energética que realice la edificación, se identifican cuáles serán las oportunidades de mejora asociadas a medidas de eficiencia energética que se implementarán con el propósito de reducir el consumo de energía y el gasto asociado con este consumo. A continuación, se presenta una clasificación de las medidas de Eficiencia Energética (EE): buenas prácticas operacionales, medidas pasivas y reconversión tecnológica. Ahora bien, dadas las condiciones especiales del país en cuanto a orografía y clima, es de esperar que las medidas pasivas y activas sean diferentes en cada zona climática y tengan diferente impacto.
@@ -741,97 +796,305 @@ Es posible que algunas edificaciones presenten consumos mayores o menores espec�
 
 ## Consumo de energía normalizado [kWh/mes]
 
-|Mes|Año|||
-|---|---|---|---|
-|Año 1||Año 2|Año 3|
-|enero|10.204|11.264|11.635|
-|febrero|11.112|10.886|11.158|
-|marzo|11.318|11.496|11.810|
-|abril|11.242|11.883|11.306|
-|mayo|11.277|12.486|11.839|
-|junio|11.715|11.009|11.870|
-|julio|12.219|11.719|11.891|
-|agosto|11.146|11.637|11.784|
-|septiembre|10.300|12.028|11.765|
-|octubre|11.348|10.383|10.783|
-|noviembre|11.434|11.435|10.639|
-|diciembre|11.374|11.662|10.927|
-|Promedio Anual|11.224|11.491|11.451|
-|de la siguiente manera:|Paso 5. CONSTRUCCIÓN DE LÍNEA BASE ENERGÉTICA tener una explicación a factores mencionados anteriormente.|Como primer paso, se grafica el comportamiento mensual en cada uno de los años reportados La gráfica anterior permite visualizar el comportamiento del consumo mensual y las tendencias en diferentes períodos del año. En el caso presentado, se observa que el consumo en los meses de octubre, noviembre, diciembre y enero tiende a ser menor. Esta tendencia puede||
+| Mes                |      Año 1 |      Año 2 |      Año 3 |
+| ------------------ | ---------: | ---------: | ---------: |
+| enero              |     10.204 |     11.264 |     11.635 |
+| febrero            |     11.112 |     10.886 |     11.158 |
+| marzo              |     11.318 |     11.496 |     11.810 |
+| abril              |     11.242 |     11.883 |     11.306 |
+| mayo               |     11.277 |     12.486 |     11.839 |
+| junio              |     11.715 |     11.009 |     11.870 |
+| julio              |     12.219 |     11.719 |     11.891 |
+| agosto             |     11.146 |     11.637 |     11.784 |
+| septiembre         |     10.300 |     12.028 |     11.765 |
+| octubre            |     11.348 |     10.383 |     10.783 |
+| noviembre          |     11.434 |     11.435 |     10.639 |
+| diciembre          |     11.374 |     11.662 |     10.927 |
+| **Promedio Anual** | **11.224** | **11.491** | **11.451** |
+## Paso 5. CONSTRUCCIÓN DE LÍNEA BASE ENERGÉTICA 
 
-|Mes|Año|||Promedio|
-|---|---|---|---|---|
-|Año 1||Año 2|Año 3||
-|enero|10.204|11.264|11.635|11.034|
-|febrero|11.112|10.886|11.158|11.052|
-|marzo|11.318|11.496|11.810|11.541|
-|abril|11.242|11.883|11.306|11.477|
-|mayo|11.277|12.486|11.839|11.867|
-|junio|11.715|11.009|11.870|11.531|
-|julio|12.219|11.719|11.891|11.943|
-|agosto|11.146|11.637|11.784|11.522|
-|septiembre|10.300|12.028|11.765|11.364|
-|octubre|11.348|10.383|10.783|10.838|
-|noviembre|11.434|11.435|10.639|11.169|
-|diciembre|11.374 base promedio mensual|11.662 El promedio mes referido en la tabla anterior, se construye a partir de la ecuación dos (2) presentada en el numeral 8.5.1. del documento de la metodología. Teniendo en cuenta lo anterior, se construye la línea base a partir de los datos promedio de cada mes (para años diferentes) durante el periodo base. A continuación, se presenta la línea Para verificar el modelo de la línea base energética, se define un intervalo de confianza a partir del consumo mensual promedio. Se define como límite superior el 110% del consumo promedio y el límite inferior con el 90% del consumo promedio, utilizando la ecuación tres (3) presentada en el numeral 8.5.1. del documento de la metodología, de la siguiente manera:|10.927|11.321|
+Como primer paso, se grafica el comportamiento mensual en cada uno de los años reportados de la siguiente manera: 
 
-|Mes|Año|||Promedio mes|Límite superior|Límite inferior|
-|---|---|---|---|---|---|---|
-|Año 1||Año 2|Año 3||||
-|enero|10.204|11.264|11.635|11.034|12.138|9.931|
-|febrero|11.112|10.886|11.158|11.052|12.157|9.947|
-|marzo|11.318|11.496|11.810|11.541|12.696|10.387|
-|abril|11.242|11.883|11.306|11.477|12.625|10.329|
-|mayo|11.277|12.486|11.839|11.867|13.054|10.681|
-|junio|11.715|11.009|11.870|11.531|12.685|10.378|
-|julio|12.219|11.719|11.891|11.943|13.137|10.749|
-|agosto|11.146|11.637|11.784|11.522|12.675|10.370|
-|septiembre|10.300|12.028|11.765|11.364|12.501|10.228|
-|octubre|11.348|10.383|10.783|10.838|11.922|9.754|
-|noviembre|11.434|11.435|10.639|11.169|12.286|10.052|
-|diciembre|11.374|11.662|10.927|11.321|12.453|10.189|
-|confianza.|Paso 6. ESTIMAR POTENCIALES DE AHORRO de cada uno de los meses en el período analizado|los datos son representativos para la estimación del consumo.|A continuación, se visualizan las líneas promedio, límite máximo y mínimo del intervalo de La verificación del modelo se hace a partir de la visualización de los datos del periodo base. Si los datos analizados se encuentran dentro del intervalo de confianza, los datos representan un dato significativo del consumo de la energía para cada mes. En este caso, cada uno de los tres puntos (año 1, año 2 y año 3) se encuentran dentro del límite de +/- 10% en el mes, por lo que Con el fin de determinar el mejor desempeño energético, se identifican los consumos mínimos||||
+<div style="overflow-x:auto;">
 
-|Mes|Año|||Promedio / mes|Mínimo|
-|---|---|---|---|---|---|
-|Año 1||Año 2|Año 3|||
-|enero|10.204|11.264|11.635|11.034|10.204|
-|febrero|11.112|10.886|11.158|11.052|10.886|
-|marzo|11.318|11.496|11.810|11.541|11.318|
-|abril|11.242|11.883|11.306|11.477|11.242|
-|mayo|11.277|12.486|11.839|11.867|11.277|
-|junio|11.715|11.009|11.870|11.531|11.009|
-|julio|12.219|11.719|11.891|11.943|11.719|
-|agosto|11.146|11.637|11.784|11.522|11.146|
-|septiembre|10.300|12.028|11.765|11.364|10.300|
-|octubre|11.348|10.383|10.783|10.838|10.383|
-|noviembre|11.434|11.435|10.639|11.169|10.639|
-|diciembre|11.374 determina el porcentaje de ahorro.|11.662 mensuales como potenciales de ahorro por mejor desempeño energético.|10.927 La siguiente figura muestra el promedio del mes como línea base y los valores mínimos Se observa que para cada mes en específico hay al menos un dato por debajo del promedio. Bajo las mismas condiciones de operación, la edificación puede reducir su consumo al periodo donde operó con mayor eficiencia de consumo. Con lo anterior, se determina como ahorro potencial para cada mes la diferencia entre en consumo promedio y el consumo mínimo y se A continuación, se presentan los ahorros potenciales estimados para cada uno de los meses.|11.321|10.927|
+<svg viewBox="0 0 800 470" width="100%" xmlns="http://www.w3.org/2000/svg">
 
-|Mes|Año|||Promedio /mes|Mínimo|Ahorro||
-|---|---|---|---|---|---|---|---|
-|Año 1||Año 2|Año 3|||||
-|enero|10.204|11.264|11.635|11.034|10.204|830|7,5%|
-|febrero|11.112|10.886|11.158|11.052|10.886|166|1,5%|
-|marzo|11.318|11.496|11.810|11.541|11.318|223|1,9%|
-|abril|11.242|11.883|11.306|11.477|11.242|235|2,0%|
-|mayo|11.277|12.486|11.839|11.867|11.277|590|5,0%|
-|junio|11.715|11.009|11.870|11.531|11.009|522|4,5%|
-|julio|12.219|11.719|11.891|11.943|11.719|224|1,9%|
-|agosto|11.146|11.637|11.784|11.522|11.146|376|3,3%|
-|septiembre|10.300|12.028|11.765|11.364|10.300|1.064|9,4%|
-|octubre|11.348|10.383|10.783|10.838|10.383|455|4,2%|
-|noviembre|11.434|11.435|10.639|11.169|10.639|530|4,7%|
-|diciembre|11.374|11.662|10.927|11.321|10.927|394|3,5%|
-|Promedio x Año|11.224 estimación de potenciales de ahorro|11.491|11.451 Paso 7. Identificar información a reportar a la UPME asociado a determinación de LBEn y|11.388|10.921|468|4,1%|
-|Atributo|||Descripción|||Observaciones||
-||Uso/destino del edificio||Alcaldía municipal|||||
-|Área útil|||2.458 m2|||Un sótano, 4 pisos||
-||Energéticos utilizados||Energía eléctrica|||||
-||Modelo de LBEn seleccionado|||Valor absoluto de energía||||
-|Periodo base|Cantidad de datos iniciales Cantidad de datos finales|36 36|Tres años|||Datos mensuales||
-|LBEn|||Valor promedio mes|||Datos mensuales||
-|Ahorro estimado|en los capítulos 7 y 8 de la metodología. Paso 1. TIPO DE SOLICITUD DE INFORMACIÓN por mes para los últimos 3 años. Paso 2. DEFINIR EL PERIODO BASE||Valor mensual Anexo 2 - EJEMPLO DE DETERMINACIÓN DE LÍNEA BASE ENERGÉTICA Y CÁLCULO DE AHORROS CON COCIENTE DE VALORES MEDIDO En una alcaldía municipal con área construida de 2.458 m2, distribuidos en un sótano y 4 pisos de oficinas, se desea determinar la línea base energética y el ahorro estimado por mejora en hábitos de uso de la energía (mejor desempeño), teniendo en cuenta el procedimiento referido Se cuenta con el registro de consumo de energía mensual y el registro de personas atendidas|||En kWh y porcentaje %||
+<!-- Fondo -->
+<rect width="800" height="470" fill="white"/>
+
+<!-- Área del gráfico -->
+<rect x="90" y="50" width="650" height="320"
+      fill="white" stroke="#cccccc"/>
+
+<!-- Líneas horizontales -->
+<g stroke="#dddddd" stroke-width="1">
+  <line x1="90" y1="50"  x2="740" y2="50"/>
+  <line x1="90" y1="90"  x2="740" y2="90"/>
+  <line x1="90" y1="130" x2="740" y2="130"/>
+  <line x1="90" y1="170" x2="740" y2="170"/>
+  <line x1="90" y1="210" x2="740" y2="210"/>
+  <line x1="90" y1="250" x2="740" y2="250"/>
+  <line x1="90" y1="290" x2="740" y2="290"/>
+  <line x1="90" y1="330" x2="740" y2="330"/>
+  <line x1="90" y1="370" x2="740" y2="370"/>
+</g>
+
+<!-- Líneas verticales -->
+<g stroke="#eeeeee" stroke-width="1">
+  <line x1="90"  y1="50" x2="90"  y2="370"/>
+  <line x1="149" y1="50" x2="149" y2="370"/>
+  <line x1="208" y1="50" x2="208" y2="370"/>
+  <line x1="267" y1="50" x2="267" y2="370"/>
+  <line x1="326" y1="50" x2="326" y2="370"/>
+  <line x1="385" y1="50" x2="385" y2="370"/>
+  <line x1="444" y1="50" x2="444" y2="370"/>
+  <line x1="503" y1="50" x2="503" y2="370"/>
+  <line x1="562" y1="50" x2="562" y2="370"/>
+  <line x1="621" y1="50" x2="621" y2="370"/>
+  <line x1="680" y1="50" x2="680" y2="370"/>
+  <line x1="740" y1="50" x2="740" y2="370"/>
+</g>
+
+<!-- Eje Y -->
+<g font-family="Arial" font-size="11" fill="#333" text-anchor="end">
+  <text x="82" y="374">9.000</text>
+  <text x="82" y="334">9.500</text>
+  <text x="82" y="294">10.000</text>
+  <text x="82" y="254">10.500</text>
+  <text x="82" y="214">11.000</text>
+  <text x="82" y="174">11.500</text>
+  <text x="82" y="134">12.000</text>
+  <text x="82" y="94">12.500</text>
+  <text x="82" y="54">13.000</text>
+</g>
+
+<!-- Etiqueta eje Y -->
+<text x="22" y="210"
+      transform="rotate(-90 22 210)"
+      text-anchor="middle"
+      font-family="Arial"
+      font-size="12">
+  Consumo energía [kWh/mes]
+</text>
+
+<!-- Meses -->
+<g font-family="Arial" font-size="10" fill="#333"
+   text-anchor="middle">
+
+  <text x="90"  y="388">enero</text>
+  <text x="149" y="388">febrero</text>
+  <text x="208" y="388">marzo</text>
+  <text x="267" y="388">abril</text>
+  <text x="326" y="388">mayo</text>
+  <text x="385" y="388">junio</text>
+  <text x="444" y="388">julio</text>
+  <text x="503" y="388">agosto</text>
+  <text x="562" y="388">septiembre</text>
+  <text x="621" y="388">octubre</text>
+  <text x="680" y="388">noviembre</text>
+  <text x="740" y="388">diciembre</text>
+
+</g>
+
+<!-- ===================== -->
+<!-- AÑO 1 - CÍRCULOS AZULES -->
+<!-- ===================== -->
+
+<g fill="#5b9bd5">
+
+  <circle cx="90"  cy="273.7" r="5"/>
+  <circle cx="149" cy="201.0" r="5"/>
+  <circle cx="208" cy="184.6" r="5"/>
+  <circle cx="267" cy="190.6" r="5"/>
+  <circle cx="326" cy="187.8" r="5"/>
+  <circle cx="385" cy="152.8" r="5"/>
+  <circle cx="444" cy="112.5" r="5"/>
+  <circle cx="503" cy="198.3" r="5"/>
+  <circle cx="562" cy="266.0" r="5"/>
+  <circle cx="621" cy="182.2" r="5"/>
+  <circle cx="680" cy="175.3" r="5"/>
+  <circle cx="740" cy="180.1" r="5"/>
+
+</g>
+
+<!-- ===================== -->
+<!-- AÑO 2 - CUADRADOS NARANJAS -->
+<!-- ===================== -->
+
+<g fill="#ed7d31">
+
+  <rect x="85"  y="164.9" width="10" height="10"/>
+  <rect x="144" y="214.1" width="10" height="10"/>
+  <rect x="203" y="164.3" width="10" height="10"/>
+  <rect x="262" y="135.9" width="10" height="10"/>
+  <rect x="321" y="86.1"  width="10" height="10"/>
+  <rect x="380" y="204.3" width="10" height="10"/>
+  <rect x="439" y="147.5" width="10" height="10"/>
+  <rect x="498" y="149.0" width="10" height="10"/>
+  <rect x="557" y="122.8" width="10" height="10"/>
+  <rect x="616" y="254.4" width="10" height="10"/>
+  <rect x="675" y="169.8" width="10" height="10"/>
+  <rect x="735" y="152.0" width="10" height="10"/>
+
+</g>
+
+<!-- ===================== -->
+<!-- AÑO 3 - TRIÁNGULOS NEGROS -->
+<!-- ===================== -->
+
+<g fill="#202020">
+
+  <polygon points="90,159.2 84,169.2 96,169.2"/>
+  <polygon points="149,197.4 143,207.4 155,207.4"/>
+  <polygon points="208,125.2 202,135.2 214,135.2"/>
+  <polygon points="267,185.5 261,195.5 273,195.5"/>
+  <polygon points="326,142.9 320,152.9 332,152.9"/>
+  <polygon points="385,140.4 379,150.4 391,150.4"/>
+  <polygon points="444,138.7 438,148.7 450,148.7"/>
+  <polygon points="503,147.3 497,157.3 509,157.3"/>
+  <polygon points="562,148.8 556,158.8 568,158.8"/>
+  <polygon points="621,227.4 615,237.4 627,237.4"/>
+  <polygon points="680,238.9 674,248.9 686,248.9"/>
+  <polygon points="740,215.8 734,225.8 746,225.8"/>
+
+</g>
+
+<!-- Título -->
+<text x="415" y="25"
+      text-anchor="middle"
+      font-family="Arial"
+      font-size="15"
+      font-weight="bold">
+  Consumo de energía
+</text>
+
+<!-- Leyenda -->
+<g font-family="Arial" font-size="12">
+
+  <circle cx="285" cy="425" r="5" fill="#5b9bd5"/>
+  <text x="296" y="429">Año 1</text>
+
+  <rect x="390" y="420" width="10" height="10" fill="#ed7d31"/>
+  <text x="405" y="429">Año 2</text>
+
+  <polygon points="500,420 494,430 506,430" fill="#202020"/>
+  <text x="512" y="429">Año 3</text>
+
+</g>
+
+</svg>
+
+</div>
+
+La gráfica anterior permite visualizar el comportamiento del consumo mensual y las tendencias en diferentes períodos del año. En el caso presentado, se observa que el consumo en los meses de octubre, noviembre, diciembre y enero tiende a ser menor. Esta tendencia puede tener una explicación a factores mencionados anteriormente.
+
+| Mes        | Año 1  | Año 2  | Año 3  | Promedio |
+| ---------- | ------ | ------ | ------ | -------- |
+| enero      | 10.204 | 11.264 | 11.635 | 11.034   |
+| febrero    | 11.112 | 10.886 | 11.158 | 11.052   |
+| marzo      | 11.318 | 11.496 | 11.810 | 11.541   |
+| abril      | 11.242 | 11.883 | 11.306 | 11.477   |
+| mayo       | 11.277 | 12.486 | 11.839 | 11.867   |
+| junio      | 11.715 | 11.009 | 11.870 | 11.531   |
+| julio      | 12.219 | 11.719 | 11.891 | 11.943   |
+| agosto     | 11.146 | 11.637 | 11.784 | 11.522   |
+| septiembre | 10.300 | 12.028 | 11.765 | 11.364   |
+| octubre    | 11.348 | 10.383 | 10.783 | 10.838   |
+| noviembre  | 11.434 | 11.435 | 10.639 | 11.169   |
+| diciembre  | 11.374 | 11.662 | 10.927 | 11.321   |
+
+El promedio mes referido en la tabla anterior, se construye a partir de la ecuación dos (2) presentada en el numeral 8.5.1. del documento de la metodología. 
+
+Teniendo en cuenta lo anterior, se construye la línea base a partir de los datos promedio de cada mes (para años diferentes) durante el periodo base. A continuación, se presenta la línea base promedio mensual.
+
+$$Grafica$$
+
+Para verificar el modelo de la línea base energética, se define un intervalo de confianza a partir del consumo mensual promedio. Se define como límite superior el 110% del consumo promedio
+y el límite inferior con el 90% del consumo promedio, utilizando la ecuación tres (3) presentada
+en el numeral 8.5.1. del documento de la metodología, de la siguiente manera:
+
+| Mes        | Año 1  | **Año 2** | **Año 3** | Promedio mes | Límite superior | Límite inferior |
+| ---------- | ------ | --------- | --------- | ------------ | --------------- | --------------- |
+| enero      | 10.204 | 11.264    | 11.635    | 11.034       | 12.138          | 9.931           |
+| febrero    | 11.112 | 10.886    | 11.158    | 11.052       | 12.157          | 9.947           |
+| marzo      | 11.318 | 11.496    | 11.810    | 11.541       | 12.696          | 10.387          |
+| abril      | 11.242 | 11.883    | 11.306    | 11.477       | 12.625          | 10.329          |
+| mayo       | 11.277 | 12.486    | 11.839    | 11.867       | 13.054          | 10.681          |
+| junio      | 11.715 | 11.009    | 11.870    | 11.531       | 12.685          | 10.378          |
+| julio      | 12.219 | 11.719    | 11.891    | 11.943       | 13.137          | 10.749          |
+| agosto     | 11.146 | 11.637    | 11.784    | 11.522       | 12.675          | 10.370          |
+| septiembre | 10.300 | 12.028    | 11.765    | 11.364       | 12.501          | 10.228          |
+| octubre    | 11.348 | 10.383    | 10.783    | 10.838       | 11.922          | 9.754           |
+| noviembre  | 11.434 | 11.435    | 10.639    | 11.169       | 12.286          | 10.052          |
+| diciembre  | 11.374 | 11.662    | 10.927    | 11.321       | 12.453          | 10.189          |
+
+A continuación, se visualizan las líneas promedio, límite máximo y mínimo del intervalo de confianza.
+
+$$Grafica$$
+
+La verificación del modelo se hace a partir de la visualización de los datos del periodo base. Si los datos analizados se encuentran dentro del intervalo de confianza, los datos representan un dato significativo del consumo de la energía para cada mes. En este caso, cada uno de los tres puntos (año 1, año 2 y año 3) se encuentran dentro del límite de +/- 10% en el mes, por lo que los datos son representativos para la estimación del consumo.
+
+## Paso 6. ESTIMAR POTENCIALES DE AHORRO 
+
+Con el fin de determinar el mejor desempeño energético, se identifican los consumos mínimos
+de cada uno de los meses en el período analizado
+
+| Mes        | Año 1  | Año 2  | Año 3  | Promedio / mes | Mínimo |
+| ---------- | ------ | ------ | ------ | -------------- | ------ |
+| enero      | 10.204 | 11.264 | 11.635 | 11.034         | 10.204 |
+| febrero    | 11.112 | 10.886 | 11.158 | 11.052         | 10.886 |
+| marzo      | 11.318 | 11.496 | 11.810 | 11.541         | 11.318 |
+| abril      | 11.242 | 11.883 | 11.306 | 11.477         | 11.242 |
+| mayo       | 11.277 | 12.486 | 11.839 | 11.867         | 11.277 |
+| junio      | 11.715 | 11.009 | 11.870 | 11.531         | 11.009 |
+| julio      | 12.219 | 11.719 | 11.891 | 11.943         | 11.719 |
+| agosto     | 11.146 | 11.637 | 11.784 | 11.522         | 11.146 |
+| septiembre | 10.300 | 12.028 | 11.765 | 11.364         | 10.300 |
+| octubre    | 11.348 | 10.383 | 10.783 | 10.838         | 10.383 |
+| noviembre  | 11.434 | 11.435 | 10.639 | 11.169         | 10.639 |
+| diciembre  | 11.374 | 11.662 | 10.927 | 11.321         | 10.927 |
+
+La siguiente figura muestra el promedio del mes como línea base y los valores mínimos mensuales como potenciales de ahorro por mejor desempeño energético.
+$$Grafica$$
+Se observa que para cada mes en específico hay al menos un dato por debajo del promedio. Bajo las mismas condiciones de operación, la edificación puede reducir su consumo al periodo donde operó con mayor eficiencia de consumo. Con lo anterior, se determina como ahorro potencial para cada mes la diferencia entre en consumo promedio y el consumo mínimo y se determina el porcentaje de ahorro.
+$$\text{Potencial de ahorro en el mes m} = \text{mínimo de los consumos reales de energía del mes m} - \text{valor del consumo en m según LBEn}$$
+A continuación, se presentan los ahorros potenciales estimados para cada uno de los meses.
+
+| Mes            | Año 1  | Año 2  | Año 3  | Promedio /mes | Mínimo | Ahorro | Ahorro |
+| -------------- | ------ | ------ | ------ | ------------- | ------ | ------ | ------ |
+| enero          | 10.204 | 11.264 | 11.635 | 11.034        | 10.204 | 830    | 7,5%   |
+| febrero        | 11.112 | 10.886 | 11.158 | 11.052        | 10.886 | 166    | 1,5%   |
+| marzo          | 11.318 | 11.496 | 11.810 | 11.541        | 11.318 | 223    | 1,9%   |
+| abril          | 11.242 | 11.883 | 11.306 | 11.477        | 11.242 | 235    | 2,0%   |
+| mayo           | 11.277 | 12.486 | 11.839 | 11.867        | 11.277 | 590    | 5,0%   |
+| junio          | 11.715 | 11.009 | 11.870 | 11.531        | 11.009 | 522    | 4,5%   |
+| julio          | 12.219 | 11.719 | 11.891 | 11.943        | 11.719 | 224    | 1,9%   |
+| agosto         | 11.146 | 11.637 | 11.784 | 11.522        | 11.146 | 376    | 3,3%   |
+| septiembre     | 10.300 | 12.028 | 11.765 | 11.364        | 10.300 | 1.064  | 9,4%   |
+| octubre        | 11.348 | 10.383 | 10.783 | 10.838        | 10.383 | 455    | 4,2%   |
+| noviembre      | 11.434 | 11.435 | 10.639 | 11.169        | 10.639 | 530    | 4,7%   |
+| diciembre      | 11.374 | 11.662 | 10.927 | 11.321        | 10.927 | 394    | 3,5%   |
+| Promedio x Año | 11.224 | 11.491 | 11.451 | 11.388        | 10.921 | 468    | 4,1%   |
+## Paso 7. Identificar información a reportar a la UPME asociado a determinación de LBEn y estimación de potenciales de ahorro
+
+| Atributo                    | Descripción               | Observaciones         |
+| --------------------------- | ------------------------- | --------------------- |
+| Uso/destino del edificio    | Alcaldía municipal        |                       |
+| Área útil                   | 2.458 m2                  | Un sótano, 4 pisos    |
+| Energéticos utilizados      | Energía eléctrica         |                       |
+| Modelo de LBEn seleccionado | Valor absoluto de energía |                       |
+| Periodo base                | Tres años                 | Datos mensuales       |
+| Cantidad de datos iniciales | 36                        |                       |
+| Cantidad de datos finales   | 36                        |                       |
+| LBEn                        | Valor promedio mes        | Datos mensuales       |
+| Ahorro estimado             | Valor mensual             | En kWh y porcentaje % |
+## Anexo 2 - EJEMPLO DE DETERMINACIÓN DE LÍNEA BASE ENERGÉTICA Y CÁLCULO DE AHORROS CON COCIENTE DE VALORES MEDIDO
+
+En una alcaldía municipal con área construida de 2.458 m2, distribuidos en un sótano y 4 pisos de oficinas, se desea determinar la línea base energética y el ahorro estimado por mejora en hábitos de uso de la energía (mejor desempeño), teniendo en cuenta el procedimiento referido en los capítulos 7 y 8 de la metodología.
+## Paso 1. TIPO DE SOLICITUD DE INFORMACIÓN
+
+Se cuenta con el registro de consumo de energía mensual y el registro de personas atendidas por mes para los últimos 3 años. 
+## Paso 2. DEFINIR EL PERIODO BASE
 
 Para determinar el periodo base se tienen en cuenta los siguientes aspectos:
 
@@ -845,132 +1108,185 @@ Para determinar el periodo base se tienen en cuenta los siguientes aspectos:
 ## Paso 3. DETERMINAR LAS VARIABLES RELEVANTES QUE INFLUYEN EN EL CONSUMO DE LA ENERGÍA
 
 Las variables relevantes que influyen en el consumo de energía de una edificación de este tipo son: grados día de temperatura, índice de ocupación o m2 ocupados, cantidad de personas que ocupan el edificio. Para el caso del ejemplo, se supone que la administración dispone, además del consumo de energía mensual, con registros de usuarios atendidos por mes. Se supone que esta último es una variable relevante que determina el comportamiento del consumo de energía. Por lo anterior se utilizará el modelo de cociente de valores medidos o relación simple para determinar la LBEn.
+$$Tabla$$
+## Paso 4. SELECCIÓN DEL MODELO DE LA LÍNEA DE BASE ENERGÉTICA 
 
-|de consumo.|define la siguiente ecuación:|Paso 4. SELECCIÓN DEL MODELO DE LA LÍNEA DE BASE ENERGÉTICA Se realizará como modelo de línea base el cociente, definiendo el indicador como el residuo entre el consumo de energía mensual y el número de personas atendidas cada mes, como lo Para cada mes del año se establece el valor de los cocientes, los cuales representan un índice||
-|---|---|---|---|
-|Periodo|Año 1|Año 2|Año 3|
-|enero|11,2|12,2|11,1|
-|febrero|11,5|10,8|12,8|
-|marzo|12,7|12,4|11,6|
-|abril|10,8|11,7|10,2|
-|mayo|11,4|11,8|13,2|
-|junio|12,1|11,2|13,2|
-|julio|11,7|11,9|11,0|
-|agosto|11,3|12,4|12,7|
-|septiembre|11,2|11,5|11,2|
-|octubre|11,8|11,3|12,4|
-|noviembre|10,9|11,3|12,7|
-|diciembre|10,9|11,5|12,7|
-|Promedio|11,46|11,64|12,06|
-|de la siguiente manera:|Paso 5. CONSTRUCCIÓN DE LÍNEA BASE ENERGÉTICA|Teniendo en cuenta la información entregada, se quiere visualizar el comportamiento del cociente (índice de consumo de energía) mes a mes con el fin de determinar tendencias asociadas al período del año, es posible que algunas entidades presenten consumos mayores o menores específicamente en ciertos meses asociados a atención a público, vacaciones colectivas, entre otros. Estos períodos deberán analizarse de manera diferente debido a las variables que influyen en el consumo y pueden representar ajustes de tipo no rutinario. Como primer paso, se grafica el comportamiento mensual en cada uno de los años reportados||
+Se realizará como modelo de línea base el cociente, definiendo el indicador como el residuo entre el consumo de energía mensual y el número de personas atendidas cada mes, como lo define la siguiente ecuación:
+$$\text{Cociente}[\frac{kWh}{persona}] = \frac{\text{consumo energía activa normalizada [kWh/mes]}}{\text{Cantidad de personas atendidas por mes}}$$
+Para cada mes del año se establece el valor de los cocientes, los cuales representan un índice de consumo.
 
-|||La gráfica anterior permite visualizar el comportamiento del indicador de cociente mensual y las tendencias en diferentes períodos del año. En el caso presentado, se observa que el indicador en los meses de febrero, abril, noviembre y diciembre tiende a ser menor. Esta tendencia puede tener una explicación considerando los factores mencionados anteriormente. El valor promedio del cociente o el índice de consumo, servirá como línea base. Indicador cociente [kWh/persona]|||
-|---|---|---|---|---|
-|Periodo|Año 1|Año 2|Año 3|Promedio|
-|enero|11,2|12,2|11,1|11,5|
-|febrero|11,5|10,8|12,8|11,7|
-|marzo|12,7|12,4|11,6|12,2|
-|abril|10,8|11,7|10,2|10,9|
-|mayo|11,4|11,8|13,2|12,1|
-|junio|12,1|11,2|13,2|12,2|
-|julio|11,7|11,9|11,0|11,5|
-|agosto|11,3|12,4|12,7|12,1|
-|septiembre|11,2|11,5|11,2|11,3|
-|octubre|11,8|11,3|12,4|11,8|
-|noviembre|10,9|11,3|12,7|11,6|
-|diciembre|10,9|11,5|12,7|11,7|
-|Promedio|11,46|11,64 El promedio mes referido en la tabla anterior, se construye a partir de la ecuación dos (6) presentada en el numeral 8.5.2. del documento de la metodología.|12,06|11,72|
+| Periodo    | Año 1 | Año 2 | Año 3 |
+| ---------- | ----- | ----- | ----- |
+| enero      | 11,2  | 12,2  | 11,1  |
+| febrero    | 11,5  | 10,8  | 12,8  |
+| marzo      | 12,7  | 12,4  | 11,6  |
+| abril      | 10,8  | 11,7  | 10,2  |
+| mayo       | 11,4  | 11,8  | 13,2  |
+| junio      | 12,1  | 11,2  | 13,2  |
+| julio      | 11,7  | 11,9  | 11,0  |
+| agosto     | 11,3  | 12,4  | 12,7  |
+| septiembre | 11,2  | 11,5  | 11,2  |
+| octubre    | 11,8  | 11,3  | 12,4  |
+| noviembre  | 10,9  | 11,3  | 12,7  |
+| diciembre  | 10,9  | 11,5  | 12,7  |
+| Promedio   | 11,46 | 11,64 | 12,06 |
 
+Teniendo en cuenta la información entregada, se quiere visualizar el comportamiento del cociente (índice de consumo de energía) mes a mes con el fin de determinar tendencias asociadas al período del año, es posible que algunas entidades presenten consumos mayores o menores específicamente en ciertos meses asociados a atención a público, vacaciones colectivas, entre otros. Estos períodos deberán analizarse de manera diferente debido a las variables que influyen en el consumo y pueden representar ajustes de tipo no rutinario.
+## Paso 5. CONSTRUCCIÓN DE LÍNEA BASE ENERGÉTICA
+
+Como primer paso, se grafica el comportamiento mensual en cada uno de los años reportados de la siguiente manera:
+$$Grafica$$
+La gráfica anterior permite visualizar el comportamiento del indicador de cociente mensual y las tendencias en diferentes períodos del año. En el caso presentado, se observa que el indicador en los meses de febrero, abril, noviembre y diciembre tiende a ser menor. Esta tendencia puede tener una explicación considerando los factores mencionados anteriormente. 
+
+El valor promedio del cociente o el índice de consumo, servirá como línea base. 
+
+Indicador cociente [kWh/persona]
+
+| Periodo    | Año 1 | Año 2 | Año 3 | Promedio |
+| ---------- | ----- | ----- | ----- | -------- |
+| enero      | 11,2  | 12,2  | 11,1  | 11,5     |
+| febrero    | 11,5  | 10,8  | 12,8  | 11,7     |
+| marzo      | 12,7  | 12,4  | 11,6  | 12,2     |
+| abril      | 10,8  | 11,7  | 10,2  | 10,9     |
+| mayo       | 11,4  | 11,8  | 13,2  | 12,1     |
+| junio      | 12,1  | 11,2  | 13,2  | 12,2     |
+| julio      | 11,7  | 11,9  | 11,0  | 11,5     |
+| agosto     | 11,3  | 12,4  | 12,7  | 12,1     |
+| septiembre | 11,2  | 11,5  | 11,2  | 11,3     |
+| octubre    | 11,8  | 11,3  | 12,4  | 11,8     |
+| noviembre  | 10,9  | 11,3  | 12,7  | 11,6     |
+| diciembre  | 10,9  | 11,5  | 12,7  | 11,7     |
+| Promedio   | 11,46 | 11,64 | 12,06 | 11,72    |
+El promedio mes referido en la tabla anterior, se construye a partir de la ecuación dos (6) presentada en el numeral 8.5.2. del documento de la metodología.
+$$Grafica$$
 Para verificar el modelo de la línea base energética, se define un intervalo de confianza a partir del consumo mensual promedio. Se define como límite superior el 110% del consumo promedio y el límite inferior con el 90% del consumo promedio, utilizando la ecuación siete (7) presentada en el numeral 8.5.2. del documento de la metodología, de la siguiente manera:
-
+$$Tabla$$
 A continuación, se visualizan las líneas promedio, límite máximo y mínimo del intervalo de confianza.
+$$Grafica$$
+La verificación del modelo se hace a partir de la visualización de los datos del periodo base. Si los datos analizados se encuentran dentro del intervalo de confianza, los datos representan un dato significativo del consumo de la energía para cada mes. En este caso, cada uno de los tres puntos (año 1, año 2 y año 3) se encuentran dentro del límite de +/- 10% en el mes, por lo que los datos son representativos para la estimación del consumo.
+## Paso 6. ESTIMAR POTENCIALES DE AHORRO
 
-||Paso 6. ESTIMAR POTENCIALES DE AHORRO|los datos son representativos para la estimación del consumo. consumos mínimos de cada uno de los meses en el período analizado|La verificación del modelo se hace a partir de la visualización de los datos del periodo base. Si los datos analizados se encuentran dentro del intervalo de confianza, los datos representan un dato significativo del consumo de la energía para cada mes. En este caso, cada uno de los tres puntos (año 1, año 2 y año 3) se encuentran dentro del límite de +/- 10% en el mes, por lo que Con el fin de determinar el mejor desempeño energético, se identifican los coeficientes de Cociente [kWh/persona]|||
-|---|---|---|---|---|---|
-|Periodo|Año 1|Año 2|Año 3|Promedio|Mínimo|
-|enero|11,2|12,2|11,1|11,5|11,1|
-|febrero|11,5|10,8|12,8|11,7|10,8|
-|marzo|12,7|12,4|11,6|12,2|11,6|
-|abril|10,8|11,7|10,2|10,9|10,2|
-|mayo|11,4|11,8|13,2|12,1|11,4|
-|junio|12,1|11,2|13,2|12,2|11,2|
-|julio|11,7|11,9|11,0|11,5|11,0|
-|agosto|11,3|12,4|12,7|12,1|11,3|
-|septiembre|11,2|11,5|11,2|11,3|11,2|
-|octubre|11,8|11,3|12,4|11,8|11,3|
-|noviembre|10,9|11,3|12,7|11,6|10,9|
-|diciembre|10,9|11,5|12,7|11,7|10,9|
-|Promedio|11,46|11,64|12,06|11,72|11,07|
+Con el fin de determinar el mejor desempeño energético, se identifican los coeficientes de consumos mínimos de cada uno de los meses en el período analizado
 
+Cociente [kWh/persona]
+
+| Periodo    | Año 1 | Año 2 | Año 3 | Promedio | Mínimo |
+| ---------- | ----- | ----- | ----- | -------- | ------ |
+| enero      | 11,2  | 12,2  | 11,1  | 11,5     | 11,1   |
+| febrero    | 11,5  | 10,8  | 12,8  | 11,7     | 10,8   |
+| marzo      | 12,7  | 12,4  | 11,6  | 12,2     | 11,6   |
+| abril      | 10,8  | 11,7  | 10,2  | 10,9     | 10,2   |
+| mayo       | 11,4  | 11,8  | 13,2  | 12,1     | 11,4   |
+| junio      | 12,1  | 11,2  | 13,2  | 12,2     | 11,2   |
+| julio      | 11,7  | 11,9  | 11,0  | 11,5     | 11,0   |
+| agosto     | 11,3  | 12,4  | 12,7  | 12,1     | 11,3   |
+| septiembre | 11,2  | 11,5  | 11,2  | 11,3     | 11,2   |
+| octubre    | 11,8  | 11,3  | 12,4  | 11,8     | 11,3   |
+| noviembre  | 10,9  | 11,3  | 12,7  | 11,6     | 10,9   |
+| diciembre  | 10,9  | 11,5  | 12,7  | 11,7     | 10,9   |
+| Promedio   | 11,46 | 11,64 | 12,06 | 11,72    | 11,07  |
+$$Grafica$$
 Se observa que para cada mes en específico hay al menos un valor del coeficiente de consumo por debajo del promedio. Bajo las mismas condiciones de operación, la edificación puede reducir su consumo al periodo donde operó con mayor eficiencia de consumo. Con lo anterior, se determina como ahorro potencial para cada mes la diferencia entre en consumo promedio y el coeficiente de consumo mínimo, y se determina el porcentaje de ahorro.
 
 Para nuestro caso se puede determinar el ahorro de consumo de energía por persona atendido y el ahorro de consumo energía por mes, así:
-
+$$\text{Ahorro}[\frac{kWh}{usuario}] = \text{coeficiente de consumo promedio por periodo } - \text{coeficiente de consumo mínimo por periodo}$$
+$$\text{Ahorro}[\frac{kWh}{mes}] = \text{Ahorro}[\frac{kWh}{usuario}]*\text{promedio de usuarios por mes}$$
+$$\text{\%Ahorro} = \frac{Ahorro[\frac{kWh}{usuario}]}{\text{promedio de consumo por mes }[\frac{kWh}{mes}]}$$
 A continuación, se presentan los ahorros potenciales estimados para cada uno de los meses.
+$$Tabla$$
+## Paso 7. Identificar información a reportar a la UPME asociado a determinación de LBEn y estimación de potenciales de ahorro
 
-||Paso 7. Identificar información a reportar a la UPME asociado a determinación de LBEn y estimación de potenciales de ahorro||
-|---|---|---|
-|Atributo|Descripción|Observaciones|
-|Uso/destino del edificio|Alcaldía municipal||
-|Área útil|2.458 m2|Un sótano, 4 pisos|
-|Energéticos utilizados|Energía eléctrica||
-|Variable relevante||Personas/usuarios atendidos por mes|
-|Modelo de LBEn seleccionado||Valor coeficiente de valor medido|
-|Periodo base|Tres años|Datos mensuales|
-|Cantidad de datos iniciales|36||
-|Cantidad de datos finales|36||
-|LBEn|Valor coeficiente de consumo promedio mes|Datos mensuales|
-|Ahorro estimado|Valor mensual|En kWh y porcentaje %|
-|- Disponibilidad de información.|Anexo 3 - EJEMPLO DE DETERMINACIÓN DE LÍNEA BASE ENERGÉTICA Y CÁLCULO DE AHORROS CON MODELO ESTADÍSTICO En una alcaldía municipal con área construida de 2.458 m2, distribuidos en un sótano y 4 pisos de oficinas, se desea determinar la línea base energética y el ahorro estimado por mejora en hábitos de uso de la energía (mejor desempeño), teniendo en cuenta el procedimiento referido en los capítulos 7 y 8 de la metodología. Paso 1. TIPO DE SOLICITUD DE INFORMACIÓN Se cuenta con facturas de consumo de energía mensual de los últimos 3 años, el registro de personas atendidas cada mes e igualmente y registro de temperaturas que permiten calcular la variable relevante grados día de enfriamiento para el sistema de climatización. Paso 2. DEFINIR EL PERIODO BASE Para determinar el periodo base se tienen en cuenta los siguientes aspectos: - La ocupación del edificio no estuvo afectada por causas extraordinarias en ningún mes, es||
+| Atributo                    | Descripción                               | Observaciones         |
+| --------------------------- | ----------------------------------------- | --------------------- |
+| Uso/destino del edificio    | Alcaldía municipal                        |                       |
+| Área útil                   | 2.458 m2                                  | Un sótano, 4 pisos    |
+| Energéticos utilizados      | Energía eléctrica                         |                       |
+| Variable relevante          | Personas/usuarios atendidos por mes       |                       |
+| Modelo de LBEn seleccionado | Valor coeficiente de valor medido         |                       |
+| Periodo base                | Tres años                                 | Datos mensuales       |
+| Cantidad de datos iniciales | 36                                        |                       |
+| Cantidad de datos finales   | 36                                        |                       |
+| LBEn                        | Valor coeficiente de consumo promedio mes | Datos mensuales       |
+| Ahorro estimado             | Valor mensual                             | En kWh y porcentaje % |
+## Anexo 3 - EJEMPLO DE DETERMINACIÓN DE LÍNEA BASE ENERGÉTICA Y CÁLCULO DE AHORROS CON MODELO ESTADÍSTICO
 
-|ocupación. del edificio; energía (solar FV o eólicos). DE LA ENERGÍA|que pudieran afectar significativamente su demanda típica de energía. medidos y no corresponde a promedio. sistemas de bombeo de agua, grandes áreas de iluminación; consumo de energía mensual de los últimos 3 años (36 datos). laboran en el edificio, cantidad de personas atendidas, etc.|decir el consumo energético de la factura corresponde a las condiciones habituales de-No existieron cambios en la tecnología de los usos significativos de energía de la edificación-El registro de consumo de energía en la factura del servicio es considerado como valores-No existieron períodos prolongados de tiempo donde por problemas de mantenimiento u otro tipo no funcionaron usos significativos de energía como: sistemas de climatización, elevadores, - No existieron modificaciones estructurales que cambiarán significativamente la carga térmica-No se instalaron en el periodo del año sistemas o fuentes no convencionales de generación de Una vez revisados los aspectos anteriores se determinó tomar como período base para elaborar la LBEn de la edificación, según la disponibilidad de los dato, la información de Paso 3. DETERMINAR LAS VARIABLES RELEVANTES QUE INFLUYEN EN EL CONSUMO Las variables relevantes que influyen en el consumo de energía de una edificación de este tipo son: grados día de temperatura, índice de ocupación o m2 ocupados, cantidad de personas que Para los años seleccionados como periodo base, se realiza la tabla mensual de consumo de energía y cada una de las variables relevantes de las cuales se tiene información:|||
-|---|---|---|---|---|
-|Periodo de facturación|Cantidad de personas/ mes|Grados días de enfriamiento (°C /mes)|normalizado [kWh/mes]|Consumo energía activa|
-|Año|Mes||||
-|1|enero|911|271|10.204|
-|1|febrero|969|275|11.112|
-|1|marzo|890|287|11.318|
-|1|abril|1.041|290|11.242|
-|1|mayo|993|289|11.277|
-|1|junio|968|284|11.715|
-|1|julio|1.045|284|12.219|
-|1|agosto|984|287|11.146|
-|1|septiembre|916|290|10.300|
-|1|octubre|964|285|11.348|
-|1|noviembre|1.048|273|11.434|
+En una alcaldía municipal con área construida de 2.458 m2, distribuidos en un sótano y 4 pisos de oficinas, se desea determinar la línea base energética y el ahorro estimado por mejora en hábitos de uso de la energía (mejor desempeño), teniendo en cuenta el procedimiento referido en los capítulos 7 y 8 de la metodología. 
+## Paso 1. TIPO DE SOLICITUD DE INFORMACIÓN 
 
-|1|diciembre|1.039|262|11.374|
-|---|---|---|---|---|
-|2|enero|925|277|11.264|
-|2|febrero|1.008|287|10.886|
-|2|marzo|930|296|11.496|
-|2|abril|1.019|286|11.883|
-|2|mayo|1.061|283|12.486|
-|2|junio|984|282|11.009|
-|2|julio|987|287|11.719|
-|2|agosto|940|293|11.637|
-|2|septiembre|1.049|290|12.028|
-|2|octubre|919|271|10.383|
-|2|noviembre|1.016|257|11.435|
-|2|diciembre|1.018|259|11.662|
-|3|enero|1.050|314|11.635|
-|3|febrero|870|288|11.158|
-|3|marzo|1.020|287|11.810|
-|3|abril|1.110|284|11.306|
-|3|mayo|870|278|11.839|
-|3|junio|900|285|11.870|
-|3|julio|1.080|297|11.891|
-|3|agosto|930|296|11.784|
-|3|septiembre|1.050|276|11.765|
-|3|octubre|870|242|10.783|
-|3|noviembre|840|253|10.639|
-|3|diciembre|810|281|10.927|
-|Nota: en la edificación cada mes. Donde:|1. Los m2 ocupados de la edificación fueron constantes todos los meses. 3. Los grados día de temperatura se calculan por la expresión: GDE es grados días de enfriamiento|2. La cantidad de personas se obtuvo del registro de ingreso de personas o usuarios atendidos temperatura base de climatización (20, 23, 25 °C) (Se toma menor como un valor 3 C menor que la temperatura de confort interior. Así se considera la ganancia térmica en el edificio.|||
+Se cuenta con facturas de consumo de energía mensual de los últimos 3 años, el registro de personas atendidas cada mes e igualmente y registro de temperaturas que permiten calcular la variable relevante grados día de enfriamiento para el sistema de climatización. 
+## Paso 2. DEFINIR EL PERIODO BASE 
 
-Temperatura promedio-día
+Para determinar el periodo base se tienen en cuenta los siguientes aspectos: 
+- Disponibilidad de información.
+- La ocupación del edificio no estuvo afectada por causas extraordinarias en ningún mes, es decir el consumo energético de la factura corresponde a las condiciones habituales de ocupación.
+- No existieron cambios en la tecnología de los usos significativos de energía de la edificación que pudieran afectar significativamente su demanda típica de energía.
+- El registro de consumo de energía en la factura del servicio es considerado como valores medidos y no corresponde a promedio.
+- No existieron períodos prolongados de tiempo donde por problemas de mantenimiento u otro tipo no funcionaron usos significativos de energía como: sistemas de climatización, elevadores, sistemas de bombeo de agua, grandes áreas de iluminación;
+- No existieron modificaciones estructurales que cambiarán significativamente la carga térmica del edificio;
+- No se instalaron en el periodo del año sistemas o fuentes no convencionales de generación de energía (solar FV o eólicos).
 
+Una vez revisados los aspectos anteriores se determinó tomar como período base para elaborar la LBEn de la edificación, según la disponibilidad de los dato, la información de consumo de energía mensual de los últimos 3 años (36 datos).
+## Paso 3. DETERMINAR LAS VARIABLES RELEVANTES QUE INFLUYEN EN EL CONSUMO DE LA ENERGÍA
+
+Las variables relevantes que influyen en el consumo de energía de una edificación de este tipo son: grados día de temperatura, índice de ocupación o m2 ocupados, cantidad de personas que laboran en el edificio, cantidad de personas atendidas, etc.    
+
+Para los años seleccionados como periodo base, se realiza la tabla mensual de consumo de energía y cada una de las variables relevantes de las cuales se tiene información:
+
+| Periodo de facturación | Cantidad de personas/ mes | Grados días de enfriamiento (°C/mes) | Consumo energía activa normalizado [kWh/mes] | Consumo energía activa normalizado [kWh/mes] |
+| ---------------------- | ------------------------- | ------------------------------------ | -------------------------------------------- | -------------------------------------------- |
+| Año                    | Mes                       |                                      |                                              |                                              |
+| 1                      | enero                     | 911                                  | 271                                          | 10.204                                       |
+| 1                      | febrero                   | 969                                  | 275                                          | 11.112                                       |
+| 1                      | marzo                     | 890                                  | 287                                          | 11.318                                       |
+| 1                      | abril                     | 1.041                                | 290                                          | 11.242                                       |
+| 1                      | mayo                      | 993                                  | 289                                          | 11.277                                       |
+| 1                      | junio                     | 968                                  | 284                                          | 11.715                                       |
+| 1                      | julio                     | 1.045                                | 284                                          | 12.219                                       |
+| 1                      | agosto                    | 984                                  | 287                                          | 11.146                                       |
+| 1                      | septiembre                | 916                                  | 290                                          | 10.300                                       |
+| 1                      | octubre                   | 964                                  | 285                                          | 11.348                                       |
+| 1                      | noviembre                 | 1.048                                | 273                                          | 11.434                                       |
+| 1                      | diciembre                 | 1.039                                | 262                                          | 11.374                                       |
+| 2                      | enero                     | 925                                  | 277                                          | 11.264                                       |
+| 2                      | febrero                   | 1.008                                | 287                                          | 10.886                                       |
+| 2                      | marzo                     | 930                                  | 296                                          | 11.496                                       |
+| 2                      | abril                     | 1.019                                | 286                                          | 11.883                                       |
+| 2                      | mayo                      | 1.061                                | 283                                          | 12.486                                       |
+| 2                      | junio                     | 984                                  | 282                                          | 11.009                                       |
+| 2                      | julio                     | 987                                  | 287                                          | 11.719                                       |
+| 2                      | agosto                    | 940                                  | 293                                          | 11.637                                       |
+| 2                      | septiembre                | 1.049                                | 290                                          | 12.028                                       |
+| 2                      | octubre                   | 919                                  | 271                                          | 10.383                                       |
+| 2                      | noviembre                 | 1.016                                | 257                                          | 11.435                                       |
+| 2                      | diciembre                 | 1.018                                | 259                                          | 11.662                                       |
+| 3                      | enero                     | 1.050                                | 314                                          | 11.635                                       |
+| 3                      | febrero                   | 870                                  | 288                                          | 11.158                                       |
+| 3                      | marzo                     | 1.020                                | 287                                          | 11.810                                       |
+| 3                      | abril                     | 1.110                                | 284                                          | 11.306                                       |
+| 3                      | mayo                      | 870                                  | 278                                          | 11.839                                       |
+| 3                      | junio                     | 900                                  | 285                                          | 11.870                                       |
+| 3                      | julio                     | 1.080                                | 297                                          | 11.891                                       |
+| 3                      | agosto                    | 930                                  | 296                                          | 11.784                                       |
+| 3                      | septiembre                | 1.050                                | 276                                          | 11.765                                       |
+| 3                      | octubre                   | 870                                  | 242                                          | 10.783                                       |
+| 3                      | noviembre                 | 840                                  | 253                                          | 10.639                                       |
+| 3                      | diciembre                 | 810                                  | 281                                          | 10.927                                       |
+
+Nota: 
+1. Los m2 ocupados de la edificación fueron constantes todos los meses.
+2. La cantidad de personas se obtuvo del registro de ingreso de personas o usuarios atendidos en la edificación cada mes. 
+3. Los grados día de temperatura se calculan por la expresión:
+$$\text{GDE} = \sum^n_{i=1}(T_p - T_b)_i * X_e$$
+Donde:
+
+GDE es grados días de enfriamiento
+
+T<sub>b</sub> – temperatura base de climatización (20, 23, 25 °C) (Se toma menor como un valor 3 C menor que la temperatura de confort interior. Así se considera la ganancia térmica en el edificio.
+
+T<sub>p</sub> – Temperatura promedio-día
+$$T_p = \frac{\sum_{i=1}^{m}T_i}{H}$$
 Donde
-
+ 
 T<sub>i</sub> – Temperatura a cada hora
 
 H-Número de horas de trabajo en la edificación
@@ -980,9 +1296,10 @@ n-cantidad de días del mes considerado (30)
 X<sub>e</sub> - coeficiente lógico que valdrá 1 cuando la temperatura media sea mayor a la Tb y cero cuando sea menor.
 
 i = 1 día
-
+$$\text{Ejemplo: } T_p = 30°C; T_b = 22°C; \text{entonces } T_p > T_b \text{ y así } X_e = 1; i = 1 \text{ día}; n = 30$$
+$$\text{GDE} = (30 - 22) * 1 * 1 = 4° \frac{C}{día}$$
 si todos los días fuera el mismo valor (puede no ser así), al mes sería:
-
+$$4°\frac{C}{día} * 30 \frac{días}{mes} = 240° \frac{C}{mes}$$
 Si no es igual cada día, se suman los valores (GDE) de los 30 días. Este paso es importante realizarlo ya que es necesario determinar si el cambio de la temperatura ambiente influye en el consumo de energía.
 
 ## Paso 4. SELECCIÓN DEL MODELO DE LA LÍNEA DE BASE ENERGÉTICA
@@ -990,43 +1307,44 @@ Si no es igual cada día, se suman los valores (GDE) de los 30 días. Este paso 
 Para la selección del modelo de LBEn, se realiza el análisis de regresión para verificar si las dos variables o solo una de ellas son significativamente relevantes para explicar los cambios en los consumos de energía.
 
 ## Análisis de regresión para 2 variables:
-
+$$Tabla$$
 Se observa que los cambios de la Grados día de enfriamiento/mes no produce cambios significativos en los consumos de energía/mes ya que la probabilidad de que no lo haga es superior a 0,05 (0,13016).
-
 ## Análisis de regresión para una variable (Cantidad de personas/mes):
-
+$$Tabla$$
 Se observa que los cambios de la variable Cantidad de personas/mes si producen cambios significativos en los consumos de energía/mes ya que la probabilidad de que no lo haga es inferior a 0,05 (0,001938).
 
-Se concluye entonces que, la variable relevante o significativa de los cambios del consumo de <u>energía mensual en la edificación es Cantidad de personas/mes.</u>
+Se concluye entonces que, la variable relevante o significativa de los cambios del consumo de energía mensual en la edificación es Cantidad de personas/mes.
 
 Debido a que existe una variable significativa a los cambios del consumo de energía mes, se plantea un modelo de regresión de una variable que caracteriza el consumo del periodo base seleccionado y que constituye la línea base o consumo de referencia mensual de la edificación.
 
 La ecuación de línea base de consumo energético, referida en el numeral 8.5.3 del documento de la metodología, para el caso del ejemplo será:
-
-## E = Consumo energético
+$$E = m * Personas + Eo$$
+E = Consumo energético
 
 Eo= Consumo fijo de energía de la edificación (coeficiente de intercepción)
 
 m = Coeficiente de la variable independiente (personas para este ejemplo)
-
+$$M = 3.524 \frac{kWh}{persona}$$
+$$Eo = 7959.7 \frac{kWh}{mes}$$
+$$E = 3.524 * Personas + 7959.7 \frac{kWh}{mes}$$
 ## Paso 5. CONSTRUCCION DE LA LÍNEA BASE
 
 Con la ayuda de Excel es posible graficar la línea base energética a partir de un gráfico de correlación donde los valores de Y corresponde a los consumos mensuales de energía, y los valores de X corresponde a la cantidad de personas atendidas por mes.
-
+$$Grafica$$
 Para la verificación del modelo de línea base se comparan los valores de energía medidos o recopilados durante el periodo de la línea base con los valores que se obtienen usando el modelo de línea base. Esta comparación se puede hacer calculando el error para cada observación y calculando el promedio de estos errores de la siguiente manera:
-
+$$\text{\%Error} = \frac{(\text{consumo medido} - \text{consumo línea base})}{\text{consumo línea base}} * 100$$
+$$Tabla$$
 Como se observa, el error de cada observación solo sobrepasa el 5% en 4 datos, y el valor del error promedio es de 3.2%, lo que significa que el modelo de línea base utilizado estima de manera confiable el consumo de energía para el ejemplo dado.
 
 ## Paso 6. ESTIMAR POTENCIALES DE AHORRO
 
 Con la ayuda de Excel, se seleccionan los valores de energía medidos que sean valores a los calculados con la ecuación de LBEn. Estos valores son el insumo para la construcción de la línea meta mediante una correlación similar con un modelo de regresión de una variable.
-
+$$Tabla$$
 Así, se utiliza Excel para realizar el gráfico de correlación de consumo de energía vs personas solo para los mejores desempeños del año. Se utiliza la función línea de tendencia de Excel para hallar la ecuación del modelo de consumo de energía de los mejores desempeños energéticos.
-
+$$Grafica$$
 Los potenciales de ahorro considerando las condiciones habituales de operación de la edificación, se estiman al calcular la diferencia entre los valores de consumo de la LBEn y los valores del consumo de energía según el modelo de mejores desempeños energéticos de acuerdo con el valor de la variable relevante
-
+$$Tabla$$
 De acuerdo con el modelo estadístico utilizado el potencial de ahorro para esta edificación, es en promedio de un 3,44% utilizando la ecuación doce (12) del documento de metodología.
-
 ## Anexo 4 - EJEMPLO DE AJUSTES RUTINARIOS Y NO RUTINARIOS
 
 ## A4.1 Ajuste no rutinario en modelo absoluto
@@ -1035,137 +1353,147 @@ Para este ejemplo, se incluye un ajuste no rutinario derivado de una situación 
 
 Lo anterior representó una disminución del consumo de energía reportado durante esos meses. Esta disminución fue del 25% de la energía durante esos meses.
 
-|Año|Mes|Cantidad de personas/mes|Grados días de enfriamiento (°C /mes)|Consumo energía activa normalizado [kWh/mes]|
-|---|---|---|---|---|
-|1|enero|911|271|10.204|
-|1|febrero|969|275|11.112|
-|1|marzo|890|287|11.318|
-|1|abril|1.041|290|11.242|
-|1|mayo|993|289|11.277|
-|1|junio|968|284|11.715|
-|1|julio|1.045|284|12.219|
-|1|agosto|984|287|11.146|
-|1|septiembre|916|290|10.300|
-|1|octubre|964|285|11.348|
-|1|noviembre|1.048|273|11.434|
-|1|diciembre|1.039|262|11.374|
-|2|enero|925|277|11.264|
-|2|febrero|1.008|287|10.886|
-|2|marzo|930|296|11.496|
-|2|abril|1.019|286|11.883|
-|2|mayo|1.061|283|9.365|
-|2|junio|984|282|8.257|
-|2|julio|987|287|8.789|
-|2|agosto|940|293|8.728|
-|2|septiembre|1.049|290|9.021|
-|2|octubre|919|271|10.383|
-|2|noviembre|1.016|257|11.435|
-|2|diciembre|1.018|259|11.662|
-|3|enero|1.050|314|11.635|
-|3|febrero|870|288|11.158|
-|3|marzo|1.020|287|11.810|
-|3|abril|1.110|284|11.306|
-|3|mayo|870|278|11.839|
-|3|junio|900|285|11.870|
-|3|julio|1.080|297|11.891|
-|3|agosto|930|296|11.78|
-|3|septiembre|1.050|276|11.765|
-|3|octubre|870|242|10.783|
-|3|noviembre|840|253|10.639|
-|3|diciembre|810|281 Repitiendo la metodología del modelo de valor absoluto, la LBEn, determinada como el|10.927|
+| Año | Mes        | Cantidad de personas/mes | Grados días de enfriamiento (°C /mes) | Consumo energía activa normalizado [kWh/mes] |
+| --- | ---------- | ------------------------ | ------------------------------------- | -------------------------------------------- |
+| 1   | enero      | 911                      | 271                                   | 10.204                                       |
+| 1   | febrero    | 969                      | 275                                   | 11.112                                       |
+| 1   | marzo      | 890                      | 287                                   | 11.318                                       |
+| 1   | abril      | 1.041                    | 290                                   | 11.242                                       |
+| 1   | mayo       | 993                      | 289                                   | 11.277                                       |
+| 1   | junio      | 968                      | 284                                   | 11.715                                       |
+| 1   | julio      | 1.045                    | 284                                   | 12.219                                       |
+| 1   | agosto     | 984                      | 287                                   | 11.146                                       |
+| 1   | septiembre | 916                      | 290                                   | 10.300                                       |
+| 1   | octubre    | 964                      | 285                                   | 11.348                                       |
+| 1   | noviembre  | 1.048                    | 273                                   | 11.434                                       |
+| 1   | diciembre  | 1.039                    | 262                                   | 11.374                                       |
+| 2   | enero      | 925                      | 277                                   | 11.264                                       |
+| 2   | febrero    | 1.008                    | 287                                   | 10.886                                       |
+| 2   | marzo      | 930                      | 296                                   | 11.496                                       |
+| 2   | abril      | 1.019                    | 286                                   | 11.883                                       |
+| 2   | mayo       | 1.061                    | 283                                   | 9.365                                        |
+| 2   | junio      | 984                      | 282                                   | 8.257                                        |
+| 2   | julio      | 987                      | 287                                   | 8.789                                        |
+| 2   | agosto     | 940                      | 293                                   | 8.728                                        |
+| 2   | septiembre | 1.049                    | 290                                   | 9.021                                        |
+| 2   | octubre    | 919                      | 271                                   | 10.383                                       |
+| 2   | noviembre  | 1.016                    | 257                                   | 11.435                                       |
+| 2   | diciembre  | 1.018                    | 259                                   | 11.662                                       |
+| 3   | enero      | 1.050                    | 314                                   | 11.635                                       |
+| 3   | febrero    | 870                      | 288                                   | 11.158                                       |
+| 3   | marzo      | 1.020                    | 287                                   | 11.810                                       |
+| 3   | abril      | 1.110                    | 284                                   | 11.306                                       |
+| 3   | mayo       | 870                      | 278                                   | 11.839                                       |
+| 3   | junio      | 900                      | 285                                   | 11.870                                       |
+| 3   | julio      | 1.080                    | 297                                   | 11.891                                       |
+| 3   | agosto     | 930                      | 296                                   | 11.78                                        |
+| 3   | septiembre | 1.050                    | 276                                   | 11.765                                       |
+| 3   | octubre    | 870                      | 242                                   | 10.783                                       |
+| 3   | noviembre  | 840                      | 253                                   | 10.639                                       |
+| 3   | diciembre  | 810                      | 281                                   | 10.927                                       |
 
-promedio de los valores de cada mes, y sus límites superior e inferior se ve de la siguiente manera:
-
+Repitiendo la metodología del modelo de valor absoluto, la LBEn, determinada como el promedio de los valores de cada mes, y sus límites superior e inferior se ve de la siguiente manera:
+$$Grafica$$
 Se observa que los valores “anómalos” quedan fuera de los límites de confiabilidad, por lo tanto, es necesario hacer el ajuste por esta situación no rutinaria. De no hacerlo, el potencial de ahorro estimado da como resultado un valor sobreestimado, como se observa en la siguiente tabla.
-
+$$Tabla$$
 El valor promedio del potencial de ahorro sin el ajuste es de 9,35 el cual es muy superior al calculado sin esta anomalía.
 
 El ajuste, se realiza de acuerdo con el siguiente procedimiento:
 
 Se calcula el promedio de los consumos para los meses “normales” del año 2.
-
+$$Consumo_\text{prom,normal año 2} = 11.287\frac{kWh}{mes}$$
 Se calcula el promedio de los consumos para los meses “anómalos” del año 2
-
+$$Consumo_\text{prom,anómalo año 2} = 8.832\frac{kWh}{mes}$$
 Se calcula la diferencia entre estos dos valores:
-
+$$Consumo_\text{prom,normal año 2} - Consumo_\text{prom,anómalo año 2} = 2.455\frac{kWh}{mes}$$
 Se establece la proporción entre esta diferencia y el valor promedio normal de ese año:
-
+$$\text{Proporción de ajuste} = \frac{2.455\frac{kWh}{mes}}{11.287\frac{kWh}{mes}}$$
 Se ajustan los valores de los mismos meses de los años 1 y 3 con esta proporción:
-
+$$Ajuste = Consumo_\text{meses normales} * (1 - \text{Proporción de ajuste})$$
 Con estos nuevos valores ajustados para los mismos meses de los años 1 y 3 se calcula el potencial de ahorro ajustado, que se presenta en la siguiente tabla.
-
+$$Tabla$$
 Como se observa, el valor del potencial de ahorro ajustado es 4,2%, muy similar a lo que se tendría bajo condiciones normales permanentes de funcionamiento. En la siguiente figura se observa igualmente como el ajuste permite mantener los datos dentro del rango de confiabilidad establecidos por los limites superior e inferior.
-
+$$Grafica$$
 ## A4.2 Ajuste no rutinario en modelo cociente de valores medido
 
 Para este ejemplo se incluye un ajuste no rutinario derivado de una situación presentada durante el periodo de medición o recopilación de los consumos, en la cual durante los meses de mayo a septiembre del año 2 se presentó un cambio en el funcionamiento de la edificación bajo la cual se tuvo una atención similar de personas pero redistribuidas en una parte de las oficinas mientras se ejecutaba una reparación en otra parte de la edificación, dejando fuera de funcionamiento todas sus unidades de acondicionamiento de aire durante este tiempo.
 
 Lo anterior representó una disminución del consumo de energía reportado durante esos meses. Esta disminución fue del 25% de la energía durante esos meses.
-
+$$Tabla$$
 Repitiendo la metodología del modelo de valor absoluto, la línea base, determinada como el promedio de los valores de cada mes, y sus límites superior e inferior se ve de la siguiente manera:
-
+$$Grafica$$
 Se observa que los valores “anómalos” quedan fuera de los límites de confiabilidad, por lo tanto, es necesario hacer el ajuste por esta situación no rutinaria. De no hacerlo, el potencial de ahorro estimado da como resultado un valor sobreestimado, como se observa en la siguiente tabla.
-
+$$Tabla$$
 El valor promedio del potencial de ahorro sin el ajuste es de 9.35, muy superior al calculado sin esta anomalía.
 
 El ajuste, se realiza de acuerdo con el siguiente procedimiento:
 
 Se calcula el promedio de los consumos para los meses “normales” del año 2.
-
+$$Consumo_\text{prom, normal año 2} = 11.287\frac{kWh}{mes}$$
 Se calcula el promedio de los consumos para los meses “anómalos” del año 2.
-
+$$Consumo_\text{prom, anómalo año 2} = 8.832\frac{kWh}{mes}$$
 Se calcula la diferencia entre estos dos valores:
-
+$$Consumo_\text{prom, normal año 2} - Consumo_\text{prom, anómalo año 2} = 2.455\frac{kWh}{mes}$$
 Se establece la proporción entre esta diferencia y el valor promedio normal de ese año:
-
+$$\text{Proporción de ajuste} = \frac{2.455\frac{kWh}{mes}}{8.832\frac{kWh}{mes}} = 0.22$$
 Se ajustan los valores de los mismos meses de los años 1 y 3 con esta proporción:
-
+$$Ajuste = \text{Consumo Meses normales} * (1 - \text{Proporción de ajuste})$$
 Con estos nuevos valores ajustados para los mismos meses de los años 1 y 3 se calcula el potencial de ahorro ajustado, que se presenta en la siguiente tabla.
-
+$$Tabla$$
 Como se observa, el valor del potencial de ahorro ajustado es 5,5%, muy similar a lo que se tendría bajo condiciones normales permanentes de funcionamiento. En la siguiente figura se observa igualmente como el ajuste permite mantener los datos dentro del rango de confiabilidad establecidos por los limites superior e inferior.
-
+$$Grafica$$
 ## A4.3 Ajuste no rutinario en modelo estadístico
 
 Para este ejemplo, se incluye un ajuste no rutinario derivado de una situación presentada durante el periodo de estimación de los ahorros, es decir, después del periodo de línea base, en la cual, durante los meses de mayo a septiembre se realizó una remodelación de todo un piso de la edificación, dejando de atender parte de los usuarios que fueron redireccionados a otra locación durante este tiempo, e igualmente, dejando fuera de funcionamiento todas sus unidades de acondicionamiento de aire durante este tiempo.
 
 Lo anterior representó una disminución del consumo de energía reportado durante esos meses. Esta disminución fue del 25% de la energía al consumo durante esos meses.
 
-La energía asociada al consumo se estima para cada mes utilizando la ecuación de la LBEn, resultando en el término
-
+La energía asociada al consumo se estima para cada mes utilizando la ecuación de la LBEn, resultando en el término $m * Personas$:
+$$E = m * Personas + Eo$$
 Entonces, el ajuste no rutinario por esta situación se determina de la siguiente manera:
-
+$$\text{Ajuste no rutinario} = (m * Personas_\text{modelo de LBEn} - m * Personas_\text{modelo de mejores desempeños energéticos}) * 0.25$$
 En la siguiente tabla se muestran los valores de los consumos de energía y de personas atendidas por mes, así como sus promedios.
-
-**Nota:** Este ajuste no rutinario se hace con los valores promedio de las personas atendidas por
-
-mes ya que la situación que lo origina se da durante un lapso específico, y, por lo tanto, no se podría comparar el consumo de energía bajo esta situación con otro consumo de un mismo periodo específico del periodo de línea base.
+$$Tabla$$
+**Nota:** Este ajuste no rutinario se hace con los valores promedio de las personas atendidas por mes ya que la situación que lo origina se da durante un lapso específico, y, por lo tanto, no se podría comparar el consumo de energía bajo esta situación con otro consumo de un mismo periodo específico del periodo de línea base.
 
 Finalmente, se calcula el ahorro ajustado con el consumo de energía del con el modelo de LBEn y el modelo de línea meta, aplicando el ajuste a los meses respectivos.
-
+$$Ahorros_\text{modelo estadistico} = (\text{Consumo energético}_\text{modelo de LBEn} - \text{Consumo energético}_\text{modelo de mejores desempeños energéticos}) \pm \text{ajustes no rutinarios}$$
 De acuerdo con el modelo utilizado, el ajuste no rutinario que deba hacerse para estimar los ahorros genera que los ahorros potenciales que se pueden obtener, bajo una condición no rutinaria, es de 4.42% en promedio.
+## Anexo 5 - EJEMPLO DE AHORROS ESTIMADOS POR IMPLEMENTACION DE MEDIDAS ACTIVAS Y PASIVAS DE EFICIENCIA ENERGÉTICA
 
-## Anexo 5 - EJEMPLO DE AHORROS ESTIMADOS POR IMPLEMENTACION DE MEDIDAS
+De acuerdo con el numeral 8 del documento de la metodología, además de identificar el ahorro potencia por el mejor desempeño energético, es necesario estimar el potencial de ahorro energético que se obtendría por la implementación oportunidades de mejora de eficiencia energética, teniendo en cuenta los análisis y recomendaciones que resulten de una auditoria de eficiencia energética.
 
-## ACTIVAS Y PASIVAS DE EFICIENCIA ENERGÉTICA
+Para el caso de los ejemplos de los Anexos 1, 2 y 3, la Alcaldía ha evaluado que se pueden implementar algunas medidas de eficiencia energética cuyos potenciales de ahorro energético se muestran en la siguiente tabla:
 
-|eficiencia energética. se muestran en la siguiente tabla:|De acuerdo con el numeral 8 del documento de la metodología, además de identificar el ahorro potencia por el mejor desempeño energético, es necesario estimar el potencial de ahorro energético que se obtendría por la implementación oportunidades de mejora de eficiencia energética, teniendo en cuenta los análisis y recomendaciones que resulten de una auditoria de Para el caso de los ejemplos de los Anexos 1, 2 y 3, la Alcaldía ha evaluado que se pueden implementar algunas medidas de eficiencia energética cuyos potenciales de ahorro energético|
-|---|---|
-|Medidas de Eficiencia Energética – BPO|Ahorro Porcentual (%)|
-|Plan de concientización y capacitaciones de ahorro energético funcionarios|2,91%|
-|Instalación de termostato Automático para el aire acondicionado centralizado York 5TR|1,80%|
-|Implementación de sensores de accionamiento para lámparas LED en la bodega.|1,63%|
-|Implementación de un sistema de gestión de energía en la edificación|2,14%|
-|Medidas de Eficiencia Energética-Medidas Pasivas|Ahorro Porcentual (%)|
-|Implementación de películas de control solar en ventanas de la edificación|0,94%|
-|Implementación de pintura reflectiva en el techo de la edificación|13,57%|
-|Medidas de Eficiencia Energética-Reconversión tecnológica|Ahorro Porcentual (%)|
-|Reemplazo de lámparas de sodio 250W y fluorescentes 2X32 W a lámparas de tecnología LED.|3,68%|
-|Reemplazo de aires acondicionado por sistema de climatización VRF|23,55%|
-|eficiencia energética sería del 50,22%. obtenidos en los ejemplos de los Anexos 1, 2 y 3, según sea el caso. NOTAS AL FINAL: [https://www1.upme.gov.co/DemandayEficiencia/Paginas/Guias-de-consumo-eficiente.aspx](https://www1.upme.gov.co/DemandayEficiencia/Paginas/Guias-de-consumo-eficiente.aspx) por la auditoría y a ser alcanzadas a más tardar en el año 2026”|Teniendo cuenta la tabla anterior, el ahorro estimado por implementación de medidas de Este valor debe ser sumado a los ahorros estimados por mejores desempeños energéticos 1. Para más información revisar la Guía de Planes de Guía de planes de gestión eficiente de energía para administraciones públicas disponible en: 2. De acuerdo con el artículo 237 de la Ley 2294 de 2023: “El Gobierno nacional, y el resto de las administraciones públicas, en un término no superior a un (1) año, a partir de la entrada en vigencia de la presente Ley realizarán una auditoría energética de sus instalaciones, con una periodicidad de cada cuatro (4) años y establecerán objetivos de ahorro de energía a ser alcanzados a través de medidas de eficiencia energética y la implementación de Fuentes No Convencionales de Energía Renovable -FNCER-. Cada entidad deberá implementar en el siguiente año posterior a las auditorías energéticas, estrategias que permitan un ahorro en el consumo de energía de mínimo 15% respecto del consumo del año anterior, y a partir del segundo año, metas sostenibles definidas|
+| Medidas de Eficiencia Energética – BPO                                                   | Ahorro Porcentual (%) |
+| ---------------------------------------------------------------------------------------- | --------------------- |
+| Plan de concientización y capacitaciones de ahorro energético funcionarios               | 2,91%                 |
+| Instalación de termostato Automático para el aire acondicionado centralizado York 5TR    | 1,80%                 |
+| Implementación de sensores de accionamiento para lámparas LED en la bodega.              | 1,63%                 |
+| Implementación de un sistema de gestión de energía en la edificación                     | 2,14%                 |
+| Medidas de Eficiencia Energética-Medidas Pasivas                                         | Ahorro Porcentual (%) |
+| Implementación de películas de control solar en ventanas de la edificación               | 0,94%                 |
+| Implementación de pintura reflectiva en el techo de la edificación                       | 13,57%                |
+| Medidas de Eficiencia Energética-Reconversión tecnológica                                | Ahorro Porcentual (%) |
+| Reemplazo de lámparas de sodio 250W y fluorescentes 2X32 W a lámparas de tecnología LED. | 3,68%                 |
+| Reemplazo de aires acondicionado por sistema de climatización VRF                        | 23,55%                |
+|                                                                                          |                       |
+Teniendo cuenta la tabla anterior, el ahorro estimado por implementación de medidas de eficiencia energética sería del 50,22%.
 
-**3. Para más información consultar norma ISO 50002:2014**
-**4. Para más información consultar norma ISO 50001:2018**
-**5. Otra opción es utilizar la función estadística de Excel DESVESTA.**
-**6. A través de un buscador en internet puede revisar como habilitar el complemento Excel de “Herramientas para análisis”.**
-**7. También se suele referir que un valor p-value alto (> 0.05) sugiere falta de evidencia estadística de una relación significativa entre la variable** **independiente y la variable dependiente.** Disposiciones analizadas por Avance Jurídico Casa Editorial Ltda. Comisión de Regulación de Energía y Gas CREG
-n.d. Última actualización: 15 de junio de 2026 - (Diario Oficial No. 53.512 - 4 de junio de 2026)
+Este valor debe ser sumado a los ahorros estimados por mejores desempeños energéticos obtenidos en los ejemplos de los Anexos 1, 2 y 3, según sea el caso.
+
+NOTAS AL FINAL: 
+
+1. Para más información revisar la Guía de Planes de Guía de planes de gestión eficiente de energía para administraciones públicas disponible en:[https://www1.upme.gov.co/DemandayEficiencia/Paginas/Guias-de-consumo-eficiente.aspx](https://www1.upme.gov.co/DemandayEficiencia/Paginas/Guias-de-consumo-eficiente.aspx)
+2. De acuerdo con el artículo 237 de la Ley 2294 de 2023: “El Gobierno nacional, y el resto de las administraciones públicas, en un término no superior a un (1) año, a partir de la entrada en vigencia de la presente Ley realizarán una auditoría energética de sus instalaciones, con una periodicidad de cada cuatro (4) años y establecerán objetivos de ahorro de energía a ser alcanzados a través de medidas de eficiencia energética y la implementación de Fuentes No Convencionales de Energía Renovable -FNCER-. Cada entidad deberá implementar en el siguiente año posterior a las auditorías energéticas, estrategias que permitan un ahorro en el consumo de energía de mínimo 15% respecto del consumo del año anterior, y a partir del segundo año, metas sostenibles definidas por la auditoría y a ser alcanzadas a más tardar en el año 2026”
+3. Para más información consultar norma ISO 50002:2014
+4. Para más información consultar norma ISO 50001:2018
+5. Otra opción es utilizar la función estadística de Excel DESVESTA.
+6. A través de un buscador en internet puede revisar como habilitar el complemento Excel de “Herramientas para análisis”.
+7. También se suele referir que un valor p-value alto (> 0.05) sugiere falta de evidencia estadística de una relación significativa entre la variable independiente y la variable dependiente.
+
+
+Disposiciones analizadas por Avance Jurídico Casa Editorial Ltda. 
+Comisión de Regulación de Energía y Gas CREG
+n.d. 
+Última actualización: 15 de junio de 2026 - (Diario Oficial No. 53.512 - 4 de junio de 2026)

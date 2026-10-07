@@ -1471,9 +1471,10 @@ Las 84 pruebas de las 15 historias de Storybook se ejecutaron con Vitest en nave
 
 # ANEXOS
 
-|  |
-| --- |
+|                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **⚠ IMPORTANTE:**  *Los anexos deben estar incluidos en el documento o adjuntarse como archivos independientes en la entrega. No se aceptan únicamente enlaces a Google Drive, OneDrive u otras plataformas externas, ya que no garantizan acceso permanente para el jurado.*<br>El repositorio GitHub sí es un enlace aceptable para el código fuente. |
+|                                                                                                                                                                                                                                                                                                                                                         |
 
 ## Anexo A — Manual de usuario
 
