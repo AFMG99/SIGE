@@ -98,7 +98,8 @@ class ModeloConfortThermal(ModeloLBEn):
         en_confort = self._validar_rango_confort(self.temperatura_promedio)
 
         # Consumo base (usar modelo valor absoluto o el que venga dado)
-        consumo_base = self.datos["consumo_kwh"].mean() if self.datos is not None else 0
+        # (BUG-1: la base de los modelos es la ec. 1, consumo_normalizado)
+        consumo_base = self.datos["consumo_normalizado"].mean() if self.datos is not None else 0
 
         # Calcular delta temperatura respecto al punto medio del rango
         temp_medio = (20.2 + 27.6) / 2  # 23.9°C
@@ -141,7 +142,7 @@ class ModeloConfortThermal(ModeloLBEn):
             factor = 0.1  # 10% por desviación estándar
             delta = self.temperatura_promedio - 23.9  # Punto medio
             ajuste = delta * factor
-            consumos = self.datos["consumo_kwh"].values
+            consumos = self.datos["consumo_normalizado"].values
             return np.round(consumos * (1 + ajuste), 4)
 
-        return np.full(len(datos_entrada), self.datos["consumo_kwh"].mean())
+        return np.full(len(datos_entrada), self.datos["consumo_normalizado"].mean())

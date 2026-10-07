@@ -97,17 +97,25 @@ def _aplicar_ajustes_no_rutinarios(
     return df_ajustado, aplicados
 
 
-def _banda_de_grupo(
-    grupo: pd.Series, mes: int, sigma: Optional[float] = None
-) -> Tuple[Dict[str, Any], pd.Series]:
+def _sigma_poblacional(valores: pd.Series) -> Optional[float]:
+    """
+    DesvEst poblacional (ec. 5: ÷N, ddof=0) de un grupo de valores.
+
+    La §7.5.1 solo sugiere la ec. 4-5 con 10 o más datos: por debajo de
+    MIN_DATOS_IC retorna None y se usa la banda ±10 % de la ec. 3 / ec. 7.
+    """
+    if len(valores) >= MIN_DATOS_IC:
+        return float(valores.std(ddof=0))
+    return None
+
+
+def _banda_de_grupo(grupo: pd.Series, mes: int) -> Tuple[Dict[str, Any], pd.Series]:
     """
     Banda de confianza de un mes calendario (§7.5.1).
 
-    Con sigma (N ≥ MIN_DATOS_IC): intervalo de la ec. 4-5,
-    centro ± k·DesvEst, siendo DesvEst la desviación estándar poblacional
-    (÷N, ec. 5) del conjunto de datos pre-depuración.
-
-    Sin sigma (N < MIN_DATOS_IC): banda ±10 % de la ec. 3 / ec. 7.
+    Decisión D1: la ec. 4-5 se evalúa POR MES con n ≥ MIN_DATOS_IC:
+    DesvEst = desviación estándar poblacional (÷N, ec. 5) de LOS VALORES
+    DE ESE MES; con n < MIN_DATOS_IC se usa la banda ±10 % de la ec. 3 / 7.
 
     Con n < MIN_VALORES_POR_MES no se construye banda: el grupo queda
     marcado como `estimado` y se conserva íntegro (la Resolución sugiere
@@ -120,6 +128,7 @@ def _banda_de_grupo(
     """
     n = int(len(grupo))
     media = float(grupo.mean())
+    sigma = _sigma_poblacional(grupo)  # D1: σ del MES (n ≥ 10), si no None
     banda: Dict[str, Any] = {
         "mes": int(mes),
         "n": n,
@@ -171,35 +180,29 @@ def _banda_de_grupo(
     return banda, dentro
 
 def _bandas_y_mascara(
-    df: pd.DataFrame, columna: str, sigma: Optional[float] = None
+    df: pd.DataFrame, columna: str
 ) -> Tuple[List[Dict[str, Any]], pd.Series]:
     """Bandas de todos los meses presentes y máscara de filas a conservar."""
     bandas: List[Dict[str, Any]] = []
     conservar = pd.Series(True, index=df.index)
     for mes in sorted(df["mes"].unique()):
         idx = df.index[df["mes"] == mes]
-        banda, dentro = _banda_de_grupo(df.loc[idx, columna], int(mes), sigma)
+        banda, dentro = _banda_de_grupo(df.loc[idx, columna], int(mes))
         conservar.loc[idx] = dentro
         bandas.append(banda)
     return bandas, conservar
 
-def _sigma_poblacional(
-    df: pd.DataFrame, columna: str = "consumo_normalizado"
-) -> Optional[float]:
-    """
-    DesvEst poblacional (ec. 5: ÷N, ddof=0) del conjunto pre-depuración.
-
-    La §7.5.1 solo sugiere la ec. 4-5 con 10 o más datos: por debajo de
-    MIN_DATOS_IC retorna None y el rescate no es aplicable.
-    """
-    if len(df) >= MIN_DATOS_IC:
-        return float(df[columna].std(ddof=0))
-    return None
-
 def _depurar_df(
     df: pd.DataFrame,
     ajustes: Optional[List[Dict[str, Any]]] = None,
-) -> Tuple[pd.DataFrame, List[Dict[str, Any]], str, Optional[float], List[Dict[str, Any]]]:
+) -> Tuple[
+    pd.DataFrame,
+    List[Dict[str, Any]],
+    str,
+    Optional[float],
+    List[Dict[str, Any]],
+    pd.DataFrame,
+]:
     """
     Depura un DataFrame ya armado con la regla de la §7.5.1 + Anexo 4:
       1. Aplicar ajustes no rutinarios registrados (Anexo 4).
@@ -207,59 +210,75 @@ def _depurar_df(
          con recomputo de la media tras el descarte.
       3. Meses con n < MIN_VALORES_POR_MES se conservan sin banda (`estimado`).
 
-    El rescate con ec. 4-5 (ic_2sigma) se ELIMINA: la solución normativa
-    a valores fuera de banda con causa conocida es el ajuste no rutinario
-    (Anexo 4, §7.6.2), no ensanchar la banda.
+    La DesvEst reportada (§9.2-9.4, tarjeta "Desv. estándar") es la de
+    TODOS los datos utilizados: post-ajuste, PRE-descarte (ec. 5, ÷N con
+    n ≥ MIN_DATOS_IC; si no, None). Las bandas NO la usan: la ec. 4-5 se
+    evalúa por mes (D1) y el resto es ±10 % (ec. 3).
 
-    Retorna (DataFrame limpio, bandas por mes, criterio aplicado: "banda_10_pct",
-    sigma=None, ajustes_aplicados).
+    Retorna (DataFrame limpio, bandas por mes, criterio: "banda_10_pct",
+    DesvEst post-ajuste/pre-descarte, ajustes_aplicados, DataFrame
+    post-ajuste/pre-descarte para la serie `real`).
     """
     # 1. Aplicar ajustes no rutinarios ANTES de la verificación ec. 3
     df, aplicados = _aplicar_ajustes_no_rutinarios(df, ajustes or [])
 
-    # 2. Pase único con banda ±10 % (ec. 3) — sin rescate
-    bandas, conservar = _bandas_y_mascara(df, "consumo_normalizado", None)
+    # 2. DesvEst de TODOS los datos utilizados (post-ajuste, pre-descarte)
+    desv_est = _sigma_poblacional(df["consumo_normalizado"])
+    df_ajustado = df  # post-ajuste/pre-descarte: base de la serie `real`
+
+    # 3. Pase único con banda ±10 % (ec. 3) — sin rescate
+    bandas, conservar = _bandas_y_mascara(df, "consumo_normalizado")
     df_limpio = df[conservar].copy()
 
     logger.info(
         f"Datos depurados (ec. 3 ±10%): {len(df_limpio)} registros, "
         f"{len(df) - len(df_limpio)} descartados, "
-        f"{len(aplicados)} ajustes aplicados"
+        f"{len(aplicados)} ajustes aplicados, "
+        f"DesvEst pre-descarte: {desv_est}"
     )
-    return df_limpio, bandas, "banda_10_pct", None, aplicados
+    return df_limpio, bandas, "banda_10_pct", desv_est, aplicados, df_ajustado
 
 def depurar_con_bandas(
     data: Dict[str, List[Dict[str, Any]]],
     ajustes: Optional[List[Dict[str, Any]]] = None,
-) -> Tuple[pd.DataFrame, List[Dict[str, Any]], str, Optional[float], List[Dict[str, Any]]]:
+) -> Tuple[
+    pd.DataFrame,
+    List[Dict[str, Any]],
+    str,
+    Optional[float],
+    List[Dict[str, Any]],
+    pd.DataFrame,
+]:
     """
     Depurar y limpiar el dataset histórico de consumo energético.
 
     Secuencia (§7.5.1, ec. 1-5 + Anexo 4):
       1. Normalización a 30 días (ec. 1) y descarte de consumos ≤ 0.
       2. Aplicar ajustes no rutinarios registrados (Anexo 4).
-      3. Pase único con banda ±10 % de la ec. 3 (criterio por defecto),
+      3. DesvEst reportada (§9.2-9.4) sobre TODOS los datos post-ajuste
+         y pre-descarte (ec. 5, ÷N con n ≥ MIN_DATOS_IC; si no, None).
+      4. Pase único con banda ±10 % de la ec. 3 (criterio por defecto),
          con recomputo de la media tras el descarte.
-      4. Por cada mes calendario con n ≥ MIN_VALORES_POR_MES: banda sobre la
+      5. Por cada mes calendario con n ≥ MIN_VALORES_POR_MES: banda sobre la
          media inicial, descarte de lo que caiga fuera y recomputo de la
          media (así lo exige §7.5.1 después de la ec. 3). Si la banda
          construida sobre la media no contiene ningún valor (mes patológico),
          se reancla sobre la mediana para no perder el mes entero.
-      5. Meses con menos de tres registros se conservan sin banda y quedan
+      6. Meses con menos de tres registros se conservan sin banda y quedan
          como `estimado`.
 
-    El rescate con ec. 4-5 (ic_2sigma) se ELIMINA: la solución normativa
-    a valores fuera de banda con causa conocida es el ajuste no rutinario
-    (Anexo 4, §7.6.2), no ensanchar la banda.
+    La ec. 4-5 se evalúa POR MES (D1) con n ≥ MIN_DATOS_IC; los límites
+    de la tarjeta de bandas salen de la ec. 3 / ec. 7 (±10 %).
 
     Retorna:
     --------
     (DataFrame limpio listo para modelado, bandas por mes, criterio aplicado:
-    "banda_10_pct", DesvEst poblacional usada para la banda (None), ajustes_aplicados).
+    "banda_10_pct", DesvEst post-ajuste/pre-descarte, ajustes_aplicados,
+    DataFrame post-ajuste/pre-descarte para la serie `real`).
     """
     df = _armar_df(data)
     logger.info("Depurando datos (ec. 3 ±10% + ajustes Anexo 4, §7.5.1)")
-    df, bandas, criterio, sigma, aplicados = _depurar_df(df, ajustes)
+    df, bandas, criterio, desv_est, aplicados, df_ajustado = _depurar_df(df, ajustes)
 
     descartados = sum(b["descartados"] for b in bandas)
     estimados = sum(1 for b in bandas if b["estimado"])
@@ -268,15 +287,16 @@ def depurar_con_bandas(
         f"{descartados} descartados, {estimados} meses sin "
         f"{MIN_VALORES_POR_MES} valores, {len(aplicados)} ajustes aplicados)"
     )
-    return df, bandas, criterio, sigma, aplicados
+    return df, bandas, criterio, desv_est, aplicados, df_ajustado
 
 def base_cruda(data: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
     """
     Base ec. 1 sin depurar: normalización a 30 días y sanidad de consumos.
 
     §7.5.2: la ruta del cociente no comparte la depuración de consumo de la
-    §7.5.1; recibe esta base cruda y depura sus propios cocientes (ec. 7
-    con N < 10 o ec. 4-5 con N ≥ 10, con descarte y recomputo).
+    §7.5.1; recibe esta base cruda y depura sus propios cocientes por mes
+    (ec. 4-5 con n ≥ 10 en el mes, si no ec. 7: ±10 %, con descarte y
+    recomputo).
     """
     return _armar_df(data)
 
@@ -285,7 +305,7 @@ def depurar_datos(
     ajustes: Optional[List[Dict[str, Any]]] = None,
 ) -> pd.DataFrame:
     """Depurar el dataset; ver `depurar_con_bandas` (mismo flujo, solo DataFrame)."""
-    df, _, _, _, _ = depurar_con_bandas(data, ajustes)
+    df, _, _, _, _, _ = depurar_con_bandas(data, ajustes)
     return df
 
 def bandas_por_mes(
@@ -304,5 +324,5 @@ def bandas_por_mes(
     {mes, n, media, limite_inferior, limite_superior, descartados, estimado}
     """
     df = _armar_df({"registros": registros})
-    _, bandas, _, _, _ = _depurar_df(df, ajustes)
+    _, bandas, _, _, _, _ = _depurar_df(df, ajustes)
     return bandas

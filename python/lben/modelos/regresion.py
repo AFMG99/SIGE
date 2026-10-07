@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class ModeloRegresion(ModeloLBEn):
     """
     Modelo 3: Regresión Lineal Simple y Multivariable con statsmodels.
-    Y (Consumo kWh) = β0 + β1*(Población) + β2*(GDE) + ...
+    Y (consumo_normalizado, ec. 1) = β0 + β1*(Población) + β2*(GDE) + ...
     Filtrado de variables: Si p-value > 0.05, descartar variable y re-correr
     (§7.5.3). Retorna coeficientes, R², p-values y error promedio; el umbral
     de MAPE ≤ 5 % es de confiabilidad (ejemplo del Anexo 3), no una cláusula,
@@ -30,8 +30,9 @@ class ModeloRegresion(ModeloLBEn):
         self,
         datos_limpiados: pd.DataFrame,
         variables_explicativas: List[str],
+        desvio_todos: Optional[float] = None,
     ):
-        super().__init__("Regresión", datos_limpiados)
+        super().__init__("Regresión", datos_limpiados, desvio_todos)
         self.variables_explicativas = variables_explicativas
         self.modelo_ols: Optional[sm.regression.linear_model.OLSResults] = None
 
@@ -94,7 +95,8 @@ class ModeloRegresion(ModeloLBEn):
         logger.info(f"Ajustando Modelo Regresión ({self.nombre})")
 
         # Preparar variable dependiente y independiente
-        y = self.datos["consumo_kwh"]
+        # (BUG-1: la Y de los modelos es la ec. 1, consumo_normalizado)
+        y = self.datos["consumo_normalizado"]
         X = self.datos[self.variables_explicativas].copy()
 
         # Añadir constante
@@ -152,7 +154,7 @@ class ModeloRegresion(ModeloLBEn):
 
         # Calcular estadísticos finales
         y_pred = self.modelo_ols.predict(X_limpio[variables_actuales])
-        consumos_actuales = self.datos["consumo_kwh"]
+        consumos_actuales = self.datos["consumo_normalizado"]
 
         # R²
         self.r2 = round(self.modelo_ols.rsquared, 4)
@@ -192,7 +194,7 @@ class ModeloRegresion(ModeloLBEn):
 
         resultado = {
             "tipo": "REGRESSION_ESTADISTICA",
-            "variable_dependiente": "consumo_kwh",
+            "variable_dependiente": "consumo_normalizado",
             "variables_explicativas_usadas": variables_actuales,
             "coeficientes": self.coeficientes,
             "r2": self.r2,
@@ -200,7 +202,7 @@ class ModeloRegresion(ModeloLBEn):
             "p_values": self.p_values,
             "mape": self.mape,
             "f_statistic": f_statistic,
-            "desvio_estandar": round(float(self.datos["consumo_kwh"].std(ddof=0)), 4),
+            "desvio_estandar": round(self._desvio_reportado(), 4),
             "observaciones": f"Modelo {self.nombre} con {len(variables_actuales)} variables significativas",
         }
 

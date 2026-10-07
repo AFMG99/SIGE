@@ -18,10 +18,12 @@ Contrato:
     {
       "ok": true, "originales": 48, "depurados": 47, "min_meses": 36,
       "min_valores_por_mes": 3,
-      "criterio_depuracion": "banda_10_pct", // default; "ic_2sigma" = rescate
-      "desv_est": 2309.4,                   // DesvEst (ec. 5) del rescate; null en ec. 3
-      "k_intervalo": 2,                     // k de la ec. 4; null si criterio banda_10_pct
-      "min_datos_ic": 10,                   // umbral N >= 10 para el rescate ec. 4-5
+      "criterio_depuracion": "banda_10_pct", // única ruta: ±10 % (ec. 3)
+      "desv_est": 21493.13,                 // §9.2: σ poblacional (ec. 5) de
+                                            // TODOS los datos (post-ajuste,
+                                            // pre-descarte); null si N < 10
+      "k_intervalo": null,                  // el rescate ic_2sigma ya no existe
+      "min_datos_ic": 10,                   // umbral n >= 10 POR MES (D1) ec. 4-5
       "bandas": [{"mes", "n", "media", "limite_inferior", "limite_superior",
                   "descartados", "estimado"} ...],   // una por mes calendario
       "meses_insuficientes": [3, 7],
@@ -34,10 +36,11 @@ Contrato:
     }
 
   bandas/serie implementan la depuracion de la Resolucion 16 de 2024 §7.5.1:
-  pase 1 con la banda ±10 % de la ec. 3 (criterio por defecto); si los
-  depurados quedan por debajo de min_meses (36) y N >= 10, rescate con el
-  intervalo de confianza de las ec. 4-5 (k=2, DesvEst poblacional ÷N) solo
-  si mejora el recuento. Recomputo tras el descarte; <3 valores salen estimado.
+  pase unico con la banda +/-10 % de la ec. 3. La ec. 4-5 se evalua POR MES
+  (decision D1): con n >= 10 en el mes, centro +/- k*DesvEst del mes (ec. 5);
+  si no, +/-10 % (ec. 3 / ec. 7). Recomputo tras el descarte; <3 valores
+  salen estimado. `real` de la serie = consumo_normalizado (ec. 1) con los
+  ajustes del Anexo 4 aplicados (pre-descarte), no el kWh crudo.
 
 El cociente NO comparte esa depuracion (§7.5.2): usa su propia base cruda (ec. 1) y la depura con sus bandas (ec. 4-5 si N >= 10, si no ec. 7).
 El consumo YA viene normalizado a 30 dias (accion del servidor, dias=30):
@@ -175,9 +178,14 @@ def main() -> int:
 
     # ── 1. Depuracion unica para los 4 modelos (§7.5.1, ec. 1-5 + Anexo 4) ─
     try:
-        limpio, bandas, criterio, desv_est, ajustes_aplicados = depurar_con_bandas(
-            {str(bloque_id): registros}, ajustes
-        )
+        (
+            limpio,
+            bandas,
+            criterio,
+            desv_est,
+            ajustes_aplicados,
+            ajustado,
+        ) = depurar_con_bandas({str(bloque_id): registros}, ajustes)
     except Exception as e:  # noqa: BLE001
         json.dump(
             {"ok": False, "error": f"Depuracion falló: {e}",
@@ -191,7 +199,7 @@ def main() -> int:
 
     # ── 2. Valor Absoluto ──────────────────────────────────────────────
     resultados["valor_absoluto"], preds["valor_absoluto"] = _ajustar(
-        ModeloValorAbsoluto("Valor Absoluto", limpio),
+        ModeloValorAbsoluto("Valor Absoluto", limpio, desvio_todos=desv_est),
         lambda m: m.predecir(limpio),
     )
 
@@ -223,7 +231,7 @@ def main() -> int:
         preds["regresion"] = None
     else:
         resultados["regresion"], preds["regresion"] = _ajustar(
-            ModeloRegresion(limpio, vars_disp),
+            ModeloRegresion(limpio, vars_disp, desvio_todos=desv_est),
             lambda m: _predecir_regresion(m, limpio),
         )
 
@@ -248,6 +256,12 @@ def main() -> int:
         (int(r.ano), int(r.mes)): i
         for i, r in enumerate(crudo.itertuples())
     }
+    # `real` post-ajuste (Anexo 4) en la base ec. 1: es lo que el modelo
+    # vio antes del descarte, no el kWh crudo de la factura.
+    real_ajustado = {
+        (int(r.ano), int(r.mes)): float(r.consumo_normalizado)
+        for r in ajustado.itertuples()
+    }
     virtual = None
     if resultados.get("confort", {}).get("ok"):
         virtual = resultados["confort"]["resultado"].get("energia_virtual_kwh")
@@ -262,10 +276,11 @@ def main() -> int:
         i = index_limpio.get((anio, mes))
         j = index_crudo.get((anio, mes))
         banda = banda_por_mes.get(mes, {})
+        valor_real = real_ajustado.get((anio, mes))
         punto = {
             "mes": mes,
             "ano": anio,
-            "real": _num(reg.get("consumo_kwh")),
+            "real": _num(valor_real) if valor_real is not None else _num(reg.get("consumo_kwh")),
             "descartado": i is None,
             "banda_inf": _num(banda.get("limite_inferior")),
             "banda_sup": _num(banda.get("limite_superior")),

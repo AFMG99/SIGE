@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
 
-from ..constants import CONFIANZA_INTERVALO, K_INTERVALO, MIN_DATOS_IC
+from ..bandas import _sigma_poblacional
+from ..constants import CONFIANZA_INTERVALO, K_INTERVALO
 from .base import ModeloLBEn
 
 logger = logging.getLogger(__name__)
@@ -21,13 +22,18 @@ class ModeloValorAbsoluto(ModeloLBEn):
     (§7.1-7.2).
     """
 
-    def __init__(self, nombre: str, datos_limpiados: pd.DataFrame):
-        super().__init__(nombre, datos_limpiados)
+    def __init__(
+        self,
+        nombre: str,
+        datos_limpiados: pd.DataFrame,
+        desvio_todos: Optional[float] = None,
+    ):
+        super().__init__(nombre, datos_limpiados, desvio_todos)
         self.lben_mensual: Dict[int, float] = {}
 
     def _lben_mensual(self) -> Dict[int, float]:
         """LBEn_m por mes calendario (ec. 2): media simple de los registros."""
-        medias = self.datos.groupby("mes")["consumo_kwh"].mean()
+        medias = self.datos.groupby("mes")["consumo_normalizado"].mean()
         return {int(m): float(v) for m, v in medias.items()}
 
     def ajustar(self) -> Dict[str, Any]:
@@ -44,14 +50,16 @@ class ModeloValorAbsoluto(ModeloLBEn):
         self.lben_mensual = self._lben_mensual()
         lben_vals = list(self.lben_mensual.values())
 
-        consumo_promedio = float(self.datos["consumo_kwh"].mean())
-        consumo_mediana = float(self.datos["consumo_kwh"].median())
-        # DesvEst de la ec. 5: población (÷N), §9.2 reporta la de todos los
-        # datos utilizados.
-        desvio_poblacional = float(self.datos["consumo_kwh"].std(ddof=0))
+        # El modelo opera sobre la ec. 1 (consumo_normalizado): es la base
+        # que la Resolución define para LBEn (ec. 2), R², MAPE y predicción.
+        consumo_promedio = float(self.datos["consumo_normalizado"].mean())
+        consumo_mediana = float(self.datos["consumo_normalizado"].median())
+        # DesvEst reportada (§9.2): ec. 5 sobre TODOS los datos utilizados
+        # (post-ajuste, pre-descarte), provista por la depuración.
+        desvio_poblacional = self._desvio_reportado()
 
         # Predicción fila a fila: la LBEn del mes de cada registro
-        reales = self.datos["consumo_kwh"].astype(float).values
+        reales = self.datos["consumo_normalizado"].astype(float).values
         pred = (
             self.datos["mes"].astype(int).map(self.lben_mensual).astype(float).values
         )
@@ -66,15 +74,32 @@ class ModeloValorAbsoluto(ModeloLBEn):
         rango_inferior = round(min(lben_vals) * (1 - CONFIANZA_INTERVALO), 4)
         rango_superior = round(max(lben_vals) * (1 + CONFIANZA_INTERVALO), 4)
 
-        # Intervalo de confianza ec. 4: envolvente de las 12 LBEn_m con el
-        # ancho k·DesvEst. Con N < 10 la ec. 4-5 no aplica → null.
+        # Intervalo de confianza ec. 4 (D1: por mes): solo si los 12 meses
+        # están presentes y CADA mes tiene n ≥ MIN_DATOS_IC. Envolvente de
+        # las bandas mensuales LBEn_m ± k·σ_m, con σ_m poblacional (÷N) de
+        # los valores de ese mes (ec. 5).
         intervalo_confianza = None
-        if len(self.datos) >= MIN_DATOS_IC:
-            ancho_ic = K_INTERVALO * desvio_poblacional
-            intervalo_confianza = [
-                round(min(lben_vals) - ancho_ic, 4),
-                round(max(lben_vals) + ancho_ic, 4),
-            ]
+        meses = sorted(self.lben_mensual)
+        if len(meses) == 12:
+            anchos = []
+            for m in meses:
+                grupo = self.datos.loc[self.datos["mes"] == m, "consumo_normalizado"]
+                sigma_m = _sigma_poblacional(grupo)
+                if sigma_m is None:
+                    anchos = []
+                    break
+                anchos.append(K_INTERVALO * sigma_m)
+            if anchos:
+                inferiores = [
+                    self.lben_mensual[m] - anchos[i] for i, m in enumerate(meses)
+                ]
+                superiores = [
+                    self.lben_mensual[m] + anchos[i] for i, m in enumerate(meses)
+                ]
+                intervalo_confianza = [
+                    round(min(inferiores), 4),
+                    round(max(superiores), 4),
+                ]
 
         self.coeficientes = {
             "intercepto": round(consumo_promedio, 4),
@@ -108,5 +133,5 @@ class ModeloValorAbsoluto(ModeloLBEn):
         lben = self.lben_mensual or self._lben_mensual()
         pred = datos_entrada["mes"].astype(int).map(lben)
         return np.round(
-            pred.fillna(self.datos["consumo_kwh"].mean()).astype(float).values, 4
+            pred.fillna(self.datos["consumo_normalizado"].mean()).astype(float).values, 4
         )

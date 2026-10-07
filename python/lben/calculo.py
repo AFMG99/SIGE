@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -71,7 +71,14 @@ def calcular_linea_base(
 
     # Depurar datos con ajustes no rutinarios (Anexo 4) y obtener ajustes aplicados
     try:
-        datos_limpiados, _, _, _, ajustes_aplicados = depurar_con_bandas(data_json, ajustes)
+        (
+            datos_limpiados,
+            _,
+            _,
+            desv_est,
+            ajustes_aplicados,
+            _,
+        ) = depurar_con_bandas(data_json, ajustes)
     except DataValidationError as e:
         logger.error(f"Error en la depuración de datos: {e}")
         raise
@@ -83,7 +90,9 @@ def calcular_linea_base(
 
         # Intentar Modelo Valor Absoluto
         try:
-            modelo_va = ModeloValorAbsoluto("Valor Absoluto", datos_limpiados)
+            modelo_va = ModeloValorAbsoluto(
+                "Valor Absoluto", datos_limpiados, desvio_todos=desv_est
+            )
             resultado_va = modelo_va.ajustar()
             resultados["valor_absoluto"] = resultado_va
         except Exception as e:
@@ -92,7 +101,9 @@ def calcular_linea_base(
         # Intentar Modelo Regresión (si hay suficientes datos y variables)
         if len(datos_limpiados) >= MIN_MESES_BASE and variables_explicativas:
             try:
-                modelo_reg = ModeloRegresion(datos_limpiados, variables_explicativas)
+                modelo_reg = ModeloRegresion(
+                    datos_limpiados, variables_explicativas, desvio_todos=desv_est
+                )
                 resultado_reg = modelo_reg.ajustar()
                 resultados["regresion"] = resultado_reg
             except ModelSelectionError:
@@ -113,7 +124,9 @@ def calcular_linea_base(
         return resultado
 
     elif modelo_seleccionado == "valor_absoluto":
-        modelo = ModeloValorAbsoluto("Valor Absoluto", datos_limpiados)
+        modelo = ModeloValorAbsoluto(
+            "Valor Absoluto", datos_limpiados, desvio_todos=desv_est
+        )
         resultado = modelo.ajustar()
         resultado["ajustes_aplicados"] = ajustes_aplicados
         return resultado
@@ -132,7 +145,7 @@ def calcular_linea_base(
             raise DataValidationError(
                 "Se deben proporcionar variables explicativas para el modelo de regresión"
             )
-        modelo = ModeloRegresion(datos_limpiados, variables_explicativas)
+        modelo = ModeloRegresion(datos_limpiados, variables_explicativas, desvio_todos=desv_est)
         resultado = modelo.ajustar()
         resultado["ajustes_aplicados"] = ajustes_aplicados
         return resultado

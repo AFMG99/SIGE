@@ -6,7 +6,7 @@ if __name__ == "__main__":
     print("Módulo cargado exitosamente")
     print("Funciones disponibles:")
     print("  - calcular_linea_base(data, modelo)")
-    print("  - depurar_con_bandas(data)  # bandas + criterio (±10 % o rescate ec. 4-5)")
+    print("  - depurar_con_bandas(data)  # bandas ±10 %, DesvEst pre-descarte, serie ajustada")
     print("  - depurar_datos(data)")
     print("  - bandas_por_mes(registros)")
     print("  - validar_estructura_datos(data)")

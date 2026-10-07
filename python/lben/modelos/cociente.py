@@ -8,7 +8,7 @@ from typing import Any, Dict
 import numpy as np
 import pandas as pd
 
-from ..bandas import _banda_de_grupo
+from ..bandas import _banda_de_grupo, _sigma_poblacional
 from ..constants import MIN_DATOS_IC
 from ..exceptions import DataValidationError
 from .base import ModeloLBEn
@@ -20,8 +20,9 @@ class ModeloCociente(ModeloLBEn):
     Modelo 2: Cociente de valores medidos (§7.5.2, ec. 6-7)
     cociente_i = consumo_normalizado_i / variable_i (ec. 1 en el numerador);
     la LBEn de cada mes es el promedio simple de los cocientes de ese mes →
-    12 valores (kWh/persona·mes, etc.). Depura SU propia base (ec. 4-5 con
-    N ≥ 10; si no, ±10 % de la ec. 7) con descarte y recomputo.
+    12 valores (kWh/persona·mes, etc.). Depura SU propia base: por mes,
+    ec. 4-5 con n ≥ 10 en el mes (D1); si no, ±10 % de la ec. 7, con
+    descarte y recomputo.
     """
 
     def __init__(
@@ -58,25 +59,24 @@ class ModeloCociente(ModeloLBEn):
         # Cociente individual por registro (ec. 6; energía ec. 1, mes i)
         datos["cociente"] = datos["consumo_normalizado"] / datos[self.variable_relevante]
 
-        # Banda sobre los cocientes de cada mes (ec. 4-5 con N ≥ 10, si no
-        # ec. 7: ±10 %) + recomputo
-        sigma_cociente = (
-            float(datos["cociente"].std(ddof=0))
-            if len(datos) >= MIN_DATOS_IC
-            else None
-        )
+        # BUG-3: DesvEst reportada (§9.3) = σ poblacional de TODOS los
+        # cocientes utilizados (pre-descarte, ec. 5 con n ≥ MIN_DATOS_IC).
+        desvio_cocientes = _sigma_poblacional(datos["cociente"])
+
+        # Banda sobre los cocientes de cada mes (D1: ec. 4-5 con n ≥ 10 en
+        # el mes, si no ec. 7: ±10 %) + recomputo
         conservar = pd.Series(True, index=datos.index)
         cociente_mensual: Dict[int, float] = {}
         for mes in sorted(datos["mes"].unique()):
             idx = datos.index[datos["mes"] == mes]
             grupo = datos.loc[idx, "cociente"]
-            banda, dentro = _banda_de_grupo(grupo, int(mes), sigma_cociente)
+            banda, dentro = _banda_de_grupo(grupo, int(mes))
             conservar.loc[idx] = dentro
             cociente_mensual[int(mes)] = banda["media"]
         datos = datos[conservar]
 
         # Predicciones: variable × cociente del mes de cada registro
-        reales = datos["consumo_kwh"].astype(float).values
+        reales = datos["consumo_normalizado"].astype(float).values
         pred = (
             datos[self.variable_relevante].astype(float)
             * datos["mes"].astype(int).map(cociente_mensual).astype(float)
@@ -88,7 +88,7 @@ class ModeloCociente(ModeloLBEn):
         self.mape = round(float(np.mean(np.abs((reales - pred) / reales))) * 100, 2)
 
         var_ref = float(datos[self.variable_relevante].mean())
-        consumo_promedio = float(datos["consumo_kwh"].mean())
+        consumo_promedio = float(datos["consumo_normalizado"].mean())
         cociente_global = round(
             float(np.mean(list(cociente_mensual.values()))), 6
         )
@@ -111,11 +111,13 @@ class ModeloCociente(ModeloLBEn):
             "unidad": self.unidad_referencia,
             "r2": self.r2,
             "mape": self.mape,
-            "desvio_estandar": round(float(datos["consumo_kwh"].std(ddof=0)), 4),
+            "desvio_estandar": (
+                round(desvio_cocientes, 4) if desvio_cocientes is not None else None
+            ),
             "observaciones": (
                 f"Cociente mensual: promedio de {len(datos)} cocientes "
                 f"individuales (ec. 6); depura su propia base por banda "
-                f"mensual (ec. 4-5 con N ≥ {MIN_DATOS_IC}, si no ec. 7)"
+                f"mensual (ec. 4-5 con n ≥ {MIN_DATOS_IC} en el mes, si no ec. 7)"
             ),
         }
 
