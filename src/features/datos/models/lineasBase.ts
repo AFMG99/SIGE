@@ -62,28 +62,26 @@ export const UPME_RANGO_CONFIANZA = 0.1 // ±10 % · ec. 3 (criterio por defecto
 
 /**
  * Factor k = 2 de la ec. 4 (`LBEn_m ± k·DesvEst`): la imagen oficial de la
- * Resolución escribe «dos(2)·DesvEst» (§7.5.1); ancho del rescate cuando
- * los depurados quedan < 36.
+ * Resolución escribe «dos(2)·DesvEst» (§7.5.1); ancho de la banda mensual
+ * cuando el mes tiene n ≥ `UPME_MIN_DATOS_IC` (D1) y del IC de la tarjeta.
  */
 export const UPME_K_INTERVALO = 2
 
 /**
- * N mínimo de registros para que la ec. 4-5 sea elegible (§7.5.1: «con 10 o
- * más datos…»); guardia del rescate cuando los depurados quedan < 36.
+ * N mínimo de registros EN UN MES para que la ec. 4-5 se use en ese mes
+ * (§7.5.1: «con 10 o más datos…»; decisión D1: el gate es por mes).
  */
 export const UPME_MIN_DATOS_IC = 10
 
 /**
  * Criterio de depuración aplicado por el motor (espejo de
- * `lben.depurar_con_bandas`, regla de dos pases):
- * - `banda_10_pct`: pase 1, criterio por defecto — banda ±10 % de la ec. 3
- *   (es lo que aplican los ejemplos de los Anexos con 36 datos).
- * - `ic_2sigma`: rescate — si tras el pase 1 los depurados quedan < 36 y
- *   N ≥ `UPME_MIN_DATOS_IC`, se reintenta con el intervalo de confianza de
- *   las ec. 4-5, centro ± `UPME_K_INTERVALO`·DesvEst (DesvEst poblacional,
- *   ÷N, ec. 5); solo se conserva si mejora el recuento.
+ * `lben.depurar_con_bandas`):
+ * - `banda_10_pct`: única ruta — banda ±10 % de la ec. 3 por mes, con
+ *   recomputo de la media tras el descarte (es lo que aplican los
+ *   ejemplos de los Anexos con 36 datos). La ec. 4-5 se evalúa por mes
+ *   (D1) dentro de esa misma pasada; el rescate `ic_2sigma` ya no existe.
  */
-export type CriterioDepuracion = 'ic_2sigma' | 'banda_10_pct'
+export type CriterioDepuracion = 'banda_10_pct'
 
 /**
  * Textos display por criterio para captions, badges y chips de la UI
@@ -100,11 +98,6 @@ export const TEXTOS_CRITERIO: Record<
     descartados: string
   }
 > = {
-  ic_2sigma: {
-    nombre: 'IC ec. 4-5 (±2·DesvEst)',
-    descarte: 'fuera del IC ec. 4-5 (±2·DesvEst)',
-    descartados: 'Descartados (IC ec. 4-5)',
-  },
   banda_10_pct: {
     nombre: 'banda ±10 % (ec. 3)',
     descarte: 'fuera de banda ±10 %',
@@ -121,13 +114,13 @@ export const TEXTOS_CRITERIO: Record<
  */
 export const UPME_MIN_VALORES_MES = 3
 
-/** Punto mensual de la serie para las gráficas (kWh/30 d, post-asignación). */
+/** Punto mensual de la serie para las gráficas (kWh/30 d, post-asignación y ajustes Anexo 4). */
 export type PuntoSerie = {
   mes: number
   ano: number
   real: number | null
   descartado: boolean
-  /** Banda del mes calendario (ec. 4-5 o ±10 %); null si salió `estimado`. */
+  /** Banda del mes calendario (±10 %, ec. 3/7); null si salió `estimado`. */
   banda_inf: number | null
   banda_sup: number | null
   /** Mes con menos de `UPME_MIN_VALORES_MES` valores: sin banda (§7.5.1). */
@@ -150,9 +143,10 @@ export type ResultadoModelo = {
   desvio_estandar?: number
   rango_confianza_10_pct?: [number, number]
   /**
-   * Intervalo de confianza ec. 4: envolvente de las 12 `LBEn_m` con ancho
-   * `k·DesvEst`; `null`/ausente si N < `UPME_MIN_DATOS_IC` (la ec. 4-5 no
-   * aplica).
+   * Intervalo de confianza ec. 4 (D1: por mes): envolvente de las 12
+   * `LBEn_m ± k·σ_m` con σ_m poblacional (÷N, ec. 5) de cada mes; solo si
+   * los 12 meses están presentes y cada uno tiene n ≥ `UPME_MIN_DATOS_IC`
+   * (si no, `null`).
    */
   intervalo_confianza?: [number, number] | null
   /** 12 `LBEn_m` de la ec.(2); null en meses sin datos (§7.5.1). */
@@ -214,9 +208,9 @@ export type AlcanceSolicitud = {
 }
 
 /**
- * Banda de confianza de un mes calendario (pase 1: banda ±10 % de la
- * ec. 3; rescate ec. 4-5 con N ≥ `UPME_MIN_DATOS_IC` cuando los depurados
- * quedan < 36; espejo de `lben.bandas._banda_de_grupo`). `media` ya
+ * Banda de confianza de un mes calendario (±10 % de la ec. 3 / ec. 7; la
+ * ec. 4-5 se evalúa por mes con n ≥ `UPME_MIN_DATOS_IC` — D1 — dentro de
+ * la misma pasada; espejo de `lben.bandas._banda_de_grupo`). `media` ya
  * incluye el recomputo tras el descarte.
  */
 export type DepuracionBandas = {
@@ -241,7 +235,7 @@ export type FilaPreparacion = {
   consumoNormalizado: number
   /** Share acumulado aplicado a esta factura. */
   share: number
-  /** kWh/30 d efectivamente enviados al motor (normalizado × share). */
+  /** kWh/30 d efectivamente enviados al motor (normalizado × share, con ajustes Anexo 4). */
   consumoAsignado: number
   /** Decisión real del motor (columna `descartado` de la serie). */
   descartado: boolean
@@ -279,11 +273,11 @@ export type CalculoLineaBase = {
   originales: number
   depurados: number
   minMeses: number
-  /** Criterio de depuración aplicado por el motor (ec. 4-5 o ec. 3). */
+  /** Criterio de depuración aplicado por el motor (banda ±10 %, ec. 3). */
   criterioDepuracion: CriterioDepuracion
-  /** DesvEst poblacional (ec. 5) usada para trazar la banda; null si ec. 3. */
+  /** §9.2: DesvEst poblacional (ec. 5) de todos los datos post-ajuste/pre-descarte; null si n < 10. */
   desvEst: number | null
-  /** k del intervalo de confianza (ec. 4); null si el criterio es ec. 3. */
+  /** k de la ec. 4 (ancho de la banda mensual y del IC); null en el criterio ec. 3. */
   kIntervalo: number | null
   /** Bandas por mes (§7.5.1); la serie los refleja en `banda_inf/sup`. */
   bandas: DepuracionBandas[]

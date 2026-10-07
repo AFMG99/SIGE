@@ -495,6 +495,7 @@ function resultadosMock(share: number): CalculoLineaBase['resultados'] {
         unidad: 'persona',
         variable_referencia_promedio: 917.5,
         consumo_promedio: k(21527.4),
+        desvio_estandar: k(2.5231),
         r2: 0.2448,
         mape: 5.08,
       },
@@ -503,7 +504,7 @@ function resultadosMock(share: number): CalculoLineaBase['resultados'] {
       estado: 'ok',
       resultado: {
         tipo: 'REGRESSION_ESTADISTICA',
-        variable_dependiente: 'consumo_kwh',
+        variable_dependiente: 'consumo_normalizado',
         variables_explicativas_usadas: ['grades_dia_enfriamiento'],
         coeficientes: { grades_dia_enfriamiento: k(46.0467) },
         p_values: { grades_dia_enfriamiento: 0 },
@@ -511,6 +512,7 @@ function resultadosMock(share: number): CalculoLineaBase['resultados'] {
         r2_ajustado: 0.6847,
         f_statistic: 103.0532,
         mape: 2.85,
+        desvio_estandar: k(1520.4),
       },
     },
     confort: {

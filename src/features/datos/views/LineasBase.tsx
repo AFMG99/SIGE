@@ -402,6 +402,12 @@ function Metricas({
           valor={fmt1.format(r.variable_referencia_promedio ?? 0)}
         />
         <Metrica label="Consumo promedio" valor={fmt1.format(r.consumo_promedio ?? 0)} />
+        <Metrica
+          label="Desv. estándar (cocientes)"
+          valor={
+            r.desvio_estandar != null ? fmt4.format(r.desvio_estandar) : '—'
+          }
+        />
         <Metrica label="R²" valor={fmt2.format(r.r2 ?? 0)} />
         <Metrica label="MAPE" valor={`${fmt2.format(r.mape ?? 0)} %`} />
       </dl>
@@ -412,11 +418,17 @@ function Metricas({
     const ps = r.p_values ?? {}
     return (
       <div className="space-y-2">
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Metrica label="R²" valor={fmt2.format(r.r2 ?? 0)} />
           <Metrica label="R² ajustado" valor={fmt2.format(r.r2_ajustado ?? 0)} />
           <Metrica label="Estadístico F" valor={fmt1.format(r.f_statistic ?? 0)} />
           <Metrica label="MAPE" valor={`${fmt2.format(r.mape ?? 0)} %`} />
+          <Metrica
+            label="Desv. estándar"
+            valor={
+              r.desvio_estandar != null ? fmt1.format(r.desvio_estandar) : '—'
+            }
+          />
         </dl>
         <dl className="space-y-1.5">
           {(r.variables_explicativas_usadas ?? Object.keys(coef)).map((v) => (

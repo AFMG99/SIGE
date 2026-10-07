@@ -176,11 +176,13 @@ const CATEGORIAS: Categoria[] = [
             descartan los consumos ≤ 0. Si un atípico fuerte arrastra la media
             hasta que la banda no contiene a ningún valor, se reancla sobre la
             mediana para no perder el mes entero. El rescate con el intervalo
-            de confianza de las ec. 4-5 (±2·DesvEst) se elimina: la solución
-            normativa a anómalos con causa es el ajuste (Anexo 4), no ensanchar
-            la banda. El modelo de cociente depura sobre la base cruda de la
-            ec. 1 y verifica sus cocientes (ec. 4-5 con N ≥ 10, si no ±10 % de
-            la ec. 7, §7.5.2).
+            de confianza de las ec. 4-5 (±2·DesvEst) se elimina como segunda
+            pasada: la solución normativa a anómalos con causa es el ajuste
+            (Anexo 4), no ensanchar la banda; la ec. 4-5 sí se evalúa{' '}
+            <strong>por mes</strong> con n ≥ 10 (decisión D1) dentro del mismo
+            pase. El modelo de cociente depura sobre la base cruda de la
+            ec. 1 y verifica sus cocientes (ec. 4-5 con n ≥ 10 en el mes, si no
+            ±10 % de la ec. 7, §7.5.2).
           </p>
           <p className="mt-2">
             Los meses con menos de 3 valores no forman banda: se calculan con
@@ -201,13 +203,14 @@ const CATEGORIAS: Categoria[] = [
             Sobre{' '}
             <code className="ui-chip">k</code>: la imagen oficial de la ec. (4)
             escribe <em>dos (2)·DesvEst</em>; el motor llama{' '}
-            <code className="ui-chip">k = 2</code> a ese factor (ya no usado en
-            el criterio de depuración, solo en la envolvente informativa).
+            <code className="ui-chip">k = 2</code> a ese factor: ancho de la
+            banda del mes cuando ese mes tiene n ≥ 10 (D1) y de la envolvente
+            IC de la tarjeta de Valor Absoluto.
           </p>
           <Ref
             archivo="python/lben/bandas.py"
             referencia="depurar_con_bandas"
-            linea={159}
+            linea={241}
           />
         </>
       ),
@@ -516,10 +519,11 @@ stdout -> JSON:
   {
     "ok": true, "originales": 48, "depurados": 47,
     "min_meses": 36, "min_valores_por_mes": 3,
-    "criterio_depuracion": "banda_10_pct", // default; "ic_2sigma" = rescate
-    "desv_est": 2309.4,                   // DesvEst (ec. 5) del rescate; null en ec. 3
-    "k_intervalo": 2,                     // k de la ec. 4; null si criterio banda_10_pct
-    "min_datos_ic": 10,                   // umbral N ≥ 10 del rescate ec. 4-5
+    "criterio_depuracion": "banda_10_pct", // única ruta: ±10 % (ec. 3)
+    "desv_est": 21493.13,                // §9.2: σ poblacional (ec. 5) post-ajuste
+                                         // y pre-descarte; null si n < 10
+    "k_intervalo": null,                 // el rescate ic_2sigma ya no existe
+    "min_datos_ic": 10,                  // n ≥ 10 POR MES (D1): puerta ec. 4-5
     "bandas": [{"mes", "n", "media", "limite_inferior",
                 "limite_superior", "descartados", "estimado"}],
     "meses_insuficientes": [3],
@@ -605,9 +609,9 @@ proceso.stdin.end()`}
                     <span className="ui-muted">(valor_absoluto.py:16)</span>
                   </td>
                   <td>
-                    Los 12 promedios mensuales (ene–dic) depurados con el
-                    criterio efectivo (±10 % por defecto, rescate IC ec. 4-5
-                    con N ≥ 10) como{' '}
+                    Los 12 promedios mensuales (ene–dic) depurados con la
+                    banda ±10 % (ec. 3) por mes con recomputo, ya con los
+                    ajustes del Anexo 4 aplicados, como{' '}
                     <code>LBEn_m</code>, con su banda por mes. No usa
                     variables.
                   </td>
@@ -621,7 +625,7 @@ proceso.stdin.end()`}
                     Consumo por unidad de referencia (área en m² o población)
                     que escala con el uso real del espacio; devuelve 12
                     cocientes mensuales. Depura su propia base de cocientes
-                    (§7.5.2): banda por mes con ec. 4-5 si N ≥ 10, si no
+                    (§7.5.2): ec. 4-5 con n ≥ 10 en el mes, si no
                     ±10 % (ec. 7), sin heredar el filtro de consumo.
                   </td>
                 </tr>
@@ -679,19 +683,19 @@ proceso.stdin.end()`}
 export const UPME_MIN_VALORES_MES = 3   // §7.5.1 (regla 3×12)
 export const UPME_P_VALUE = 0.05
 export const UPME_MAPE_MAXIMO = 5   // en % · confiabilidad (Anexo 3)
-export const UPME_RANGO_CONFIANZA = 0.1  // ±10 % · ec. 3 (criterio por defecto)
-export const UPME_K_INTERVALO = 2        // k de la ec. 4 (rescate)
-export const UPME_MIN_DATOS_IC = 10      // N ≥ 10: guardia del rescate ec. 4-5`}
+export const UPME_RANGO_CONFIANZA = 0.1  // ±10 % · ec. 3 (criterio único)
+export const UPME_K_INTERVALO = 2        // k de la ec. 4 (banda mensual / IC, D1)
+export const UPME_MIN_DATOS_IC = 10      // n ≥ 10 POR MES: puerta ec. 4-5 (D1)`}
             />
             <Snippet
               archivo="python/lben/constants.py"
               referencia="constantes normativas"
               linea={22}
-              codigo={`K_INTERVALO = 2        # ec. 4: LBEn_m ± k·DesvEst (rescate)
-MIN_DATOS_IC = 10      # §7.5.1: guardia del rescate (N ≥ 10)
-CONFIANZA_INTERVALO = 0.10  # ±10 % (ec. 3 / ec. 7), criterio por defecto
+              codigo={`K_INTERVALO = 2        # ec. 4: LBEn_m ± k·DesvEst (banda mensual / IC, n ≥ 10 por mes)
+MIN_DATOS_IC = 10      # §7.5.1: ec. 4-5 con n ≥ 10 EN EL MES (D1)
+CONFIANZA_INTERVALO = 0.10  # ±10 % (ec. 3 / ec. 7): criterio único
 UMbral_P_VALUE = 0.05       # significancia al 95 % (§7.5.3)
-MIN_MESES_BASE = 36         # 3 años (§7.1-7.2) — gate de rescate
+MIN_MESES_BASE = 36         # 3 años (§7.1-7.2) — gate de guardado
 MIN_VALORES_POR_MES = 3     # §7.5.1: tres valores del mismo mes
 MAPE_MAXIMO = 0.05          # confiabilidad (ejemplo del Anexo 3)`}
             />
@@ -978,9 +982,9 @@ MAPE_MAXIMO = 0.05          # confiabilidad (ejemplo del Anexo 3)`}
             linea={186}
             codigo={`const CRITERIOS = [
   'Periodo base mínimo: 36 meses (3 años)',
-  'Depuración: por mes con recomputo (§7.5.1): banda ±10 % (ec. 3) por defecto; rescate IC ec. 4-5 (±2·DesvEst, N ≥ 10) si los depurados quedan < 36',
+  'Depuración: por mes con recomputo (§7.5.1): banda ±10 % (ec. 3); ajustes no rutinarios (Anexo 4) corrigen anómalos antes de la verificación',
   'Meses con menos de 3 valores: sin banda (regla 3×12)',
-  'Banda de confianza: ±10 % (ec. 3) por defecto · ±2·DesvEst (ec. 4-5) en el rescate con N ≥ 10',
+  'Banda de confianza: ±10 % (ec. 3) por defecto; ajustes no rutinarios Anexo 4 corrigen anómalos antes de la verificación',
   'Significancia: p-value ≤ 0,05 (§7.5.3)',
   'Bondad de ajuste: R² sin tope (§7.5.3: un R² bajo no invalida)',
   'Error promedio: MAPE ≤ 5 % (confiabilidad, ejemplo Anexo 3)',
@@ -1040,15 +1044,14 @@ if (id === 'confort' && typeof r.en_rango_confort === 'boolean') {
         <>
           <p>
             Es la ventana de operación alrededor de la línea base: lo que cae
-            dentro se considera normal. Por defecto manda la banda de la ec.
-            (3), <code className="ui-chip">media ± 10 %</code>. Si tras ese
-            pase quedan menos de 36 meses depurados y hay{' '}
-            <strong>N ≥ 10</strong> registros, el motor rescata con el
-            intervalo de confianza de las ec. (4)-(5),{' '}
+            dentro se considera normal. Manda la banda de la ec. (3),{' '}
+            <code className="ui-chip">media ± 10 %</code>, con recomputo de la
+            media tras cada descarte. La ec. (4)-(
             <code className="ui-chip">LBEn_m ± k·DesvEst</code> con{' '}
-            <code className="ui-chip">k = 2</code> y DesvEst poblacional (÷N);
-            el rescate solo se conserva si deja más meses que el pase 1. El
-            motor devuelve{' '}
+            <code className="ui-chip">k = 2</code> y DesvEst poblacional ÷N)
+            se evalúa <strong>por mes</strong> (decisión D1): si el mes tiene{' '}
+            <strong>n ≥ 10</strong> la banda de ese mes usa ±2·σ_m; si no, la
+            del mes se queda en ±10 %. El motor devuelve{' '}
             <code className="ui-chip">banda_inf</code> y{' '}
             <code className="ui-chip">banda_sup</code> de cada mes en la serie
             y la gráfica dibuja una escalera de 12 tramos; los meses{' '}
@@ -1057,7 +1060,8 @@ if (id === 'confort' && typeof r.en_rango_confort === 'boolean') {
           <p className="mt-2">
             Para Valor Absoluto hay dos envolventes:{' '}
             <code className="ui-chip">intervalo_confianza</code> resume el IC
-            ec. (4) sobre todos los meses (null si N &lt; 10), y{' '}
+            ec. (4) de los 12 meses (null si algún mes tiene n &lt; 10 o falta
+            algún mes), y{' '}
             <code className="ui-chip">rango_confianza_10_pct</code> emite la
             ventana ±10 % de la ec. (3). Ambas son métricas del modelo,
             independientes del criterio de depuración efectivo, que viaja en{' '}
@@ -1091,8 +1095,8 @@ if (id === 'confort' && typeof r.en_rango_confort === 'boolean') {
             El texto oficial de la Resolución 16 de 2024 está verificado en{' '}
             <code className="ui-chip">docs/resolucion_upme_0016_2024.md</code>{' '}
             y lo codificado aquí corresponde al §7.5 (depuración por mes con
-            recomputo —banda ±10 % de la ec. 3 por defecto, rescate IC ec. 4-5
-            con N ≥ 10 cuando quedan &lt; 36 depurados—, regla 3×12, p ≤ 0,05,
+            recomputo —banda ±10 % de la ec. 3, con la ec. 4-5 evaluada por
+            mes cuando n ≥ 10 (D1)—, regla 3×12, p ≤ 0,05,
             MAPE del Anexo 3). Lo que sí es
             estimación propia —sin respaldo numérico en la resolución— es el
             reparto por área y factor de infraestructura (enfoque ISO 50006 /

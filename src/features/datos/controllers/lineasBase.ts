@@ -21,7 +21,6 @@ import { auditarAccion } from '@/features/datos/controllers/auditoria'
 import {
   MODELOS_LBEN,
   TIPO_LBEN_DB,
-  UPME_K_INTERVALO,
   UPME_MIN_MESES,
   UPME_MIN_VALORES_MES,
   UPME_RANGO_CONFIANZA,
@@ -63,10 +62,10 @@ type SalidaCli = {
   depurados?: number
   min_meses?: number
   min_valores_por_mes?: number
-  criterio_depuracion?: string // banda_10_pct (default) | ic_2sigma (rescate)
-  desv_est?: number | null // DesvEst poblacional (ec. 5) del rescate; null en ec. 3
-  k_intervalo?: number | null // k de la ec. 4; null si criterio banda_10_pct
-  min_datos_ic?: number // N ≥ 10: guardia del rescate ec. 4-5
+  criterio_depuracion?: string // banda_10_pct: única ruta (±10 %, ec. 3)
+  desv_est?: number | null // §9.2: σ poblacional (ec. 5) post-ajuste/pre-descarte
+  k_intervalo?: number | null // k de la ec. 4; el rescate ic_2sigma ya no existe
+  min_datos_ic?: number // n ≥ 10 POR MES (D1): puerta de la ec. 4-5
   bandas?: {
     mes: number
     n: number
@@ -481,14 +480,13 @@ export async function calcularModelosLineaBase(
         periodoInicio: true,
         periodoFin: true,
         valorAjuste: true,
+        direccion: true,
         descripcion: true,
         observaciones: true,
       },
     })
     const ajustesCli = ajustes.map((a) => {
-      const dir = (a as any).direccion ?? a.observaciones?.includes('incremento')
-        ? 'incremento'
-        : 'reduccion'
+      const dir = a.direccion === 'incremento' ? 'incremento' : 'reduccion'
       return {
         periodo_inicio: a.periodoInicio.toISOString().slice(0, 7),
         periodo_fin: a.periodoFin.toISOString().slice(0, 7),
@@ -656,9 +654,13 @@ export async function calcularModelosLineaBase(
     }
     const preparacion: FilaPreparacion[] = facturas.map((f) => {
       const [ano, mes] = f.periodo.split('-').map(Number)
-      const asignado =
+      const asignadoCalculado =
         Math.round(f.consumoNormalizado * alcance.share * 100) / 100
-      const descartado = idxSerie.get(`${mes}|${ano}`)?.descartado ?? false
+      // `real` de la serie = consumo_normalizado (ec. 1) × share con los
+      // ajustes del Anexo 4 aplicados: es lo que el modelo realmente usó.
+      const punto = idxSerie.get(`${mes}|${ano}`)
+      const asignado = punto?.real ?? asignadoCalculado
+      const descartado = punto?.descartado ?? false
       return {
         periodo: f.periodo,
         consumoKwh: f.consumoKwh,
@@ -693,15 +695,9 @@ export async function calcularModelosLineaBase(
       originales: salida.originales ?? registros.length,
       depurados: salida.depurados ?? 0,
       minMeses: salida.min_meses ?? UPME_MIN_MESES,
-      criterioDepuracion:
-        salida.criterio_depuracion === 'banda_10_pct'
-          ? 'banda_10_pct'
-          : 'ic_2sigma',
+      criterioDepuracion: 'banda_10_pct',
       desvEst: salida.desv_est ?? null,
-      kIntervalo:
-        salida.criterio_depuracion === 'banda_10_pct'
-          ? null
-          : (salida.k_intervalo ?? UPME_K_INTERVALO),
+      kIntervalo: null,
       bandas,
       mesesInsuficientes: salida.meses_insuficientes ?? [],
       minValoresMes: salida.min_valores_por_mes ?? UPME_MIN_VALORES_MES,
@@ -739,7 +735,7 @@ export async function guardarLineaBase(input: {
   bloqueId: string
   modelo: ModeloLbenId
   resultado: Record<string, unknown>
-  /** Meses sobrevivientes a la depuración (±10 % default, rescate IC ec. 4-5; gate UPME). */
+  /** Meses sobrevivientes a la depuración (banda ±10 %, ec. 3; gate UPME). */
   depurados?: number
   /** Meses con menos de 3 valores (salen `estimado`; gate 3×12). */
   mesesInsuficientes?: number[]
