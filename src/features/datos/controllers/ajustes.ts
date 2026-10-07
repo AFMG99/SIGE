@@ -21,6 +21,108 @@ async function autorizarCarga(): Promise<AuthCarga> {
   return { ok: true }
 }
 
+/** Datos del formulario de creación de ajustes (pestaña Carga). */
+export type DatosNuevoAjuste = {
+  tipo?: string
+  bloqueId?: string
+  /** Periodo de inicio en formato "YYYY-MM". */
+  periodoInicio?: string
+  /** Periodo fin en formato "YYYY-MM". */
+  periodoFin?: string
+  valorAjuste?: number | string
+  direccion?: string
+  descripcion?: string
+  observaciones?: string
+}
+
+const PERIODO_RE = /^\d{4}-(0[1-9]|1[0-2])$/
+
+function primerDiaDelMes(periodo: string): Date {
+  const [ano, mes] = periodo.split('-').map(Number)
+  return new Date(ano, mes - 1, 1)
+}
+
+function ultimoDiaDelMes(periodo: string): Date {
+  const [ano, mes] = periodo.split('-').map(Number)
+  return new Date(ano, mes, 0)
+}
+
+/**
+ * Crea un ajuste energético (Anexo 4 o rutinario) para un bloque.
+ * El periodo llega como "YYYY-MM" y se guarda como DateTime (primer y
+ * último día del mes); el motor lo vuelve a leer con `toISOString().slice(0, 7)`.
+ */
+export async function crearAjuste(datos: DatosNuevoAjuste): Promise<ResultadoGestion> {
+  try {
+    const auth = await autorizarCarga()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    const inicio = String(datos?.periodoInicio ?? '').trim()
+    const fin = String(datos?.periodoFin ?? '').trim()
+    if (!PERIODO_RE.test(inicio) || !PERIODO_RE.test(fin)) {
+      return { estado: 'error', mensaje: 'Periodos inválidos: use el formato YYYY-MM.' }
+    }
+    if (inicio > fin) {
+      return { estado: 'error', mensaje: 'El periodo de inicio no puede ser posterior al de fin.' }
+    }
+
+    const valor = Number(datos?.valorAjuste)
+    if (!Number.isFinite(valor) || valor <= 0 || valor > 100) {
+      return { estado: 'error', mensaje: 'La proporción debe estar entre 0 y 100.' }
+    }
+
+    const descripcion = String(datos?.descripcion ?? '').trim()
+    if (!descripcion) {
+      return { estado: 'error', mensaje: 'Describa la causa del ajuste.' }
+    }
+
+    const bloqueId = String(datos?.bloqueId ?? '').trim()
+    if (!bloqueId) {
+      return { estado: 'error', mensaje: 'Indique el bloque al que aplica el ajuste.' }
+    }
+    const bloque = await prisma.bloque.findUnique({
+      where: { id: bloqueId },
+      select: { codigo: true, nombre: true },
+    })
+    if (!bloque) {
+      return { estado: 'error', mensaje: 'El bloque indicado no existe.' }
+    }
+
+    const tipo = datos?.tipo === 'RUTINARIO' ? 'RUTINARIO' : 'NO_RUTINARIO'
+    const direccion = datos?.direccion === 'incremento' ? 'incremento' : 'reduccion'
+    const observaciones = String(datos?.observaciones ?? '').trim() || null
+
+    await prisma.ajusteEnergetico.create({
+      data: {
+        bloqueId,
+        tipo,
+        descripcion,
+        periodoInicio: primerDiaDelMes(inicio),
+        periodoFin: ultimoDiaDelMes(fin),
+        valorAjuste: valor,
+        direccion,
+        observaciones,
+      },
+    })
+
+    await auditarAccion({
+      action: 'ajuste.create',
+      targetId: bloqueId,
+      detail: `Ajuste ${tipo} ${inicio}–${fin} (${valor}% ${direccion}) en el bloque "${bloque.codigo} — ${bloque.nombre}".`,
+    })
+
+    return {
+      estado: 'completado',
+      eliminadas: 0,
+      lineasBaseEliminadas: 0,
+      mensaje: `Ajuste ${tipo} creado: ${inicio}–${fin}, ${valor}% (${direccion}).`,
+    }
+  } catch (error) {
+    console.error('Error en crearAjuste:', error)
+    return { estado: 'error', mensaje: 'No fue posible crear el ajuste. Intente de nuevo.' }
+  }
+}
+
 /**
  * Elimina un ajuste energético. El bloque se conserva: solo desaparece
  * este registro de su historial de ajustes.

@@ -25,6 +25,7 @@ import type {
   ResultadoCreacionBloque,
   ResultadoCreacionEdificacion,
 } from '@/features/datos/controllers/edificaciones'
+import type { DatosNuevoAjuste } from '@/features/datos/controllers/ajustes'
 import type {
   CalculoLineaBase,
   ModeloLbenId,
@@ -200,6 +201,16 @@ export async function vaciarVariables(): Promise<ResultadoGestion> {
 }
 
 // ── Ajustes energéticos y líneas base guardadas ─────────────────────────
+
+export async function crearAjuste(datos: DatosNuevoAjuste): Promise<ResultadoGestion> {
+  void datos
+  return {
+    estado: 'completado',
+    eliminadas: 0,
+    lineasBaseEliminadas: 0,
+    mensaje: 'Ajuste NO_RUTINARIO creado: 2024-05–2024-09, 25% (reduccion).',
+  }
+}
 
 export async function eliminarAjuste(id: string): Promise<ResultadoGestion> {
   void id

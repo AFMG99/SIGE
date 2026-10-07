@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { GestionAjustes } from './GestionAjustes'
+import { crearAjuste } from '@/features/datos/controllers/ajustes'
 import { VistaDatos } from './VistaDatos'
 import { construirPanelAjustes } from './existencias'
 import type { AjusteExistente, AjustesExistentes } from './existencias'
@@ -68,12 +69,17 @@ export function AjustesSection({
     e.preventDefault()
     setSubmitting(true)
     try {
-      const res = await fetch('/api/ajustes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+      const res = await crearAjuste({
+        tipo: form.tipo,
+        bloqueId: form.bloqueId,
+        periodoInicio: form.periodoInicio,
+        periodoFin: form.periodoFin,
+        valorAjuste: form.valorAjuste,
+        direccion: form.direccion,
+        descripcion: form.descripcion,
+        observaciones: form.observaciones,
       })
-      if (res.ok) {
+      if (res.estado === 'completado') {
         setShowForm(false)
         setForm({
           tipo: 'NO_RUTINARIO',
@@ -87,26 +93,12 @@ export function AjustesSection({
         })
         window.location.reload()
       } else {
-        alert('Error al crear el ajuste')
+        alert(res.mensaje)
       }
     } catch {
       alert('Error de conexión')
     } finally {
       setSubmitting(false)
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este ajuste?')) return
-    try {
-      const res = await fetch(`/api/ajustes/${id}`, { method: 'DELETE' })
-      if (res.ok) {
-        window.location.reload()
-      } else {
-        alert('Error al eliminar')
-      }
-    } catch {
-      alert('Error de conexión')
     }
   }
 
@@ -308,7 +300,7 @@ export function AjustesSection({
                 </div>
                 <div>
                   <label htmlFor="bloqueId" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Bloque (opcional — si vacío, aplica a toda la edificación)
+                    Bloque (ID — obligatorio: el ajuste se guarda sobre un bloque)
                   </label>
                   <input
                     id="bloqueId"
