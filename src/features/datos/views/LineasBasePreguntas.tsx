@@ -181,8 +181,10 @@ const CATEGORIAS: Categoria[] = [
             (Anexo 4), no ensanchar la banda; la ec. 4-5 sí se evalúa{' '}
             <strong>por mes</strong> con n ≥ 10 (decisión D1) dentro del mismo
             pase. El modelo de cociente depura sobre la base cruda de la
-            ec. 1 y verifica sus cocientes (ec. 4-5 con n ≥ 10 en el mes, si no
-            ±10 % de la ec. 7, §7.5.2).
+            ec. 1 — con los <strong>ajustes del Anexo 4 aplicados</strong>{' '}
+            (corrección de datos, no depuración) pero sin filtro de descarte de
+            consumo — y verifica sus cocientes (ec. 4-5 con n ≥ 10 en el mes,
+            si no ±10 % de la ec. 7, §7.5.2).
           </p>
           <p className="mt-2">
             Los meses con menos de 3 valores no forman banda: se calculan con

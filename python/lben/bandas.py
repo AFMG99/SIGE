@@ -289,16 +289,23 @@ def depurar_con_bandas(
     )
     return df, bandas, criterio, desv_est, aplicados, df_ajustado
 
-def base_cruda(data: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
+def base_cruda(
+    data: Dict[str, List[Dict[str, Any]]],
+    ajustes: Optional[List[Dict[str, Any]]] = None,
+) -> pd.DataFrame:
     """
-    Base ec. 1 sin depurar: normalización a 30 días y sanidad de consumos.
+    Base ec. 1 sin depurar: normalización a 30 días, sanidad de consumos y
+    ajustes no rutinarios (Anexo 4).
 
     §7.5.2: la ruta del cociente no comparte la depuración de consumo de la
     §7.5.1; recibe esta base cruda y depura sus propios cocientes por mes
     (ec. 4-5 con n ≥ 10 en el mes, si no ec. 7: ±10 %, con descarte y
-    recomputo).
+    recomputo). Los ajustes del Anexo 4 SÍ aplican: son corrección de datos,
+    no depuración — la base queda post-ajuste pero sin filtro de descarte.
     """
-    return _armar_df(data)
+    df = _armar_df(data)
+    df, _ = _aplicar_ajustes_no_rutinarios(df, ajustes or [])
+    return df
 
 def depurar_datos(
     data: Dict[str, List[Dict[str, Any]]],

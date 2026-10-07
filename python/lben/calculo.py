@@ -42,7 +42,8 @@ def calcular_linea_base(
     modelo_seleccionado : str
         Nombre del modelo a utilizar:
         - "valor_absoluto": Modelo 1 (§7.5.1, ec. 2)
-        - "cociente": Modelo 2 (§7.5.2, ec. 6-7; base cruda sin filtro de consumo)
+        - "cociente": Modelo 2 (§7.5.2, ec. 6-7; base cruda ec. 1 + ajustes
+          Anexo 4, sin filtro de consumo de la §7.5.1)
         - "regresion": Modelo 3 (§7.5.3)
         - "confort_termal": indicador de confort ASHRAE 55 (Tabla 1 CEELA)
         - "automatico": Seleccionar el mejor modelo automáticamente
@@ -132,8 +133,9 @@ def calcular_linea_base(
         return resultado
 
     elif modelo_seleccionado == "cociente":
-        # §7.5.2: base cruda (ec. 1) sin el filtro de consumo de la §7.5.1
-        datos = base_cruda(data_json)
+        # §7.5.2: base cruda (ec. 1 + ajustes Anexo 4) sin el filtro de
+        # consumo de la §7.5.1
+        datos = base_cruda(data_json, ajustes)
         var_relevante = "area_util" if "area_util" in datos.columns else "poblacion_fija"
         modelo = ModeloCociente(datos, variable_relevante=var_relevante)
         resultado = modelo.ajustar()

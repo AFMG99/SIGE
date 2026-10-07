@@ -42,7 +42,9 @@ Contrato:
   salen estimado. `real` de la serie = consumo_normalizado (ec. 1) con los
   ajustes del Anexo 4 aplicados (pre-descarte), no el kWh crudo.
 
-El cociente NO comparte esa depuracion (§7.5.2): usa su propia base cruda (ec. 1) y la depura con sus bandas (ec. 4-5 si N >= 10, si no ec. 7).
+El cociente NO comparte esa depuracion (§7.5.2): usa su propia base cruda
+(ec. 1 + ajustes del Anexo 4, sin filtro de descarte) y la depura con sus
+bandas (ec. 4-5 si N >= 10, si no ec. 7).
 El consumo YA viene normalizado a 30 dias (accion del servidor, dias=30):
 los logs del motor van a stderr; la salida JSON va limpia a stdout.
 """
@@ -203,8 +205,9 @@ def main() -> int:
         lambda m: m.predecir(limpio),
     )
 
-    # ── 3. Cociente (§7.5.2: base cruda; variable: poblacion flotante) ─
-    crudo = base_cruda({str(bloque_id): registros})
+    # ── 3. Cociente (§7.5.2: base cruda ec. 1 + ajustes Anexo 4, sin
+    # descarte; variable: poblacion flotante) ─
+    crudo = base_cruda({str(bloque_id): registros}, ajustes)
     resultados["cociente"], preds["cociente"] = _ajustar(
         ModeloCociente(
             crudo,
