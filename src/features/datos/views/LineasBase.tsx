@@ -12,6 +12,7 @@ import { LineaBaseChart } from './LineaBaseChart'
 import { TablaJerarquia, TablaPreparacion } from './LineasBaseTablas'
 import { LineasBasePreguntas } from './LineasBasePreguntas'
 import { calcularModelosLineaBase, guardarLineaBase } from '@/features/datos/controllers/lineasBase'
+import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
 import {
   MODELOS_LBEN,
   TEXTOS_CRITERIO,
@@ -658,55 +659,43 @@ export function LineasBase({
           <label htmlFor="edificacion-lben-sel" className="ui-label text-xs">
             Edificación
           </label>
-          <select
+          <ListboxSelect
             id="edificacion-lben-sel"
             className="ui-input mt-1 cursor-pointer"
             value={edificacionClave}
-            onChange={(e) => cambiarEdificacion(e.target.value)}
-          >
-            <option value="">Todas las edificaciones</option>
-            {edificaciones.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.nombre}
-              </option>
-            ))}
-          </select>
+            onChange={cambiarEdificacion}
+            placeholder="Todas las edificaciones"
+            options={edificaciones.map((e) => ({ value: e.id, label: e.nombre }))}
+          />
         </div>
         <div className="w-full sm:w-auto sm:min-w-[300px]">
           <label htmlFor="alcance-lben-sel" className="ui-label text-xs">
             Alcance (jerarquía facturas → bloque → espacio)
           </label>
-          <select
+          <ListboxSelect
             id="alcance-lben-sel"
             className="ui-input mt-1 cursor-pointer"
             value={alcanceClave}
-            onChange={(e) => cambiarAlcance(e.target.value)}
-          >
-            <option value="global">
-              {edificacionSel
-                ? `Total — facturas de energía (${edificacionSel.nombre})`
-                : 'Total global — facturas de energía (todas las edificaciones)'}
-            </option>
-            {bloquesVisibles.length > 0 && (
-              <optgroup label="Bloques">
-                {bloquesVisibles.map((b) => (
-                  <option key={b.id} value={`b:${b.id}`}>
-                    {b.codigo} — {b.nombre}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {espaciosVisibles.length > 0 && (
-              <optgroup label="Espacios de los bloques">
-                {espaciosVisibles.map((e) => (
-                  <option key={e.id} value={`e:${e.id}`}>
-                    {e.nombre} (
-                    {bloquesVisibles.find((b) => b.id === e.bloqueId)?.codigo ?? '—'})
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
+            onChange={cambiarAlcance}
+            options={[
+              {
+                value: 'global',
+                label: edificacionSel
+                  ? `Total — facturas de energía (${edificacionSel.nombre})`
+                  : 'Total global — facturas de energía (todas las edificaciones)',
+              },
+              ...bloquesVisibles.map((b) => ({
+                value: `b:${b.id}`,
+                label: `${b.codigo} — ${b.nombre}`,
+                group: 'Bloques',
+              })),
+              ...espaciosVisibles.map((e) => ({
+                value: `e:${e.id}`,
+                label: `${e.nombre} (${bloquesVisibles.find((b) => b.id === e.bloqueId)?.codigo ?? '—'})`,
+                group: 'Espacios de los bloques',
+              })),
+            ]}
+          />
         </div>
         <button
           type="button"

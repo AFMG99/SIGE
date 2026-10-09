@@ -24,6 +24,7 @@ import type { ConflictoVariable, FilaEnvioVariables } from '@/features/datos/mod
 import { importarFilasVariables } from '@/features/datos/controllers/variables'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { useToast } from '@/shared/views/ui/ToastProvider'
+import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
 import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
 import type {
@@ -1126,25 +1127,23 @@ export function ImportadorVariables({
               <label htmlFor="edificacion-sel" className="ui-label">
                 Edificación <span className="text-red-600">*</span>
               </label>
-              <select
+              <ListboxSelect
                 id="edificacion-sel"
                 value={edificacionSel}
-                onChange={(e) => {
-                  setEdificacionSel(e.target.value)
+                onChange={(v) => {
+                  setEdificacionSel(v)
                   setBloqueGlobal('')
                 }}
-                aria-invalid={!edificacionSel}
+                invalid={!edificacionSel}
+                placeholder="— Seleccione —"
+                options={edificaciones.map((e) => ({
+                  value: e.id,
+                  label: `${e.nombre} — ${etiquetaTipo(e.tipo)}`,
+                }))}
                 className={`ui-input mt-1 cursor-pointer ${
                   !edificacionSel ? 'ui-input-error' : ''
                 }`}
-              >
-                <option value="">— Seleccione —</option>
-                {edificaciones.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.nombre} — {etiquetaTipo(e.tipo)}
-                  </option>
-                ))}
-              </select>
+              />
               {!edificacionSel ? (
                 <p className="mt-1 text-xs text-red-600 dark:text-red-400">Obligatorio</p>
               ) : (
@@ -1160,24 +1159,22 @@ export function ImportadorVariables({
                   <label htmlFor="bloque-global" className="ui-label">
                     Bloque global (opcional)
                   </label>
-                  <select
+                  <ListboxSelect
                     id="bloque-global"
                     value={bloqueGlobal}
-                    onChange={(e) => setBloqueGlobal(e.target.value)}
+                    onChange={setBloqueGlobal}
                     disabled={!edificacionSel}
-                    className="ui-input mt-1"
-                  >
-                    <option value="">
-                      {edificacionSel
+                    placeholder={
+                      edificacionSel
                         ? '— Seleccione / columna en archivo —'
-                        : '— Seleccione la edificación —'}
-                    </option>
-                    {bloquesFiltrados.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.codigo} — {b.nombre}
-                      </option>
-                    ))}
-                  </select>
+                        : '— Seleccione la edificación —'
+                    }
+                    options={bloquesFiltrados.map((b) => ({
+                      value: b.id,
+                      label: `${b.codigo} — ${b.nombre}`,
+                    }))}
+                    className="ui-input mt-1"
+                  />
                   <p className="ui-muted mt-1 text-xs">
                     Toda fila debe tener bloque: use este valor global o la columna del archivo.
                     Seleccione un bloque para poder eliminarlo.
@@ -1351,18 +1348,13 @@ export function ImportadorVariables({
                 <label htmlFor="selector-hoja" className="ui-label">
                   Hoja del archivo Excel
                 </label>
-                <select
+                <ListboxSelect
                   id="selector-hoja"
                   value={hojaSel}
-                  onChange={(e) => cambiarHoja(e.target.value)}
+                  onChange={cambiarHoja}
                   className="ui-input mt-1"
-                >
-                  {hojas.map((h) => (
-                    <option key={h} value={h}>
-                      {h}
-                    </option>
-                  ))}
-                </select>
+                  options={hojas.map((h) => ({ value: h, label: h }))}
+                />
                 <p className="ui-muted mt-1 text-xs">El archivo tiene {hojas.length} hojas.</p>
               </div>
             )}
@@ -1424,25 +1416,20 @@ export function ImportadorVariables({
                         <span className="text-xs font-normal text-gray-500 dark:text-gray-400">(valor global)</span>
                       ) : null}
                     </label>
-                    <select
+                    <ListboxSelect
                       id={id}
                       value={mapeo[campo.id] === null ? '' : String(mapeo[campo.id])}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         setMapeo((prev) => ({
                           ...prev,
-                          [campo.id]: e.target.value === '' ? null : Number(e.target.value),
+                          [campo.id]: v === '' ? null : Number(v),
                         }))
                       }
-                      aria-invalid={falta}
+                      invalid={falta}
+                      placeholder="— Sin asignar —"
+                      options={columnas.map((nombre, i) => ({ value: String(i), label: nombre }))}
                       className={`ui-input mt-1 cursor-pointer ${falta ? 'ui-input-error' : ''}`}
-                    >
-                      <option value="">— Sin asignar —</option>
-                      {columnas.map((nombre, i) => (
-                        <option key={i} value={i}>
-                          {nombre}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     {falta && <p className="mt-1 text-xs text-red-600 dark:text-red-400">Columna obligatoria</p>}
                   </div>
                 )
@@ -1522,19 +1509,17 @@ export function ImportadorVariables({
                 <label htmlFor="vista-bloque-global" className="text-xs font-medium text-gray-500 dark:text-gray-400">
                   Bloque global
                 </label>
-                <select
+                <ListboxSelect
                   id="vista-bloque-global"
                   value={bloqueGlobal}
-                  onChange={(e) => setBloqueGlobal(e.target.value)}
+                  onChange={setBloqueGlobal}
+                  placeholder="— Todos / columna en archivo —"
+                  options={bloquesFiltrados.map((b) => ({
+                    value: b.id,
+                    label: `${b.codigo} — ${b.nombre}`,
+                  }))}
                   className="ui-input mt-0.5"
-                >
-                  <option value="">— Todos / columna en archivo —</option>
-                  {bloquesFiltrados.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.codigo} — {b.nombre}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -1627,24 +1612,20 @@ export function ImportadorVariables({
                           if (campo.id === 'bloque') {
                             return (
                               <td key={campo.id} className="px-3 py-2 align-top">
-                                <select
+                                <ListboxSelect
                                   value={fila.datos.bloque}
-                                  onChange={(e) => actualizarCelda(fila.id, 'bloque', e.target.value)}
+                                  onChange={(v) => actualizarCelda(fila.id, 'bloque', v)}
                                   disabled={fila.descartada}
                                   aria-label={`Fila ${numero}, Bloque`}
-                                  aria-invalid={Boolean(mensaje)}
+                                  invalid={Boolean(mensaje)}
                                   aria-describedby={mensaje ? idError : undefined}
+                                  placeholder={bloqueGlobal ? '— Usar global —' : '— Seleccione —'}
+                                  options={opcionesBloque(fila.datos.bloque).map((op) => ({
+                                    value: op.valor,
+                                    label: op.etiqueta,
+                                  }))}
                                   className={baseInput}
-                                >
-                                  <option value="">
-                                    {bloqueGlobal ? '— Usar global —' : '— Seleccione —'}
-                                  </option>
-                                  {opcionesBloque(fila.datos.bloque).map((op) => (
-                                    <option key={op.valor} value={op.valor}>
-                                      {op.etiqueta}
-                                    </option>
-                                  ))}
-                                </select>
+                                />
                                 {mensaje && (
                                   <p id={idError} className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
                                     {mensaje}

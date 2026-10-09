@@ -4,7 +4,7 @@ import { expect } from 'storybook/test'
 import { ImportadorFacturas } from '../ImportadorFacturas'
 import { edificacionesDemo } from '../__fixtures__/catalogo'
 import { resultadoFacturasDemo } from '../__fixtures__/resultado'
-import { archivoFacturas, subirArchivo } from './ayuda'
+import { archivoFacturas, elegirListbox, subirArchivo } from './ayuda'
 
 const meta = {
   component: ImportadorFacturas,
@@ -25,10 +25,10 @@ type Story = StoryObj<typeof meta>
  */
 async function elegirEdificacion(
   canvas: { findByLabelText: (m: RegExp, o?: object) => Promise<HTMLElement> },
-  userEvent: { selectOptions: (el: HTMLElement, v: string) => Promise<unknown> }
+  userEvent: { click: (el: HTMLElement) => Promise<unknown> }
 ): Promise<void> {
-  const select = await canvas.findByLabelText(/^edificación/i)
-  await userEvent.selectOptions(select, 'ed-campus-00000001')
+  const trigger = await canvas.findByLabelText(/^edificación/i)
+  await elegirListbox(trigger, 'ed-campus-00000001', userEvent)
 }
 
 export const Paso1Carga: Story = {

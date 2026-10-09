@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { expect, waitFor, within } from 'storybook/test'
 
 import { LineasBase } from '../LineasBase'
+import { elegirListbox, opcionesListbox } from './ayuda'
 
 const bloquesDemo = [
   { id: 'cmuofv5pw0002p3jxuul4li7m', codigo: 'BLOQUE-A-001', nombre: 'Bloque de Aulas Mayores' },
@@ -305,7 +306,7 @@ export const AlcanceEspacio: Story = {
   play: async ({ canvas, userEvent }) => {
     // Elegir un espacio de la jerarquía (rellena el total por su share)
     const select = canvas.getByLabelText(/alcance/i)
-    await userEvent.selectOptions(select, 'e:esp-aula-mayor')
+    await elegirListbox(select, 'e:esp-aula-mayor', userEvent)
 
     const botones = canvas.getAllByRole('button', { name: /calcular modelos/i })
     await userEvent.click(botones[0])
@@ -353,28 +354,17 @@ export const SelectorEdificacion: Story = {
     const alcanceSel = canvas.getByLabelText(/alcance/i)
 
     // Por defecto: todas las edificaciones y alcance en el primer bloque
-    expect((alcanceSel as HTMLSelectElement).value).toBe(
-      'b:cmuofv5pw0002p3jxuul4li7m'
+    expect(alcanceSel.getAttribute('data-value')).toBe('b:cmuofv5pw0002p3jxuul4li7m')
+    expect(await opcionesListbox(alcanceSel, userEvent)).toContain(
+      'BLOQUE-A-001 — Bloque de Aulas Mayores'
     )
-    expect(
-      within(alcanceSel).getByRole('option', {
-        name: 'BLOQUE-A-001 — Bloque de Aulas Mayores',
-      })
-    ).toBeTruthy()
 
     // Acotar a una edificación sin ese bloque → reset al total de ella
-    await userEvent.selectOptions(edifSel, 'ed-oficina-000001')
-    expect((alcanceSel as HTMLSelectElement).value).toBe('global')
-    expect(
-      within(alcanceSel).queryByRole('option', {
-        name: 'BLOQUE-A-001 — Bloque de Aulas Mayores',
-      })
-    ).toBeNull()
-    expect(
-      within(alcanceSel).getByRole('option', {
-        name: 'Total — facturas de energía (Administración Principal)',
-      })
-    ).toBeTruthy()
+    await elegirListbox(edifSel, 'ed-oficina-000001', userEvent)
+    expect(alcanceSel.getAttribute('data-value')).toBe('global')
+    const alcanceOficina = await opcionesListbox(alcanceSel, userEvent)
+    expect(alcanceOficina).not.toContain('BLOQUE-A-001 — Bloque de Aulas Mayores')
+    expect(alcanceOficina).toContain('Total — facturas de energía (Administración Principal)')
 
     // Calcular en ese ámbito: la jerarquía declara el criterio filtrado
     const botones = canvas.getAllByRole('button', { name: /calcular modelos/i })
@@ -384,15 +374,11 @@ export const SelectorEdificacion: Story = {
     await canvas.findByText(/Total global · share 100,00 %/)
 
     // De vuelta a la campus, el bloque vuelve a estar disponible
-    await userEvent.selectOptions(edifSel, 'ed-campus-00000001')
-    expect(
-      within(alcanceSel).getByRole('option', {
-        name: 'BLOQUE-A-001 — Bloque de Aulas Mayores',
-      })
-    ).toBeTruthy()
-    expect((alcanceSel as HTMLSelectElement).value).toBe(
-      'b:cmuofv5pw0002p3jxuul4li7m'
+    await elegirListbox(edifSel, 'ed-campus-00000001', userEvent)
+    expect(await opcionesListbox(alcanceSel, userEvent)).toContain(
+      'BLOQUE-A-001 — Bloque de Aulas Mayores'
     )
+    expect(alcanceSel.getAttribute('data-value')).toBe('b:cmuofv5pw0002p3jxuul4li7m')
   },
 }
 

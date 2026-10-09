@@ -23,6 +23,7 @@ import { filaFacturaEpmschema, tipoEdificacionPorCodigo } from '@/features/datos
 import type { ConflictoFactura, FilaEnvioImportacion } from '@/features/datos/models/validations'
 import { importarFilasFacturas } from '@/features/datos/controllers/facturas'
 import { useToast } from '@/shared/views/ui/ToastProvider'
+import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
 import type { EdificacionInfo } from './useCatalogoEdificaciones'
 import { IconCarga, IconImportar, IconMapeo, IconVistaPrevia } from './icons'
 
@@ -761,22 +762,20 @@ export function ImportadorFacturas({
               <label htmlFor="edificacion-sel" className="ui-label">
                 Edificación <span className="text-red-600">*</span>
               </label>
-              <select
+              <ListboxSelect
                 id="edificacion-sel"
                 value={edificacionSel}
-                onChange={(e) => setEdificacionSel(e.target.value)}
-                aria-invalid={!edificacionSel}
+                onChange={setEdificacionSel}
+                invalid={!edificacionSel}
+                placeholder="— Seleccione —"
+                options={edificaciones.map((e) => ({
+                  value: e.id,
+                  label: `${e.nombre} — ${tipoEdificacionPorCodigo(e.tipo).etiqueta}`,
+                }))}
                 className={`ui-input mt-1 cursor-pointer ${
                   !edificacionSel ? 'ui-input-error' : ''
                 }`}
-              >
-                <option value="">— Seleccione —</option>
-                {edificaciones.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.nombre} — {tipoEdificacionPorCodigo(e.tipo).etiqueta}
-                  </option>
-                ))}
-              </select>
+              />
               {!edificacionSel ? (
                 <p className="mt-1 text-xs text-red-600 dark:text-red-400">Obligatorio</p>
               ) : (
@@ -914,18 +913,13 @@ export function ImportadorFacturas({
                 <label htmlFor="selector-hoja" className="ui-label">
                   Hoja del archivo Excel
                 </label>
-                <select
+                <ListboxSelect
                   id="selector-hoja"
                   value={hojaSel}
-                  onChange={(e) => cambiarHoja(e.target.value)}
+                  onChange={cambiarHoja}
                   className="ui-input mt-1 cursor-pointer"
-                >
-                  {hojas.map((h) => (
-                    <option key={h} value={h}>
-                      {h}
-                    </option>
-                  ))}
-                </select>
+                  options={hojas.map((h) => ({ value: h, label: h }))}
+                />
                 <p className="ui-muted mt-1 text-xs">El archivo tiene {hojas.length} hojas.</p>
               </div>
             )}
@@ -978,27 +972,22 @@ export function ImportadorFacturas({
                     <label htmlFor={id} className="ui-label">
                       {campo.etiqueta} <span className="text-red-600">*</span>
                     </label>
-                    <select
+                    <ListboxSelect
                       id={id}
                       value={mapeo[campo.id] === null ? '' : String(mapeo[campo.id])}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         setMapeo((prev) => ({
                           ...prev,
-                          [campo.id]: e.target.value === '' ? null : Number(e.target.value),
+                          [campo.id]: v === '' ? null : Number(v),
                         }))
                       }
-                      aria-invalid={sinAsignar}
+                      invalid={sinAsignar}
+                      placeholder="— Sin asignar —"
+                      options={columnas.map((nombre, i) => ({ value: String(i), label: nombre }))}
                       className={`ui-input mt-1 cursor-pointer ${
                         sinAsignar ? 'ui-input-error' : ''
                       }`}
-                    >
-                      <option value="">— Sin asignar —</option>
-                      {columnas.map((nombre, i) => (
-                        <option key={i} value={i}>
-                          {nombre}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     {sinAsignar && (
                       <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
                         Columna obligatoria

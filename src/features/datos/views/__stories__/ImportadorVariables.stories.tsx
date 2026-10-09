@@ -5,7 +5,7 @@ import { crearBloque, eliminarBloque } from '@/features/datos/controllers/edific
 import { ImportadorVariables } from '../ImportadorVariables'
 import { bloquesDemo, edificacionesDemo } from '../__fixtures__/catalogo'
 import { resultadoVariablesDemo } from '../__fixtures__/resultado'
-import { archivoVariables, subirArchivo } from './ayuda'
+import { archivoVariables, elegirListbox, opcionesListbox, subirArchivo } from './ayuda'
 
 const meta = {
   component: ImportadorVariables,
@@ -30,10 +30,10 @@ type Story = StoryObj<typeof meta>
  */
 async function elegirEdificacion(
   canvas: { findByLabelText: (m: RegExp, o?: object) => Promise<HTMLElement> },
-  userEvent: { selectOptions: (el: HTMLElement, v: string) => Promise<unknown> }
+  userEvent: { click: (el: HTMLElement) => Promise<unknown> }
 ): Promise<void> {
-  const select = await canvas.findByLabelText(/^edificación/i)
-  await userEvent.selectOptions(select, 'ed-campus-00000001')
+  const trigger = await canvas.findByLabelText(/^edificación/i)
+  await elegirListbox(trigger, 'ed-campus-00000001', userEvent)
 }
 
 export const Paso1Carga: Story = {
@@ -85,9 +85,9 @@ export const EliminarBloqueConDatos: Story = {
     const screen = within(canvasElement.ownerDocument.body)
 
     const selectEdificacion = await canvas.findByLabelText(/^edificación/i)
-    await userEvent.selectOptions(selectEdificacion, 'ed-campus-00000001')
+    await elegirListbox(selectEdificacion, 'ed-campus-00000001', userEvent)
     const selectBloque = await canvas.findByLabelText(/bloque global/i)
-    await userEvent.selectOptions(selectBloque, 'bk-campus-a102-001')
+    await elegirListbox(selectBloque, 'bk-campus-a102-001', userEvent)
 
     await userEvent.click(screen.getByRole('button', { name: 'Eliminar bloque A-102' }))
     const dialog = await screen.findByRole('dialog')
@@ -102,12 +102,9 @@ export const EliminarBloqueConDatos: Story = {
       },
       { timeout: 3000 }
     )
-    await waitFor(
-      () => {
-        expect(canvas.queryByRole('option', { name: /A-102 — Ala Sur/ })).not.toBeNull()
-      },
-      { timeout: 3000 }
-    )
+    const bloqueTras = await canvas.findByLabelText(/bloque global/i)
+    const opciones = await opcionesListbox(bloqueTras, userEvent)
+    expect(opciones.some((nombre) => /A-102 — Ala Sur/.test(nombre))).toBe(true)
   },
 }
 
