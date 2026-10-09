@@ -628,7 +628,7 @@ export function LineasBase({
           </p>
         </div>
 
-        <div className="inline-flex flex-wrap justify-center rounded-xl border border-gray-200 bg-gray-100 p-1.5 dark:border-slate-700 dark:bg-slate-800">
+        <div data-pill-strip className="scrollbar-hide inline-flex max-w-full shrink-0 snap-x snap-mandatory overflow-x-auto rounded-xl border border-gray-200 bg-gray-100 p-1.5 dark:border-slate-700 dark:bg-slate-800 lg:justify-center lg:overflow-x-visible">
           {MODELOS_LBEN.map((id) => {
             const def = MODELOS[id]
             const activa = modelo === id
@@ -638,7 +638,7 @@ export function LineasBase({
                 type="button"
                 onClick={() => setModelo(id)}
                 aria-pressed={activa}
-                className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors duration-300 focus-ring ${
+                className={`flex shrink-0 snap-start items-center gap-2 whitespace-nowrap rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors duration-300 focus-ring ${
                   activa
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-gray-500 hover:bg-white hover:text-gray-800 dark:text-gray-400 dark:hover:bg-slate-700 dark:hover:text-gray-200'
@@ -654,7 +654,7 @@ export function LineasBase({
 
       {/* Controles de cálculo: edificación + alcance de la jerarquía + acción */}
       <div className="flex flex-wrap items-end justify-center gap-3">
-        <div className="min-w-[260px]">
+        <div className="w-full sm:w-auto sm:min-w-[260px]">
           <label htmlFor="edificacion-lben-sel" className="ui-label text-xs">
             Edificación
           </label>
@@ -672,7 +672,7 @@ export function LineasBase({
             ))}
           </select>
         </div>
-        <div className="min-w-[300px]">
+        <div className="w-full sm:w-auto sm:min-w-[300px]">
           <label htmlFor="alcance-lben-sel" className="ui-label text-xs">
             Alcance (jerarquía facturas → bloque → espacio)
           </label>

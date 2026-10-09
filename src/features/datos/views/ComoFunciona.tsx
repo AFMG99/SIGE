@@ -329,7 +329,7 @@ export function ComoFunciona({ autoPlay = true }: ComoFuncionaProps) {
           </p>
         </div>
 
-        <div className="inline-flex flex-wrap rounded-xl border border-gray-200 bg-gray-100 p-1.5 dark:border-slate-700 dark:bg-slate-800">
+        <div data-pill-strip className="scrollbar-hide inline-flex max-w-full shrink-0 snap-x snap-mandatory overflow-x-auto rounded-xl border border-gray-200 bg-gray-100 p-1.5 dark:border-slate-700 dark:bg-slate-800 lg:justify-center lg:overflow-x-visible">
           {(Object.keys(GUIAS) as Guia[]).map((g) => {
             const G = GUIAS[g]
             const activa = guia === g
@@ -339,7 +339,7 @@ export function ComoFunciona({ autoPlay = true }: ComoFuncionaProps) {
                 type="button"
                 onClick={() => setGuia(g)}
                 aria-pressed={activa}
-                className={`relative flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-colors duration-300 focus-ring ${
+                className={`relative flex min-h-10 shrink-0 snap-start items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-xs font-semibold transition-colors duration-300 focus-ring lg:min-h-0 ${
                   activa ? 'text-white shadow-sm' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
                 }`}
               >
@@ -507,7 +507,9 @@ export function ComoFunciona({ autoPlay = true }: ComoFuncionaProps) {
           onMouseEnter={() => setEnHover(true)}
           onMouseLeave={() => setEnHover(false)}
         >
-          <div className="relative min-h-[440px] rounded-2xl border border-gray-200 bg-gray-50 p-4 md:p-5 dark:border-slate-800 dark:bg-slate-900/60">
+          {/* El mockup desliza con `x` entre pasos: el escenario lo recorta para
+              que la transición no abra scroll horizontal en el documento. */}
+          <div className="relative min-h-[440px] overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 p-4 md:p-5 dark:border-slate-800 dark:bg-slate-900/60">
             {/* Encabezado del paso activo */}
             <div key={`cab-${guia}-${paso}`} className="mb-4 flex items-start gap-3">
               <motion.span

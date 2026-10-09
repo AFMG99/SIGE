@@ -117,14 +117,15 @@ export function AjustesSection({
               : 'Elimine ajustes puntuales o vacíe la base: edificaciones, bloques y los demás datos se conservan.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="inline-flex shrink-0 rounded-xl border border-gray-200 bg-gray-100 p-1.5 dark:border-slate-800 dark:bg-slate-900" role="group" aria-label="Modo de la sección Ajustes">
+        <div className="flex flex-wrap items-center gap-2">
+          <div data-pill-strip className="scrollbar-hide inline-flex max-w-full shrink-0 snap-x snap-mandatory overflow-x-auto rounded-xl border border-gray-200 bg-gray-100 p-1.5 dark:border-slate-800 dark:bg-slate-900 lg:justify-center lg:overflow-x-visible" role="group" aria-label="Modo de la sección Ajustes">
             {(['carga', 'datos', 'gestion'] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => onModoChange?.(m)}
                 disabled={!puedeCargar && (m === 'carga' || m === 'gestion')}
-                className={`px-3 py-1.5 text-sm rounded-lg transition ${modo === m ? 'bg-uv-purple text-white' : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-slate-800'} ${!puedeCargar && (m === 'carga' || m === 'gestion') ? 'opacity-50 cursor-not-allowed' : ''}`}
+                aria-pressed={modo === m}
+                className={`min-h-10 shrink-0 snap-start whitespace-nowrap px-3 py-1.5 text-sm rounded-lg transition lg:min-h-0 ${modo === m ? 'bg-uv-purple text-white' : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-slate-800'} ${!puedeCargar && (m === 'carga' || m === 'gestion') ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {m === 'carga' && <IconCarga className="inline w-4 h-4 mr-1" />}
                 {m === 'datos' && <IconVistaPrevia className="inline w-4 h-4 mr-1" />}
@@ -136,7 +137,7 @@ export function AjustesSection({
           {canManage && modo === 'carga' && (
             <button
               onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-uv-purple rounded-lg hover:bg-uv-purple/90 transition"
+              className="inline-flex min-h-10 items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-uv-purple rounded-lg hover:bg-uv-purple/90 transition lg:min-h-0"
             >
               <IconPlus className="w-4 h-4" />
               Nuevo Ajuste
@@ -154,14 +155,16 @@ export function AjustesSection({
 
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-slate-700">
-        <nav className="flex gap-1 px-1" role="tablist" aria-label="Pestañas de ajustes">
+        {/* `pb-px` compensa el `-mb-px` de la pestaña activa: al hacerse la
+            tira scrolleable, cualquier sobresaliente vertical se recortaría. */}
+        <nav className="scrollbar-hide flex snap-x snap-mandatory gap-1 overflow-x-auto px-1 pb-px lg:justify-center lg:overflow-x-visible" role="tablist" aria-label="Pestañas de ajustes">
           {TABS.map((t) => (
             <button
               key={t.id}
               role="tab"
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px rounded-t-lg transition ${
+              className={`min-h-10 shrink-0 snap-start whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 -mb-px rounded-t-lg transition lg:min-h-0 ${
                 tab === t.id
                   ? 'border-uv-purple text-uv-purple'
                   : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
@@ -311,7 +314,7 @@ export function AjustesSection({
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-gray-100"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label htmlFor="periodoInicio" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Periodo inicio (YYYY-MM)

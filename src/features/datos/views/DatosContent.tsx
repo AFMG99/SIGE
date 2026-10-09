@@ -109,6 +109,21 @@ export function DatosContent({
   const modoVariables = modoDe(MODOS_SECCION)
   const modoAjustes = modoDe(MODOS_AJUSTES) as 'carga' | 'datos' | 'gestion'
 
+  // Las tiras de pills hacen scroll horizontal por debajo de `lg`: al renderizar
+  // (montaje, cambio de modo o de ancho) se alinea el pill activo para que nunca
+  // quede oculto tras el recorte. Sólo actúa si el pill sale de la tira, así que
+  // no molesta cuando todo cabe o el usuario ya lo dejó visible.
+  React.useLayoutEffect(() => {
+    document.querySelectorAll<HTMLElement>('[data-pill-strip]').forEach((tira) => {
+      const activo = tira.querySelector<HTMLElement>('[aria-pressed="true"]')
+      if (!activo) return
+      const a = activo.getBoundingClientRect()
+      const t = tira.getBoundingClientRect()
+      if (a.left >= t.left && a.right <= t.right) return
+      tira.scrollTo({ left: tira.scrollLeft + (a.left - t.left) - 8 })
+    })
+  })
+
   /** Del importador (o su CTA vacío) al catálogo de edificaciones de Facturas de energía. */
   const irAlCatalogo = () => {
     setVista('edificaciones')
@@ -121,6 +136,13 @@ export function DatosContent({
     : sidebarOpen
       ? SIDEBAR_W_EXPANDED
       : SIDEBAR_W_COLLAPSED
+  /** The module sidebar only exists from `lg` up — below it the offset is 0. */
+  const offsetClass =
+    contentOffset === SIDEBAR_W_EXPANDED
+      ? 'lg:ml-64'
+      : contentOffset === SIDEBAR_W_COLLAPSED
+        ? 'lg:ml-14'
+        : ''
 
   const statCards = [
     { id: 'facturas', title: 'Facturas de energía', value: stats.facturas, subtitle: 'registros en BD', Icon: IconFactura, color: 'emerald' },
@@ -147,7 +169,8 @@ export function DatosContent({
     const modoActivo: Modo = modoDe(modos)
     return (
       <div
-        className="inline-flex shrink-0 rounded-xl border border-gray-200 bg-gray-100 p-1.5 dark:border-slate-800 dark:bg-slate-900"
+        data-pill-strip
+        className="scrollbar-hide inline-flex max-w-full shrink-0 snap-x snap-mandatory overflow-x-auto rounded-xl border border-gray-200 bg-gray-100 p-1.5 dark:border-slate-800 dark:bg-slate-900 lg:justify-center lg:overflow-x-visible"
         role="group"
         aria-label={`Modo de la sección ${seccion}`}
       >
@@ -163,7 +186,7 @@ export function DatosContent({
               disabled={deshabilitada}
               aria-pressed={activa}
               onClick={() => setVista(m.id)}
-              className={`focus-ring relative flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition-colors duration-300 ${
+              className={`focus-ring relative flex min-h-10 shrink-0 snap-start items-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2 text-xs font-semibold transition-colors duration-300 lg:min-h-0 ${
                 activa
                   ? 'text-white'
                   : deshabilitada
@@ -204,9 +227,8 @@ export function DatosContent({
 
       {/* Contenido principal */}
       <div
-        className="p-6 transition-[margin] duration-300"
+        className={`p-6 transition-[margin] duration-300 ${offsetClass}`}
         style={{
-          marginLeft: contentOffset,
           minHeight: headerOnTop ? 'calc(100vh - 4rem)' : '100vh',
         }}
       >
