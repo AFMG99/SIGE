@@ -42,6 +42,10 @@ test-results/
 htmlcov/
 .coverage
 
+# Capturas responsive (revisión visual) + adjuntos del navegador de Vitest
+__screenshots__/
+.vitest-attachments/
+
 # Storybook build
 storybook-static
 
