@@ -285,7 +285,7 @@ const CATEGORIAS: Categoria[] = [
         'que-datos',
         '¿Qué datos debo tener cargados antes de calcular?',
         <>
-          <div className="mt-1 overflow-hidden rounded-xl border border-gray-200 dark:border-slate-800">
+          <div className="mt-1 overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-800">
             <table className="ui-table text-xs">
               <thead>
                 <tr>
@@ -596,7 +596,7 @@ proceso.stdin.end()`}
         'cuatro-modelos',
         '¿Qué calcula cada uno de los 4 modelos del motor?',
         <>
-          <div className="mt-1 overflow-hidden rounded-xl border border-gray-200 dark:border-slate-800">
+          <div className="mt-1 overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-800">
             <table className="ui-table text-xs">
               <thead>
                 <tr>
@@ -830,7 +830,7 @@ MAPE_MAXIMO = 0.05          # confiabilidad (ejemplo del Anexo 3)`}
         'python-ausente',
         'Aparece «No se encontró Python en el servidor…», «…terminó con error (código N)» o el mensaje de timeout',
         <>
-          <div className="mt-1 overflow-hidden rounded-xl border border-gray-200 dark:border-slate-800">
+          <div className="mt-1 overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-800">
             <table className="ui-table text-xs">
               <thead>
                 <tr>

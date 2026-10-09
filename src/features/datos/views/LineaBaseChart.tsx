@@ -188,15 +188,30 @@ export function LineaBaseChart({
   const reduce = useReducedMotion()
   const svgRef = React.useRef<SVGSVGElement>(null)
   const overlayRef = React.useRef<HTMLDivElement>(null)
+  const contenedorRef = React.useRef<HTMLDivElement>(null)
 
   const [activo, setActivo] = React.useState<number | null>(null)
   const [origen, setOrigen] = React.useState<'raton' | 'teclado' | null>(null)
+  // Ancho real del gráfico: el vuelco horizontal del tooltip se calcula en px
+  // (los umbrales fijos en % sólo valen en pantallas anchas).
+  const [anchoContenedor, setAnchoContenedor] = React.useState(0)
   const [visibles, setVisibles] = React.useState({
     base: true,
     sup: true,
     inf: true,
   })
   const [aniosOcultos, setAniosOcultos] = React.useState<number[]>([])
+
+  React.useEffect(() => {
+    const el = contenedorRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.round(entries[0]?.contentRect.width ?? 0)
+      setAnchoContenedor((prev) => (Math.abs(prev - w) < 1 ? prev : w))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const anios = React.useMemo(
     () => Array.from(new Set(serie.map((p) => p.ano))).sort((a, b) => a - b),
@@ -404,9 +419,19 @@ export function LineaBaseChart({
     const pctX = (x(activo) / ANCHO) * 100
     const pctY = ((Number.isFinite(yPunto) ? yPunto : baseY) / ALTO) * 100
     const abajo = pctY < UMBRAL_TOOLTIP_ABAJO
-    const tx = pctX < 14 ? '0%' : pctX > 86 ? '-100%' : '-50%'
+    let left = `${pctX}%`
+    let tx = pctX < 14 ? '0%' : pctX > 86 ? '-100%' : '-50%'
+    if (anchoContenedor > 0) {
+      // Media anchura máxima del tooltip (max-w en CSS) y vuelco por px para
+      // que la caja nunca sobresalga del gráfico en pantallas estrechas.
+      const mitad = Math.min(120, anchoContenedor / 2)
+      const xPx = (pctX / 100) * anchoContenedor
+      const centro = Math.min(Math.max(xPx, mitad), anchoContenedor - mitad)
+      left = `${(centro / anchoContenedor) * 100}%`
+      tx = '-50%'
+    }
     estiloTooltip = {
-      left: `${pctX}%`,
+      left,
       top: abajo ? `calc(${pctY}% + 14px)` : `calc(${pctY}% - 14px)`,
       transform: `translate(${tx}, ${abajo ? '0%' : '-100%'})`,
     }
@@ -448,7 +473,7 @@ export function LineaBaseChart({
 
   return (
     <figure className="w-full">
-      <div className="relative">
+      <div className="relative" ref={contenedorRef}>
         <svg
           ref={svgRef}
           viewBox={`0 0 ${ANCHO} ${ALTO}`}
@@ -657,7 +682,7 @@ export function LineaBaseChart({
           <div
             role="tooltip"
             style={estiloTooltip}
-            className="pointer-events-none absolute z-10 min-w-[10rem] max-w-[15rem] rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] leading-snug shadow-lg dark:border-slate-700 dark:bg-slate-900"
+            className="pointer-events-none absolute z-10 min-w-[10rem] max-w-[min(15rem,100%)] rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[11px] leading-snug shadow-lg dark:border-slate-700 dark:bg-slate-900"
           >
             <p className="font-semibold text-gray-900 dark:text-gray-100">
               {MESES[activo ?? 0]}

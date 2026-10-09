@@ -278,7 +278,7 @@ export function MockFacturaVistaPrevia({ isActive }: MockProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
-            className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700"
+            className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700"
           >
             <table className="w-full text-left text-[11px]">
               <caption className="sr-only">Vista previa simulada de facturas de energía.</caption>
@@ -589,7 +589,7 @@ export function MockEquipoResultado({ isActive }: MockProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
-            className="overflow-hidden rounded-lg border border-gray-200 dark:border-slate-700"
+            className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700"
           >
             <table className="w-full text-left text-[11px]">
               <caption className="sr-only">Vista previa simulada del inventario eléctrico.</caption>

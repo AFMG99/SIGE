@@ -193,7 +193,7 @@ export function EdificacionesPanel({
           </button>
         </div>
 
-        <dl className="mt-4 grid grid-cols-3 gap-3 text-center">
+        <dl className="mt-4 grid grid-cols-1 gap-3 text-center sm:grid-cols-3">
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-slate-700 dark:bg-slate-800/60">
             <dt className="ui-label">Edificaciones</dt>
             <dd className="ui-title mt-0.5 text-lg">{edificaciones.length}</dd>

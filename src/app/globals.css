@@ -198,6 +198,13 @@
   .ui-btn-sm {
     @apply px-3 py-1.5 text-xs;
   }
+  /* Objetivo táctil: por debajo de `lg` los controles compactos crecen a 40px
+     sin alterar el diseño de escritorio. */
+  @media (max-width: 1023px) {
+    .ui-btn-sm {
+      @apply min-h-10;
+    }
+  }
 
   /* -- Form fields: `.ui-field` wrapper + `.ui-input` on input/select/textarea -- */
   .ui-field {
@@ -242,8 +249,10 @@
 
   /* -- Tables: one shell, one header, one hover policy.
         Row-state colors belong in JSX (utilities layer wins by layer order) -- */
+  /* `overflow-x-auto` (not hidden): a wide table scrolls inside the shell
+        instead of being clipped or stretching the page */
   .ui-table-shell {
-    @apply overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900;
+    @apply overflow-x-auto rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900;
   }
   .ui-table {
     @apply w-full text-left text-sm;
