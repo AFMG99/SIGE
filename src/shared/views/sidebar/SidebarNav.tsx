@@ -117,7 +117,7 @@ export function SidebarTree({
                   if (hasChildren) toggleExpand(item.id)
                   else onSelect?.(item)
                 }}
-                className={`datos-row group relative flex h-9 cursor-pointer items-center gap-2 rounded-lg pr-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime ${
+                className={`datos-row group relative flex h-9 min-h-10 cursor-pointer items-center gap-2 rounded-lg pr-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime lg:min-h-0 ${
                   isActive
                     ? 'bg-white/15 font-medium text-white'
                     : 'text-emerald-100/85 hover:bg-white/10 hover:text-white'
@@ -207,7 +207,7 @@ export default function SidebarNav({
   return (
     <aside
       aria-label="Menú lateral del módulo de datos"
-      className="fixed left-0 top-16 z-30 flex flex-col overflow-hidden chrome-forest border-r border-emerald-950/70 transition-[width] duration-300"
+      className="fixed left-0 top-16 z-30 hidden flex-col overflow-hidden chrome-forest border-r border-emerald-950/70 transition-[width] duration-300 lg:flex"
       style={{
         width: open ? SIDEBAR_W_EXPANDED : SIDEBAR_W_COLLAPSED,
         height: 'calc(100vh - 4rem)',

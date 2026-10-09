@@ -159,7 +159,15 @@ export function ModuleNav({
   role,
   variant,
   extraModules = [],
-}: { role: string | null; variant: NavVariant; extraModules?: string[] }) {
+  onNavigate,
+}: {
+  role: string | null
+  variant: NavVariant
+  extraModules?: string[]
+  /** Called when the user picks a module or a datos section — used by the
+   *  mobile drawer to close itself (section changes don't touch the URL). */
+  onNavigate?: () => void
+}) {
   const pathname = usePathname()
   const { activeId, setActiveId } = useSubNav()
   const [treeOpen, setTreeOpen] = useState(true)
@@ -222,7 +230,8 @@ export function ModuleNav({
         <Link
           key={item.id}
           href={item.href}
-          className={`flex w-full items-center gap-2 px-3 py-2 ${commonClass}`}
+          onClick={onNavigate}
+          className={`flex min-h-10 w-full items-center gap-2 px-3 py-2 lg:min-h-0 ${commonClass}`}
           data-no-drag
         >
           <span className="shrink-0">{item.icon}</span>
@@ -237,7 +246,8 @@ export function ModuleNav({
       <div key={item.id} className="relative">
         <Link
           href={item.href}
-          className={`flex w-full items-center gap-2 px-3 py-2 ${commonClass}`}
+          onClick={onNavigate}
+          className={`flex min-h-10 w-full items-center gap-2 px-3 py-2 lg:min-h-0 ${commonClass}`}
           data-no-drag
         >
           <span className="shrink-0">{item.icon}</span>
@@ -264,7 +274,7 @@ export function ModuleNav({
                   setTreeOpen((v) => !v)
                 }
               }}
-              className="grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded text-emerald-200/70 transition-colors hover:text-uv-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime"
+              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded text-emerald-200/70 transition-colors hover:text-uv-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime lg:h-5 lg:w-5"
             >
               <Chevron open={treeOpen} />
             </span>
@@ -281,7 +291,10 @@ export function ModuleNav({
             <SidebarTree
               items={DATOS_SECTIONS}
               activeId={activeId}
-              onSelect={(subItem) => setActiveId(subItem.id)}
+              onSelect={(subItem) => {
+                setActiveId(subItem.id)
+                onNavigate?.()
+              }}
               depth={1}
             />
           </div>
@@ -292,7 +305,11 @@ export function ModuleNav({
 
   if (variant === 'bar') {
     return (
-      <nav className="flex items-center gap-1" aria-label="Navegación principal">
+      // below `lg` the whole bar collapses into MobileNavDrawer
+      <nav
+        className="hidden items-center gap-1 lg:flex"
+        aria-label="Navegación principal"
+      >
         {visibleItems.map(renderItem)}
       </nav>
     )

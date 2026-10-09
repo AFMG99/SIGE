@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ModuleNav } from './ModuleNav'
 import type { HeaderPos } from './nav/NavContext'
+import { MobileNavDrawer } from './nav/MobileNavDrawer'
+import { useBreakpoint } from '@/shared/hooks/useBreakpoint'
 import { toggleTheme, getCurrentTheme } from '@/shared/utils/theme'
 
 export type { HeaderPos }
@@ -21,6 +23,10 @@ export type { HeaderPos }
 //  - pin button (panel-left-close / panel-left-open) locks the sidebar open
 //    or releases it back to hover behaviour — hidden while in center
 //  - position + pin persist in localStorage (uv-header-pos / uv-sidebar-pinned)
+// Responsive (breakpoint `lg` = 1024px):
+//  - below `lg` the chrome is mobile: the header is always the top bar, the
+//    rail/drag/cycle controls are off (the saved position is kept for when the
+//    viewport grows back) and the module nav moves into MobileNavDrawer
 // Mounted via DashboardShell in dashboard/layout → only after login.
 // ==========================================
 
@@ -49,6 +55,12 @@ export function DashboardHeader({
   extraModules?: string[]
 }) {
   const [pos, setPos] = useState<HeaderPos>('center')
+  /** Below `lg` the desktop chrome (rail, drag, inline module nav) is off. */
+  const isDesktop = useBreakpoint('lg')
+  /** Off-canvas navigation drawer (mobile counterpart of the module nav). */
+  const [menuOpen, setMenuOpen] = useState(false)
+  /** Position actually rendered: the saved one on desktop, always the bar below `lg`. */
+  const effectivePos: HeaderPos = isDesktop ? pos : 'center'
   const [expanded, setExpanded] = useState(false)
   /** Sidebar locked open (survives pointer-leave / blur / navigation). */
   const [pinned, setPinned] = useState(false)
@@ -105,7 +117,8 @@ export function DashboardHeader({
   const applyPos = useCallback((c: HeaderPos, persist = true) => {
     posRef.current = c
     setPos(c)
-    onPosRef.current?.(c)
+    // the shell is notified from the effect below, so it always receives the
+    // rendered position (`effectivePos`) instead of the saved one
     if (persist) {
       try {
         localStorage.setItem(STORAGE_KEY, c)
@@ -170,12 +183,14 @@ export function DashboardHeader({
   // sidebar is open when pinned OR temporarily expanded (hover / focus / press)
   const isOpen = expanded || pinned
 
-  // tell the shell how much horizontal padding the sidebar needs
+  // tell the shell which position is rendered and how much horizontal padding
+  // the sidebar needs — below `lg` it is always the plain top bar
   useEffect(() => {
+    onPosRef.current?.(effectivePos)
     onRailWRef.current?.(
-      pos === 'center' ? 0 : isOpen ? SIDEBAR_W : RAIL_W
+      effectivePos === 'center' ? 0 : isOpen ? SIDEBAR_W : RAIL_W
     )
-  }, [pos, isOpen])
+  }, [effectivePos, isOpen])
 
   /** Cycle: left → center (normal bar) → right → left */
   const cycle = useCallback(() => {
@@ -219,6 +234,9 @@ export function DashboardHeader({
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLElement>) => {
+      // the rail/hold-to-drag interaction only exists on desktop: below `lg`
+      // there is nothing to expand or detach, so taps go straight to the links
+      if (!isDesktop) return
       // the pin controls swap the rail layout: expanding on pointerdown would
       // unmount them before `click` fires, so they opt out of the hold-expand.
       // Everything else (nav links, logout, cycle) keeps expanding on press.
@@ -234,7 +252,7 @@ export function DashboardHeader({
         if (pendingRef.current) beginDrag(pendingRef.current.clientX)
       }, HOLD_MS)
     },
-    [expand, beginDrag]
+    [isDesktop, expand, beginDrag]
   )
 
   const onPointerMove = useCallback(
@@ -286,8 +304,8 @@ export function DashboardHeader({
   }, [])
 
   // ---- geometry (all px → clean transitions) ----
-  const isBar = !dragging && pos === 'center'
-  const rail = !dragging && pos !== 'center' && !isOpen
+  const isBar = !dragging && effectivePos === 'center'
+  const rail = !dragging && effectivePos !== 'center' && !isOpen
   const activeW = isOpen ? SIDEBAR_W : RAIL_W
 
   let left: number
@@ -298,207 +316,173 @@ export function DashboardHeader({
     left = dragLeft
     width = SIDEBAR_W
     height = vh || '100vh'
-  } else if (pos === 'center') {
+  } else if (effectivePos === 'center') {
     left = 0
     width = vw ? vw : '100%'
     height = BAR_H
   } else {
-    left = pos === 'left' ? 0 : Math.max(0, (vw || SIDEBAR_W * 2) - activeW)
+    left =
+      effectivePos === 'left' ? 0 : Math.max(0, (vw || SIDEBAR_W * 2) - activeW)
     width = activeW
     height = vh || '100vh'
   }
 
   const borderCls = dragging
     ? 'border border-emerald-950/70 shadow-xl'
-    : pos === 'left'
+    : effectivePos === 'left'
       ? 'border-r border-emerald-950/70'
-      : pos === 'right'
+      : effectivePos === 'right'
         ? 'border-l border-emerald-950/70'
         : 'border-b border-emerald-950/70'
 
   return (
-    <header
-      ref={headerRef}
-      aria-label="Encabezado del panel"
-      className={`fixed top-0 z-40 chrome-forest select-none ${borderCls}`}
-      style={{
-        left,
-        top: 0,
-        width,
-        height,
-        transition: dragging || !ready ? 'none' : TRANSITION,
-        cursor: dragging ? 'grabbing' : 'grab',
-        touchAction: 'none',
-      }}
-      onPointerEnter={() => {
-        hoverRef.current = true
-        expand()
-      }}
-      onPointerLeave={() => {
-        hoverRef.current = false
-        collapse()
-      }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onFocusCapture={expand}
-      onBlurCapture={(e) => {
-        if (
-          !hoverRef.current &&
-          !e.currentTarget.contains(e.relatedTarget as Node | null)
-        ) {
+    <>
+      <header
+        ref={headerRef}
+        aria-label="Encabezado del panel"
+        className={`fixed top-0 z-40 chrome-forest select-none ${borderCls}`}
+        style={{
+          left,
+          top: 0,
+          width,
+          height,
+          transition: dragging || !ready ? 'none' : TRANSITION,
+          cursor: dragging ? 'grabbing' : isDesktop ? 'grab' : 'default',
+          touchAction: 'none',
+        }}
+        onPointerEnter={() => {
+          hoverRef.current = true
+          expand()
+        }}
+        onPointerLeave={() => {
+          hoverRef.current = false
           collapse()
-        }
-      }}
-    >
-      <div
-        className={
-          isBar
-            ? 'mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8'
-            : 'flex h-full w-full flex-col justify-between gap-4 p-4'
-        }
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onFocusCapture={expand}
+        onBlurCapture={(e) => {
+          if (
+            !hoverRef.current &&
+            !e.currentTarget.contains(e.relatedTarget as Node | null)
+          ) {
+            collapse()
+          }
+        }}
       >
-        {/* title / brand — the pin control lives here, never in center */}
-        {isBar ? (
-          <h1 className="whitespace-nowrap text-xl font-semibold text-white">
-            SIGE-TdeA
-          </h1>
-        ) : (
-          <div className="flex items-center gap-3">
-            {rail ? (
-              // collapsed: the brand symbol itself becomes the expand toggle
-              <button
-                type="button"
-                data-no-drag
-                data-no-expand
-                onClick={togglePin}
-                aria-label="Anclar y expandir la barra lateral"
-                title="Anclar barra"
-                className="group grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border border-transparent bg-uv-lime text-[13px] font-bold text-emerald-950 shadow-[0_0_12px_rgba(146,189,36,0.35)] transition-colors hover:border-uv-lime/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime"
-              >
-                <span aria-hidden className="group-hover:hidden">
+        <div
+          className={
+            isBar
+              ? 'mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8'
+              : 'flex h-full w-full flex-col justify-between gap-4 p-4'
+          }
+        >
+          {/* title / brand — the pin control lives here, never in center */}
+          {isBar ? (
+            <h1 className="whitespace-nowrap text-xl font-semibold text-white">
+              SIGE-TdeA
+            </h1>
+          ) : (
+            <div className="flex items-center gap-3">
+              {rail ? (
+                // collapsed: the brand symbol itself becomes the expand toggle
+                <button
+                  type="button"
+                  data-no-drag
+                  data-no-expand
+                  onClick={togglePin}
+                  aria-label="Anclar y expandir la barra lateral"
+                  title="Anclar barra"
+                  className="group grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border border-transparent bg-uv-lime text-[13px] font-bold text-emerald-950 shadow-[0_0_12px_rgba(146,189,36,0.35)] transition-colors hover:border-uv-lime/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime"
+                >
+                  <span aria-hidden className="group-hover:hidden">
+                    SIGE
+                  </span>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                    className="hidden group-hover:block"
+                  >
+                    <rect width="18" height="18" x="3" y="3" rx="2" />
+                    <path d="M9 3v18" />
+                    <path d="m14 9 3 3-3 3" />
+                  </svg>
+                </button>
+              ) : (
+                <span
+                  aria-hidden
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-uv-lime text-[13px] font-bold text-emerald-950 shadow-[0_0_12px_rgba(146,189,36,0.35)]"
+                >
                   SIGE
                 </span>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                  className="hidden group-hover:block"
+              )}
+              {!rail && (
+                <span className="min-w-0 truncate text-lg font-semibold leading-snug text-white">
+                  SIGE-TdeA
+                </span>
+              )}
+              {/* collapse control sits right next to the project name */}
+              {!rail && effectivePos !== 'center' && (
+                <button
+                  type="button"
+                  data-no-drag
+                  data-no-expand
+                  onClick={togglePin}
+                  aria-label="Desanclar y contraer la barra lateral"
+                  title="Contraer barra"
+                  className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime"
                 >
-                  <rect width="18" height="18" x="3" y="3" rx="2" />
-                  <path d="M9 3v18" />
-                  <path d="m14 9 3 3-3 3" />
-                </svg>
-              </button>
-            ) : (
-              <span
-                aria-hidden
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-uv-lime text-[13px] font-bold text-emerald-950 shadow-[0_0_12px_rgba(146,189,36,0.35)]"
-              >
-                SIGE
-              </span>
-            )}
-            {!rail && (
-              <span className="min-w-0 truncate text-lg font-semibold leading-snug text-white">
-                SIGE-TdeA
-              </span>
-            )}
-            {/* collapse control sits right next to the project name */}
-            {!rail && pos !== 'center' && (
-              <button
-                type="button"
-                data-no-drag
-                data-no-expand
-                onClick={togglePin}
-                aria-label="Desanclar y contraer la barra lateral"
-                title="Contraer barra"
-                className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <rect width="18" height="18" x="3" y="3" rx="2" />
-                  <path d="M9 3v18" />
-                  <path d="m16 15-3-3 3-3" />
-                </svg>
-              </button>
-            )}
-          </div>
-        )}
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <rect width="18" height="18" x="3" y="3" rx="2" />
+                    <path d="M9 3v18" />
+                    <path d="m16 15-3-3 3-3" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
 
-        {/* module navigation — middle child in all modes */}
-        <ModuleNav
-          role={role ?? null}
-          variant={isBar ? 'bar' : rail ? 'rail' : 'sidebar'}
-          extraModules={extraModules}
-        />
+          {/* module navigation — middle child in all modes */}
+          <ModuleNav
+            role={role ?? null}
+            variant={isBar ? 'bar' : rail ? 'rail' : 'sidebar'}
+            extraModules={extraModules}
+          />
 
-        <div
-          className={`flex ${
-            isBar ? 'items-center gap-2' : 'w-full flex-col gap-2'
-          }`}
-          data-no-drag
-        >
-          {/* theme toggle: light ↔ dark (persisted in localStorage) */}
-          <button
-            type="button"
-            onClick={handleThemeToggle}
-            aria-label={dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
-            title={dark ? 'Tema claro' : 'Tema oscuro'}
-            className={`cursor-pointer items-center justify-center gap-2 rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime ${
-              isBar
-                ? 'grid h-8 w-8'
-                : rail
-                  ? 'flex h-8 w-full'
-                  : 'flex w-full px-4 py-2.5 text-sm'
+          <div
+            className={`flex ${
+              isBar ? 'items-center gap-2' : 'w-full flex-col gap-2'
             }`}
+            data-no-drag
           >
-            {dark ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-              </svg>
-            )}
-            <span className={rail || isBar ? 'hidden' : 'whitespace-nowrap'}>
-              {dark ? 'Tema claro' : 'Tema oscuro'}
-            </span>
-          </button>
-
-          <form
-            action="/api/auth/logout"
-            method="POST"
-            className={isBar ? '' : 'w-full'}
-          >
+            {/* mobile navigation: the module bar becomes a drawer below `lg` */}
             <button
-              type="submit"
-              aria-label="Cerrar sesión"
-              title="Cerrar sesión"
-              className={`cursor-pointer text-sm font-medium text-emerald-50/90 transition-colors hover:text-white ${
-                isBar
-                  ? 'flex items-center gap-2 px-4 py-2'
-                  : `flex w-full items-center justify-center gap-2 border border-white/15 bg-white/10 hover:bg-white/20 ${
-                      rail ? 'h-8 px-0' : 'px-4 py-2.5'
-                    }`
-              }`}
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Abrir el menú de navegación"
+              aria-expanded={menuOpen}
+              aria-controls="nav-movil"
+              title="Menú"
+              className="grid h-10 w-10 cursor-pointer place-items-center rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime lg:hidden"
             >
               <svg
                 width="15"
@@ -508,50 +492,117 @@ export function DashboardHeader({
                 stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
-                strokeLinejoin="round"
                 aria-hidden
               >
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
+                <path d="M3 6h18M3 12h18M3 18h18" />
               </svg>
-              <span className={rail ? 'hidden' : 'whitespace-nowrap'}>
-                Cerrar sesión
+            </button>
+
+            {/* theme toggle: light ↔ dark (persisted in localStorage) */}
+            <button
+              type="button"
+              onClick={handleThemeToggle}
+              aria-label={dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+              title={dark ? 'Tema claro' : 'Tema oscuro'}
+              className={`cursor-pointer items-center justify-center gap-2 rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime ${
+                isBar
+                  ? 'grid h-10 w-10 lg:h-8 lg:w-8'
+                  : rail
+                    ? 'flex h-8 w-full'
+                    : 'flex w-full px-4 py-2.5 text-sm'
+              }`}
+            >
+              {dark ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                  <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                </svg>
+              )}
+              <span className={rail || isBar ? 'hidden' : 'whitespace-nowrap'}>
+                {dark ? 'Tema claro' : 'Tema oscuro'}
               </span>
             </button>
-          </form>
 
-          {/* position cycle: left → normal bar → right */}
-          <button
-            type="button"
-            onClick={cycle}
-            aria-label="Cambiar la posición del encabezado (izquierda, centro, derecha)"
-            title="Cambiar posición"
-            className={`cursor-pointer items-center justify-center gap-2 rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime ${
-              isBar
-                ? 'grid h-8 w-8'
-                : rail
-                  ? 'flex h-8 w-full'
-                  : 'flex w-full px-4 py-2.5 text-sm'
-            }`}
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path
-                d="M2 5h9M8.5 2.5 11 5 8.5 7.5M14 11H5M7.5 8.5 5 11l2.5 2.5"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span
-              className={rail || isBar ? 'hidden' : 'whitespace-nowrap'}
+            <form
+              action="/api/auth/logout"
+              method="POST"
+              className={isBar ? '' : 'w-full'}
             >
-              Mover encabezado
-            </span>
-          </button>
+              <button
+                type="submit"
+                aria-label="Cerrar sesión"
+                title="Cerrar sesión"
+                className={`cursor-pointer text-sm font-medium text-emerald-50/90 transition-colors hover:text-white ${
+                  isBar
+                    ? 'flex min-h-10 items-center gap-2 px-4 py-2.5 lg:min-h-0 lg:py-2'
+                    : `flex w-full items-center justify-center gap-2 border border-white/15 bg-white/10 hover:bg-white/20 ${
+                        rail ? 'h-8 px-0' : 'px-4 py-2.5'
+                      }`
+                }`}
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                <span className={rail ? 'hidden' : 'hidden whitespace-nowrap lg:inline'}>
+                  Cerrar sesión
+                </span>
+              </button>
+            </form>
+
+            {/* position cycle: left → normal bar → right */}
+            <button
+              type="button"
+              onClick={cycle}
+              aria-label="Cambiar la posición del encabezado (izquierda, centro, derecha)"
+              title="Cambiar posición"
+              className={`cursor-pointer items-center justify-center gap-2 rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime ${
+                isBar
+                  ? 'hidden lg:grid h-8 w-8'
+                  : rail
+                    ? 'flex h-8 w-full'
+                    : 'flex w-full px-4 py-2.5 text-sm'
+              }`}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+                <path
+                  d="M2 5h9M8.5 2.5 11 5 8.5 7.5M14 11H5M7.5 8.5 5 11l2.5 2.5"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span
+                className={rail || isBar ? 'hidden' : 'whitespace-nowrap'}
+              >
+                Mover encabezado
+              </span>
+            </button>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+      <MobileNavDrawer
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        role={role ?? null}
+        extraModules={extraModules}
+      />
+    </>
   )
 }
