@@ -37,9 +37,9 @@ Medellín, Colombia.
 | **Metodología o Marco de Trabajo ágil utilizado:** | ☒ Scrum    ☐ Kanban    ☐ XP    ☐ Otro: _____________ |  |
 | **Número de sprints:** | 2 sprints de 2 semanas, dentro de la fase de diseño y desarrollo del sistema (semanas 9–12 del cronograma) |  |
 | **Resumen del análisis:** | Procesamiento de los datos de consumo con Python (numpy, pandas, scipy, statsmodels): cálculo de indicadores estadísticos, depuración de atípicos por banda de confianza por mes —±10 % (ec. 3) por defecto; rescate IC ec. 4-5 (±2·DesvEst) con N ≥ 10 si los depurados quedan < 36— (§7.5.1 de la Resolución 16 de 2024), caracterización de la evolución del consumo y estimación de líneas base energéticas (enfoque CRISP-DM). |  |
-| **Resumen del diseño:** | Arquitectura web por capas sobre Next.js App Router (presentación en React, lógica de servidor en Server Actions/Route Handlers, datos en PostgreSQL vía Prisma) con seis módulos funcionales: carga y gestión de datos, dashboard de visualización, análisis estadístico y detección de patrones, alertas de consumo inusual, estimaciones y reportes; seguridad por roles (5 roles × 6 módulos). |  |
+| **Resumen del diseño:** | Arquitectura web monolito MVC sobre Next.js App Router (vista en React, controlador en Server Actions/Route Handlers, modelo en PostgreSQL vía Prisma) con seis módulos funcionales: carga y gestión de datos, dashboard de visualización, análisis estadístico y detección de patrones, alertas de consumo inusual, estimaciones y reportes; seguridad por roles (5 roles × 6 módulos). |  |
 | **Resumen de la implementación:** | Sistema web funcional: autenticación JWT con cookie httpOnly y gestión de usuarios (5 roles × 6 módulos de acceso con permisos temporales/permanentes auditados); módulo de gestión de datos con 6 secciones (Resumen, Facturas EPM, Equipos, Variables Operativas, Líneas Base y Ajustes) y 3 modos (Carga, Visualización, Gestión), con tres asistentes de importación Excel/CSV de 4 pasos; motor de líneas base energéticas con los 4 modelos de la Resolución UPME 0016 de 2024, gráfica SVG interactiva y tablas de transparencia. Los módulos de análisis, alertas, estimaciones, reportes y representación espacial están en construcción. |  |
-| **Resumen de la validación:** | 15 historias de Storybook ejecutadas como pruebas con Vitest en navegador (Chromium/Playwright) más revisión de accesibilidad (addon a11y); validación de datos con Zod en cliente y servidor; lint y verificación de tipos en verde. Las pruebas de usabilidad con usuarios reales se encuentran pendientes (sección 10.2). |  |
+| **Resumen de la validación:** | 16 historias de Storybook ejecutadas como pruebas con Vitest en navegador (Chromium/Playwright) más revisión de accesibilidad (addon a11y); validación de datos con Zod en cliente y servidor; lint y verificación de tipos en verde. Las pruebas de usabilidad con usuarios reales se encuentran pendientes (sección 10.2). |  |
 | **Versión del documento:** | ☒ v1.0 (TDG I)   ☐ v2.0 (correcciones)  ☐ v3.0 (TDG II — Entrega final) |  |
 
 - **DECLARACIÓN DE USO DE INTELIGENCIA ARTIFICIAL**
@@ -238,49 +238,55 @@ It is expected that the SIGE-TdeA will improve the use of energy resources, sign
 | --- |
 | **✎ INSTRUCCIÓN:**  *Generar automáticamente. Incluir si hay 3 o más figuras. Cada figura en el documento debe tener número, título y fuente en la nota inferior. Formato de cada figura en el cuerpo: Figura N. Título. Nota. Elaboración propia (año).* |
 
-[fig 1. Diagrama Causa Efecto. Nota. Elaboración propia (2026). 15](#_toc239076990)
+[fig 1. Diagrama Causa Efecto. Nota. Elaboración propia (2026).](#_toc239076990)
 
-[*fig 2. Diagrama BPMN - proceso AS-IS de gestión de la información de consumo energético en el TdeA. Nota. Elaboración propia (2026)* 16](#_toc239076991)
+[fig 2. Diagrama BPMN - proceso AS-IS de gestión de la información de consumo energético en el TdeA. Nota. Elaboración propia (2026)](#_toc239076991)
 
-[fig 3. Módulo de carga de datos. 27](#_toc239076992)
+[fig 3. Diagrama BPMN — proceso TO-BE de gestión de la información de consumo energético en el TdeA con el sistema. Nota. Elaboración propia (2026).](#_fig03)
 
-[fig 4. Módulo de Dashboard. 28](#_toc239076993)
+[fig 4. Módulo de carga de datos. Nota. Elaboración propia (2026).](#_toc239076992)
 
-[fig 5. Módulo de análisis estadístico. 28](#_toc239076994)
+[fig 5. Módulo de Dashboard. Nota. Elaboración propia (2026).](#_toc239076993)
 
-[fig 6. Módulo de Alertas. 29](#_toc239076995)
+[fig 6. Módulo de análisis estadístico. Nota. Elaboración propia (2026).](#_toc239076994)
 
-[fig 7. Módulo de Estimaciones. 29](#_toc239076996)
+[fig 7. Módulo de Alertas. Nota. Elaboración propia (2026).](#_toc239076995)
 
-[fig 8. Módulo de Reportes. 30](#_toc239076997)
+[fig 8. Módulo de Estimaciones. Nota. Elaboración propia (2026).](#_toc239076996)
 
-[fig 9. Arquitectura propuesta (vista de alto nivel). Nota. Elaboración propia (2026) 30](#_toc239076998)
+[fig 9. Módulo de Reportes. Nota. Elaboración propia (2026).](#_toc239076997)
 
-fig 10. Módulo de autenticación — pantalla de inicio de sesión. Nota. Elaboración propia (2026) 36
+[fig 10. Arquitectura propuesta — monolito MVC en capas (vista de alto nivel). Nota. Elaboración propia (2026).](#_toc239076998)
 
-fig 11. Gestión de usuarios — listado y ficha de detalle. Nota. Elaboración propia (2026) 36
+[fig 11. Módulo de autenticación — pantalla de inicio de sesión con el árbol de bienvenida y el control de tema. Nota. Elaboración propia (2026).](#_fig11)
 
-fig 12. Asistente de importación de Facturas EPM — paso 2 «Mapeo». Nota. Elaboración propia (2026) 36
+[fig 12. Gestión de usuarios — listado de usuarios con sus roles y ficha de detalle del administrador de TI. Nota. Elaboración propia (2026).](#_fig12)
 
-fig 13. Asistente de importación de Equipos — segmentación por edificación, bloque y espacio. Nota. Elaboración propia (2026) 36
+[fig 13. Asistente de importación de Facturas EPM — paso 2 «Mapeo» con detección automática de encabezados. Nota. Elaboración propia (2026).](#_fig13)
 
-fig 14. Pestaña Gestión — edición en línea y confirmación de borrado. Nota. Elaboración propia (2026) 36
+[fig 14. Asistente de importación de Equipos — segmentación por edificación, bloque y espacio con creación inline de catálogo. Nota. Elaboración propia (2026).](#_fig14)
 
-fig 15. Líneas Base — selección de los 4 modelos UPME y resultado del cálculo. Nota. Elaboración propia (2026) 41
+[fig 15. Pestaña Gestión — edición en línea de una factura y diálogo de confirmación de borrado. Nota. Elaboración propia (2026).](#_fig15)
 
-fig 16. Gráfica de línea base interactiva — banda de confianza, meses descartados y residuos. Nota. Elaboración propia (2026) 41
+[fig 16. Líneas Base — selección de los cuatro modelos UPME y resultado del cálculo con persistencia habilitada. Nota. Elaboración propia (2026).](#_fig16)
 
-fig 17. Tablas de transparencia — preparación de datos y jerarquía. Nota. Elaboración propia (2026) 41
+[fig 17. Gráfica de línea base interactiva — banda de confianza, meses descartados en ámbar, residuos y leyenda conmutable. Nota. Elaboración propia (2026).](#_fig17)
 
-fig 18. Drawer «Asignar permiso» — permiso temporal y advertencia de excepción permanente. Nota. Elaboración propia (2026) 41
+[fig 18. Tablas de transparencia — preparación de datos (crudo → normalizado a 30 días → decisión de banda: ±10 % por defecto o rescate IC ec. 4-5) y jerarquía factura → bloque → espacio. Nota. Elaboración propia (2026).](#_fig18)
 
-fig 19. Sección Resumen — tarjetas de indicadores y guía «Cómo funciona». Nota. Elaboración propia (2026) 41
+[fig 19. Drawer «Asignar permiso» — permiso temporal con duración y advertencia para la excepción permanente fuera de la matriz. Nota. Elaboración propia (2026).](#_fig19)
 
-fig 20. Diagrama de arquitectura del sistema (capas y flujo de una petición). Nota. Elaboración propia (2026) 42
+[fig 20. Sección Resumen — tarjetas de indicadores navegables y guía animada «Cómo funciona». Nota. Elaboración propia (2026).](#_fig20)
 
-fig 21. Estructura de componentes y módulos del sistema. Nota. Elaboración propia (2026) 43
+[fig 21. Diagrama de arquitectura del sistema (capas MVC y flujo de una petición). Nota. Elaboración propia (2026).](#_fig21)
 
-fig 22. Modelo de datos relacional (esquema Prisma sobre PostgreSQL). Nota. Elaboración propia (2026) 44
+[fig 22. Diagrama de componentes del sistema. Nota. Elaboración propia (2026).](#_fig22)
+
+[fig 23. Diagrama de clases del sistema. Nota. Elaboración propia (2026).](#_fig23)
+
+[fig 24. Modelo de datos relacional (esquema Prisma sobre PostgreSQL). Nota. Elaboración propia (2026).](#_fig24)
+
+[fig 25. Diagrama de despliegue del sistema. Nota. Elaboración propia (2026).](#_fig25)
 
 # ÍNDICE DE TABLAS
 
@@ -421,6 +427,8 @@ A partir de lo anterior se plantea la siguiente pregunta problémica:
 
 ¿Cómo puede un sistema para la gestión eficiente de la energía, basado en el análisis de patrones de consumo, contribuir a la mejora del uso energético en el Tecnológico de Antioquia?
 
+![](figuras/out/fig01.png)
+
 <a id="_toc239076990"></a>*fig 1. Diagrama Causa Efecto. Nota. Elaboración propia (2026).*
 
 ## 2.2. Descripción del negocio y del proceso a intervenir
@@ -445,11 +453,17 @@ Estos subprocesos, que en la actualidad se gestionan de manera manual y desartic
 | --- |
 | **✎ INSTRUCCIÓN:**  *Figura N. Diagrama BPMN — proceso AS-IS de \[nombre del proceso]. Nota. Elaboración propia (año). — Insertar aquí* |
 
+![](figuras/out/fig02.png)
+
 <a id="_toc239076991"></a>*fig 2. Diagrama BPMN - proceso AS-IS de gestión de la información de consumo energético en el TdeA. Nota. Elaboración propia (2026)*
 
 |  |
 | --- |
 | **✎ INSTRUCCIÓN:**  *Figura N. Diagrama BPMN — proceso TO-BE con el sistema (si aplica). Nota. Elaboración propia (año). — Insertar aquí* |
+
+![](figuras/out/fig03.png)
+
+<a id="_fig03"></a>*fig 3. Diagrama BPMN — proceso TO-BE de gestión de la información de consumo energético en el TdeA con el sistema. Nota. Elaboración propia (2026).*
 
 ## 2.3. Actores y roles del sistema
 
@@ -566,7 +580,7 @@ Dashboard: panel de visualización interactiva que permite a los usuarios del si
 | ADR-07 | Matriz de permisos estática en el código, con excepciones (overrides) temporales o permanentes en la base de datos | RBAC 100% dinámico en base de datos, ACL por recurso, librerías de autorización (CASL, rbac) | La matriz rol × módulo (5 roles × 6 módulos) es estable y se evalúa en memoria sin consultar la base de datos, lo que evita fallos si la BD no responde y permite revisarla junto con el código fuente. Las excepciones puntuales sí viven en la BD, con fecha de expiración, quién las otorgó y traza de auditoría. El módulo de usuarios nunca acepta excepciones (defensa en profundidad). | Modificar un permiso base exige una nueva versión del sistema. El efecto de los overrides depende de la limpieza de los registros expirados. |
 | ADR-08 | Motor de línea base en Python invocado como proceso CLI que intercambia JSON | Microservicio REST propio, portar los modelos a TypeScript (librerías de regresión), notebooks embebidos | Reutiliza el ecosistema estadístico (statsmodels OLS, VIF, scipy) sin reimplementarlo en JavaScript. La interfaz stdin/stdout con JSON es suficiente para el volumen de datos y no exige mantener un servidor HTTP adicional; el motor queda independiente y testeable por separado. | Cada cálculo genera un proceso Python (la carga de librerías añade segundos y se aplica un tiempo límite). Se requiere Python 3.10+ con pandas/numpy/scipy/statsmodels en el servidor y falta empaquetado reproducible (`requirements.txt`). |
 | ADR-09 | Gráficas SVG construidas a mano en lugar de una librería de charts | Recharts, Chart.js, Nivo, ApexCharts | Permite controlar el diseño específico de la gráfica de línea base (banda de confianza por mes, residuos, meses descartados fuera de la banda, línea de referencia) y construir la accesibilidad completa (role="slider", navegación con teclado, `aria-live`) sin adaptar la API de una librería. Evita dependencias pesadas en el bundle. | El equipo mantiene escalas, ejes y detección de posición; cualquier tipo de gráfico nuevo debe codificarse a mano. |
-| ADR-10 | Storybook con Vitest en navegador y mock de Server Actions como estrategia de pruebas | Vitest/Jest unitario con jsdom, pruebas end-to-end con Playwright o Cypress | Prueba los componentes reales en el navegador con datos deterministas: el build de Storybook sustituye los módulos de Server Actions por dobles, de modo que los flujos de importación, visualización y gestión se validan sin base de datos. El addon de a11y añade revisión de accesibilidad. | Sin pruebas unitarias de `src/lib` ni pruebas end-to-end; aún no existe un script `npm test` ni umbrales de cobertura configurados. |
+| ADR-10 | Storybook con Vitest en navegador y mock de Server Actions como estrategia de pruebas | Vitest/Jest unitario con jsdom, pruebas end-to-end con Playwright o Cypress | Prueba los componentes reales en el navegador con datos deterministas: el build de Storybook sustituye los módulos de Server Actions por dobles, de modo que los flujos de importación, visualización y gestión se validan sin base de datos. El addon de a11y añade revisión de accesibilidad. | Sin pruebas unitarias aisladas del núcleo de dominio ni pruebas end-to-end; `npm run test` cubre las historias de Storybook con Vitest en navegador, sin umbrales de cobertura configurados. |
 
 <a id="_toc239076983"></a>*Tabla 3. Registro de decisiones técnicas. Nota. Elaboración propia (2026)*
 
@@ -669,33 +683,45 @@ Adicionalmente, para las actividades de análisis de datos y detección de patro
 
 SIGE-TdeA (Sistema de Información para la Gestión Energética del Tecnológico de Antioquia) es un sistema web desarrollado para el TdeA que integra en una sola plataforma los procesos de captura, almacenamiento, análisis y visualización de los datos de consumo energético de la institución. Está dirigido a los perfiles definidos en la sección 2.3: el gestor energético y el coordinador de infraestructura cargan y mantienen los datos, el directivo y el personal administrativo los consultan para tomar decisiones de gasto y ahorro, y el administrador de TI opera la seguridad del sistema. Al centralizar las facturas de EPM, el inventario de equipos y las variables operativas, y al calcular las líneas base energéticas exigidas por la Resolución UPME 0016 de 2024, el sistema sustituye el proceso manual y desarticulado descrito en la sección 2.2 por un flujo trazable y auditable.
 
-La arquitectura implementada es un monolito por capas sobre Next.js 14 (App Router): la capa de presentación está compuesta por componentes de React con Tailwind CSS; la lógica de servidor se ejecuta en Server Components, Server Actions y Route Handlers, protegidos por un middleware de sesión; la capa de datos se implementa con Prisma sobre PostgreSQL; y el análisis estadístico corre en un proceso Python independiente que se invoca como interfaz de línea de comandos que intercambia JSON (ADR-04, ADR-05, ADR-08). El control de acceso combina una cookie JWT `httpOnly` con una matriz de 5 roles × 6 módulos evaluada en servidor, más excepciones temporales o permanentes registradas en base de datos y en la bitácora de auditoría (ADR-06, ADR-07). El detalle de la arquitectura se documenta en la sección 9.
+La arquitectura implementada es un monolito por capas con patrón MVC sobre Next.js 14 (App Router): la capa de presentación (vista) está compuesta por componentes de React con Tailwind CSS; la lógica de servidor (controlador) se ejecuta en Server Components, Server Actions y Route Handlers, protegidos por un middleware de sesión; la capa de datos (modelo) se implementa con Prisma sobre PostgreSQL; y el análisis estadístico corre en un proceso Python independiente que se invoca como interfaz de línea de comandos que intercambia JSON (ADR-04, ADR-05, ADR-08). El control de acceso combina una cookie JWT `httpOnly` con una matriz de 5 roles × 6 módulos evaluada en servidor, más excepciones temporales o permanentes registradas en base de datos y en la bitácora de auditoría (ADR-06, ADR-07). El detalle de la arquitectura se documenta en la sección 9.
 
 El sistema se organiza en los siguientes módulos funcionales, cuyo estado de implementación se resume al final de esta sección:
 
 Módulo 1 (Carga y gestión de datos) — **implementado**: registra y almacena las facturas de energía de EPM y el inventario de equipos eléctricos por bloque, junto con las variables operativas (población, días lectivos, grados de enfriamiento) y los ajustes energéticos. Opera en la ruta `/dashboard/datos` con seis secciones (Resumen, Facturas EPM, Equipos Eléctricos, Variables Operativas, Líneas Base y Ajustes) y tres modos de trabajo (Carga, Visualización y Gestión); los tres asistentes de importación procesan archivos Excel o CSV en cuatro pasos (carga, mapeo, vista previa e importación) con validación en cliente y servidor.
 
-<a id="_toc239076992"></a>*fig 3. Módulo de carga de datos.*
+![](figuras/out/fig04.png)
+
+<a id="_toc239076992"></a>*fig 4. Módulo de carga de datos. Nota. Elaboración propia (2026).*
 
 Módulo 2 (Dashboard de visualización) — **parcialmente implementado**: la sección Resumen presenta tarjetas de indicadores (facturas, equipos, variables y líneas base registradas) y una guía animada del flujo de datos; el dashboard con KPIs de consumo (kWh, costo, variación interperiodual) y su correlación con el calendario académico está pendiente (HU-05 y HU-06).
 
-<a id="_toc239076993"></a>*fig 4. Módulo de Dashboard.*
+![](figuras/out/fig05.png)
+
+<a id="_toc239076993"></a>*fig 5. Módulo de Dashboard. Nota. Elaboración propia (2026).*
 
 Módulo 3 (Análisis estadístico y detección de patrones) — **parcialmente implementado**: el motor de Python (numpy, pandas, scipy, statsmodels) depura los atípicos por banda de confianza (±10 % por defecto; rescate IC ec. 4-5 con N ≥ 10 si quedan < 36 depurados) con recomputo de la media por mes y calcula las líneas base con los cuatro modelos de la Resolución UPME 0016 de 2024, señalando los meses descartados en la gráfica y en las tablas de transparencia; el módulo de análisis independiente con detección de épocas de consumo inusual sigue en construcción (HU-04 y HU-07).
 
-<a id="_toc239076994"></a>*fig 5. Módulo de análisis estadístico.*
+![](figuras/out/fig06.png)
+
+<a id="_toc239076994"></a>*fig 6. Módulo de análisis estadístico. Nota. Elaboración propia (2026).*
 
 Módulo 4 (Alertas de consumo inusual) — **en construcción**: generará notificaciones automáticas cuando el consumo supere los umbrales definidos a partir del histórico, permitiendo una respuesta oportuna del personal responsable (HU-08).
 
-<a id="_toc239076995"></a>*fig 6. Módulo de Alertas.*
+![](figuras/out/fig07.png)
+
+<a id="_toc239076995"></a>*fig 7. Módulo de Alertas. Nota. Elaboración propia (2026).*
 
 Módulo 5 (Estimaciones) — **en construcción**: ofrecerá proyecciones del consumo futuro mediante modelos de series de tiempo (HU-09).
 
-<a id="_toc239076996"></a>*fig 7. Módulo de Estimaciones.*
+![](figuras/out/fig08.png)
+
+<a id="_toc239076996"></a>*fig 8. Módulo de Estimaciones. Nota. Elaboración propia (2026).*
 
 Módulo 6 (Reportes) — **en construcción**: generará informes periódicos del consumo en formatos PDF y/o Excel con la granularidad temporal requerida (mensual, semestral o anual); actualmente el sistema solo descarga plantillas CSV para la carga de datos (HU-10, HU-11 y HU-12).
 
-<a id="_toc239076997"></a>*fig 8. Módulo de Reportes.*
+![](figuras/out/fig09.png)
+
+<a id="_toc239076997"></a>*fig 9. Módulo de Reportes. Nota. Elaboración propia (2026).*
 
 De forma transversal, el sistema incorpora la **gestión de usuarios, roles y permisos** — **implementada** en la ruta `/dashboard/users`: autenticación con registro e inicio de sesión, administración de usuarios y sesiones para el rol administrador, matriz de permisos por módulo y asignación de permisos temporales o permanentes con auditoría (HU-15 y HU-16). El módulo de representación espacial de la infraestructura figura en la navegación pero está en construcción (HU-22).
 
@@ -717,7 +743,9 @@ De forma transversal, el sistema incorpora la **gestión de usuarios, roles y pe
 | --- |
 | **✎ INSTRUCCIÓN:**  *Figura N. Arquitectura propuesta (vista de alto nivel). Nota. Elaboración propia (año). — Insertar aquí* |
 
-<a id="_toc239076998"></a>*fig 9. Arquitectura propuesta (vista de alto nivel). Nota. Elaboración propia (2026)*
+![](figuras/out/fig10.png)
+
+<a id="_toc239076998"></a>*fig 10. Arquitectura propuesta — monolito MVC en capas (vista de alto nivel). Nota. Elaboración propia (2026).*
 
 ## 7.2. Product backlog
 
@@ -741,7 +769,7 @@ De forma transversal, el sistema incorpora la **gestión de usuarios, roles y pe
 | HU-11 | Como administrador, quiero exportar reportes de consumo en Excel, para hacer análisis adicionales fuera del sistema. | Por planificar | Baja | 3 | Pendiente | El archivo .xlsx contendría las mismas cifras mostradas en el dashboard para el período elegido. |
 | HU-12 | Como administrador, quiero elegir la granularidad temporal del reporte (mensual/semestral/anual). | Por planificar | Baja | 3 | Pendiente | El selector de granularidad cambiaría la agregación de los datos del reporte. |
 | HU-13 | Como equipo de desarrollo, quiero documentar el diseño arquitectónico del sistema, para dejar trazabilidad de las decisiones técnicas. | Diseño e ingeniería | Alta | 3 | En progreso | Registro de decisiones técnicas (sección 4) y descripción de la arquitectura implementada (sección 9) en este informe. |
-| HU-14 | Como equipo de desarrollo, quiero ejecutar pruebas funcionales sobre los 6 módulos, para validar que cumplen sus criterios de aceptación. | Pruebas y cierre | Alta | 5 | En progreso | 15 historias de Storybook ejecutadas con Vitest en navegador; quedan las pruebas de los módulos en construcción y las de usabilidad. |
+| HU-14 | Como equipo de desarrollo, quiero ejecutar pruebas funcionales sobre los 6 módulos, para validar que cumplen sus criterios de aceptación. | Pruebas y cierre | Alta | 5 | En progreso | 16 historias de Storybook ejecutadas con Vitest en navegador; quedan las pruebas de los módulos en construcción y las de usabilidad. |
 | HU-15 | Como administrador, quiero autenticar a los usuarios y administrar sus cuentas y roles, para controlar quién accede al sistema. | Sprint 1 | Alta | 8 | Completado | Login/registro/logout con JWT en cookie httpOnly y bcrypt; CRUD de usuarios y cierre de sesiones para ADMIN_TI; registro de último acceso y auditoría. |
 | HU-16 | Como administrador, quiero asignar permisos temporales o permanentes por módulo a los usuarios, para excepcionar la matriz de roles con trazabilidad. | Sprint 2 | Alta | 8 | Completado | Drawer «Asignar permiso» con duración (1–720 h) o permanente con advertencia; revocación desde la ficha del usuario; cada concesión queda en la bitácora de auditoría; el módulo de usuarios no acepta excepciones. |
 | HU-17 | Como gestor energético, quiero calcular y guardar la línea base energética de un bloque con los modelos de la Resolución UPME 0016 de 2024. | Sprint 2 | Alta | 13 | Completado | Cuatro modelos (valor absoluto, cociente, regresión y confort térmico) calculados por el motor Python; gráfica SVG interactiva con banda de confianza, residuos y meses descartados; tablas de preparación y jerarquía; guardado solo tras un cálculo exitoso. |
@@ -975,15 +1003,25 @@ Las evidencias del Sprint 1 corresponden a las HU-15, HU-01, HU-02, HU-03, HU-19
 | --- |
 | **✎ INSTRUCCIÓN:**  *Figura N. \[Descripción concreta: "Módulo de autenticación — pantalla de inicio de sesión"]. Nota. Elaboración propia (año). — Insertar aquí* |
 
-*fig 10. Módulo de autenticación — pantalla de inicio de sesión con el árbol de bienvenida y el control de tema. Nota. Elaboración propia (2026).*
+![](figuras/out/fig11.png)
 
-*fig 11. Gestión de usuarios — listado de usuarios con sus roles y ficha de detalle del administrador de TI. Nota. Elaboración propia (2026).*
+<a id="_fig11"></a>*fig 11. Módulo de autenticación — pantalla de inicio de sesión con el árbol de bienvenida y el control de tema. Nota. Elaboración propia (2026).*
 
-*fig 12. Asistente de importación de Facturas EPM — paso 2 «Mapeo» con detección automática de encabezados. Nota. Elaboración propia (2026).*
+![](figuras/out/fig12.png)
 
-*fig 13. Asistente de importación de Equipos — segmentación por edificación, bloque y espacio con creación inline de catálogo. Nota. Elaboración propia (2026).*
+<a id="_fig12"></a>*fig 12. Gestión de usuarios — listado de usuarios con sus roles y ficha de detalle del administrador de TI. Nota. Elaboración propia (2026).*
 
-*fig 14. Pestaña Gestión — edición en línea de una factura y diálogo de confirmación de borrado. Nota. Elaboración propia (2026).*
+![](figuras/out/fig13.png)
+
+<a id="_fig13"></a>*fig 13. Asistente de importación de Facturas EPM — paso 2 «Mapeo» con detección automática de encabezados. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig14.png)
+
+<a id="_fig14"></a>*fig 14. Asistente de importación de Equipos — segmentación por edificación, bloque y espacio con creación inline de catálogo. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig15.png)
+
+<a id="_fig15"></a>*fig 15. Pestaña Gestión — edición en línea de una factura y diálogo de confirmación de borrado. Nota. Elaboración propia (2026).*
 
 |  |
 | --- |
@@ -1043,21 +1081,21 @@ Las evidencias del Sprint 1 corresponden a las HU-15, HU-01, HU-02, HU-03, HU-19
 
 *Historia de Usuario HU-07*
 
-|  |  |
-| --- | --- |
-| **HISTORIA DE USUARIO — HU-07** |  |
-| **Nombre:** | Análisis estadístico y detección de patrones |
-| **Puntos de historia (story points):** | 8 |
-| **Como (rol):** | Sistema |
-| **Quiero (funcionalidad):** | Ejecutar el análisis estadístico y la detección de patrones sobre los datos cargados, para identificar épocas de consumo inusual |
-| **Para (beneficio):** | Señalar automáticamente los meses que se desvían del comportamiento histórico esperado |
-| **CRITERIOS DE ACEPTACIÓN** |  |
-| **Escenario 1 — Cuando:** | El motor de línea base depura la serie de consumo de un bloque |
-| **Espero:** | Los meses atípicos se identifican por la banda de confianza de su mes (±10 % por defecto; rescate IC ec. 4-5 con N ≥ 10 si quedan < 36 —con recomputo de la media tras el descarte—) y se marcan en color ámbar en la gráfica y en la tabla de preparación, con la decisión registrada fila a fila |
-| **Escenario 2 — Cuando:** | Se complete el módulo de análisis sobre facturas |
-| **Espero:** | El sistema señala las épocas de consumo inusual del histórico completo (no solo de la línea base) con su explicación estadística |
-| **DEFINICIÓN DE TERMINADO (DoD)** |  |
-| ☒ Código revisado y aprobado por el equipo (code review)<br>☐ Prueba funcional ejecutada y aprobada (caso de prueba documentado)<br>☒ Evidencia visual integrada en el diario de sprint<br>☐ Criterios de aceptación verificados y marcados<br>☐ Sin deuda técnica conocida asociada a esta HU | HU en progreso: el escenario 1 está operativo dentro de LBEn; el escenario 2 depende del módulo de análisis en construcción. |
+|                                                                                                                                                                                                                                                                                                |                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **HISTORIA DE USUARIO — HU-07**                                                                                                                                                                                                                                                                |                                                                                                                                                                                                                                                                                                    |
+| **Nombre:**                                                                                                                                                                                                                                                                                    | Análisis estadístico y detección de patrones                                                                                                                                                                                                                                                       |
+| **Puntos de historia (story points):**                                                                                                                                                                                                                                                         | 8                                                                                                                                                                                                                                                                                                  |
+| **Como (rol):**                                                                                                                                                                                                                                                                                | Sistema                                                                                                                                                                                                                                                                                            |
+| **Quiero (funcionalidad):**                                                                                                                                                                                                                                                                    | Ejecutar el análisis estadístico y la detección de patrones sobre los datos cargados, para identificar épocas de consumo inusual                                                                                                                                                                   |
+| **Para (beneficio):**                                                                                                                                                                                                                                                                          | Señalar automáticamente los meses que se desvían del comportamiento histórico esperado                                                                                                                                                                                                             |
+| **CRITERIOS DE ACEPTACIÓN**                                                                                                                                                                                                                                                                    |                                                                                                                                                                                                                                                                                                    |
+| **Escenario 1 — Cuando:**                                                                                                                                                                                                                                                                      | El motor de línea base depura la serie de consumo de un bloque                                                                                                                                                                                                                                     |
+| **Espero:**                                                                                                                                                                                                                                                                                    | Los meses atípicos se identifican por la banda de confianza de su mes (±10 % por defecto; rescate IC ec. 4-5 con N ≥ 10 si quedan < 36 —con recomputo de la media tras el descarte—) y se marcan en color ámbar en la gráfica y en la tabla de preparación, con la decisión registrada fila a fila |
+| **Escenario 2 — Cuando:**                                                                                                                                                                                                                                                                      | Se complete el módulo de análisis sobre facturas                                                                                                                                                                                                                                                   |
+| **Espero:**                                                                                                                                                                                                                                                                                    | El sistema señala las épocas de consumo inusual del histórico completo (no solo de la línea base) con su explicación estadística                                                                                                                                                                   |
+| **DEFINICIÓN DE TERMINADO (DoD)**                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                                                                    |
+| ☒ Código revisado y aprobado por el equipo (code review)<br>☐ Prueba funcional ejecutada y aprobada (caso de prueba documentado)<br>☒ Evidencia visual integrada en el diario de sprint<br>☐ Criterios de aceptación verificados y marcados<br>☐ Sin deuda técnica conocida asociada a esta HU | HU en progreso: el escenario 1 está operativo dentro de LBEn; el escenario 2 depende del módulo de análisis en construcción.                                                                                                                                                                       |
 
 *Nota. Elaboración propia (2026).*
 
@@ -1171,15 +1209,25 @@ Las evidencias del Sprint 2 corresponden a las HU-17, HU-16, HU-20, HU-04 y HU-0
 | --- |
 | **✎ INSTRUCCIÓN:**  *Figura N. \[Descripción concreta]. Nota. Elaboración propia (año). — Insertar aquí* |
 
-*fig 15. Líneas Base — selección de los cuatro modelos UPME y resultado del cálculo con persistencia habilitada. Nota. Elaboración propia (2026).*
+![](figuras/out/fig16.png)
 
-*fig 16. Gráfica de línea base interactiva — banda de confianza, meses descartados en ámbar, residuos y leyenda conmutable. Nota. Elaboración propia (2026).*
+<a id="_fig16"></a>*fig 16. Líneas Base — selección de los cuatro modelos UPME y resultado del cálculo con persistencia habilitada. Nota. Elaboración propia (2026).*
 
-*fig 17. Tablas de transparencia — preparación de datos (crudo → normalizado a 30 días → decisión de banda: ±10 % por defecto o rescate IC ec. 4-5) y jerarquía factura → bloque → espacio. Nota. Elaboración propia (2026).*
+![](figuras/out/fig17.png)
 
-*fig 18. Drawer «Asignar permiso» — permiso temporal con duración y advertencia para la excepción permanente fuera de la matriz. Nota. Elaboración propia (2026).*
+<a id="_fig17"></a>*fig 17. Gráfica de línea base interactiva — banda de confianza, meses descartados en ámbar, residuos y leyenda conmutable. Nota. Elaboración propia (2026).*
 
-*fig 19. Sección Resumen — tarjetas de indicadores navegables y guía animada «Cómo funciona». Nota. Elaboración propia (2026).*
+![](figuras/out/fig18.png)
+
+<a id="_fig18"></a>*fig 18. Tablas de transparencia — preparación de datos (crudo → normalizado a 30 días → decisión de banda: ±10 % por defecto o rescate IC ec. 4-5) y jerarquía factura → bloque → espacio. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig19.png)
+
+<a id="_fig19"></a>*fig 19. Drawer «Asignar permiso» — permiso temporal con duración y advertencia para la excepción permanente fuera de la matriz. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig20.png)
+
+<a id="_fig20"></a>*fig 20. Sección Resumen — tarjetas de indicadores navegables y guía animada «Cómo funciona». Nota. Elaboración propia (2026).*
 
 # 9. ARQUITECTURA IMPLEMENTADA
 
@@ -1198,14 +1246,16 @@ Las evidencias del Sprint 2 corresponden a las HU-17, HU-16, HU-20, HU-04 y HU-0
 | --- |
 | **✎ INSTRUCCIÓN:**  *Figura N. Diagrama de arquitectura del sistema. Nota. Elaboración propia (año). — Insertar aquí* |
 
-*fig 20. Diagrama de arquitectura del sistema (capas y flujo de una petición). Nota. Elaboración propia (2026).*
+![](figuras/out/fig21.png)
 
-El sistema se construyó como un monolito por capas sobre Next.js 14 (App Router), sin cambio de arquitectura respecto del diseño salvo el paso de MVC a un modelo de componentes de React con lógica de servidor, coherente con el paradigma del framework (ADR-04). Los componentes y sus relaciones son:
+<a id="_fig21"></a>*fig 21. Diagrama de arquitectura del sistema (capas MVC y flujo de una petición). Nota. Elaboración propia (2026).*
 
-1. **Capa de presentación.** Componentes de React con Tailwind CSS 4: el shell del panel (`DashboardShell`, `DashboardHeader` arrastrable y `ModuleNav` con tres variantes de navegación) y, dentro de `/dashboard/datos`, el orquestador `DatosContent`, que combina las seis secciones con los tres modos (Carga, Visualización, Gestión) y bloquea los modos de carga cuando el rol solo tiene acceso de lectura. Los asistentes de importación son componentes cliente de cuatro pasos; las visualizaciones son componentes de servidor que consumen los *view models* construidos con los datos de la base.
-2. **Capa de lógica de servidor.** Tres mecanismos con responsabilidades distintas: (a) `src/middleware.ts` valida la cookie `auth-token` con `jose` en cada petición a `/dashboard/*` y redirige al login si no hay sesión vigente; (b) los Route Handlers de `src/app/api` atienden autenticación, administración de usuarios y excepciones de permisos, siempre tras los guards `requireAdmin()`/`requireModuleAccess()` de `src/lib/authz.ts`, que releen el rol desde la base de datos; (c) las Server Actions de `src/actions` encapsulan las mutaciones de datos de energía (importar, editar, eliminar, vaciar, calcular líneas base) con validación Zod en el servidor.
-3. **Capa de datos.** Un único cliente Prisma (`src/lib/prisma.ts`) contra PostgreSQL; el esquema vive en `prisma/schema.prisma` y las operaciones de catálogo y auditoría se centralizan en `src/actions/edificaciones.ts` y `src/lib/audit.ts`.
-4. **Servicio de análisis externo.** `src/actions/lineasBase.ts` invoca `scripts/lben_cli.py` mediante `spawn` con la serie en JSON por stdin, devuelve el resultado por stdout dentro de un tiempo límite y delega en `lben_engine.py` el cálculo estadístico (ADR-08).
+El sistema se construyó como un monolito con arquitectura MVC sobre Next.js 14 (App Router), sin cambio de arquitectura respecto del diseño: la vista son componentes de React, el controlador vive en la lógica de servidor (middleware, guards, Server Actions y Route Handlers) y el modelo concentra el acceso a datos con Prisma, coherente con el paradigma del framework (ADR-04). Los componentes y sus relaciones son:
+
+1. **Capa de presentación (vista).** Componentes de React con Tailwind CSS 4: el shell del panel (`DashboardShell`, `DashboardHeader` arrastrable y `ModuleNav` con tres variantes de navegación) y, dentro de `/dashboard/datos`, el orquestador `DatosContent`, que combina las seis secciones con los tres modos (Carga, Visualización, Gestión) y bloquea los modos de carga cuando el rol solo tiene acceso de lectura. Los asistentes de importación son componentes cliente de cuatro pasos; las visualizaciones son componentes de servidor que consumen los *view models* construidos con los datos de la base.
+2. **Capa de lógica de servidor (controlador).** Tres mecanismos con responsabilidades distintas: (a) `src/middleware.ts` valida la cookie `auth-token` con `jose` en cada petición a `/dashboard/*` y redirige al login si no hay sesión vigente; (b) los Route Handlers de `src/app/api` atienden autenticación, administración de usuarios y excepciones de permisos, siempre tras los guards `requireAdmin()`/`requireModuleAccess()` de `src/shared/models/authz.ts`, que releen el rol desde la base de datos; (c) las Server Actions de `src/features/datos/controllers` encapsulan las mutaciones de datos de energía (importar, editar, eliminar, vaciar, calcular líneas base) con validación Zod en el servidor.
+3. **Capa de datos (modelo).** Un único cliente Prisma (`src/shared/models/prisma.ts`) contra PostgreSQL; el esquema vive en `prisma/schema.prisma` y las operaciones de catálogo y auditoría se centralizan en `src/features/datos/controllers/edificaciones.ts` y `src/shared/models/audit.ts`.
+4. **Servicio de análisis externo.** `src/features/datos/controllers/lineasBase.ts` invoca el paquete `python/lben` (`python -m lben.cli`) mediante `spawn` con la serie en JSON por stdin, devuelve el resultado por stdout dentro de un tiempo límite y delega en `calculo.py` el cálculo estadístico (ADR-08).
 
 El flujo típico de una petición es: navegador → middleware (sesión) → página de servidor (guard de módulo) → Server Action o Route Handler (validación Zod + permisos) → Prisma → PostgreSQL; cuando la operación es un cálculo de línea base, la Server Action se intercala con el proceso Python antes de persistir el resultado.
 
@@ -1219,19 +1269,25 @@ El flujo típico de una petición es: navegador → middleware (sesión) → pá
 | --- |
 | **✎ INSTRUCCIÓN:**  *Figura N. Diagrama de clases / componentes. Nota. Elaboración propia (año). — Insertar aquí* |
 
-*fig 21. Estructura de componentes y módulos del sistema. Nota. Elaboración propia (2026).*
+![](figuras/out/fig22.png)
+
+<a id="_fig22"></a>*fig 22. Diagrama de componentes del sistema. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig23.png)
+
+<a id="_fig23"></a>*fig 23. Diagrama de clases del sistema. Nota. Elaboración propia (2026).*
 
 La estructura de código entregada (reflejo del diagrama) se organiza así:
 
-- `src/app/` — rutas del App Router: `login/` y `register/` (públicas), `dashboard/` (shell protegido con `layout.tsx`, que resuelve el usuario y los módulos efectivos) y sus secciones `users/`, `datos/`, `analisis/`, `alertas/`, `estimaciones/`, `reportes/` y `espacial/`, más `api/` con los Route Handlers de autenticación y administración de usuarios.
-- `src/app/dashboard/datos/` — módulo de datos: `DatosContent.tsx` (orquestador secciones × modos), `nav.tsx`, `ImportadorFacturas|Equipos|Variables.tsx` (asistentes de 4 pasos), `GestionFacturas|Equipos|Variables|Ajustes.tsx` (CRUD y vaciado), `VistaDatos.tsx`, `existencias.ts` (*view models*), `LineasBase.tsx` y sus composiciones `LineaBaseChart.tsx` (gráfica SVG interactiva), `LineasBaseTablas.tsx` (tablas de transparencia) y `LineasBasePreguntas.tsx` (preguntas frecuentes con referencias al código).
-- `src/components/` — componentes transversales: `ModuleNav.tsx`, `DashboardShell.tsx`, `DashboardHeader.tsx`, `LoginForm.tsx`, `ModulePlaceholder.tsx` y el subárbol `users/` con `UserManagement.tsx`, `PermissionMatrixModal.tsx` y `PermissionGrantDrawer.tsx` (drawer «Asignar permiso»), `detail/RolesPermissionsTab.tsx` y demás pestañas de la ficha de usuario.
-- `src/actions/` — Server Actions: `energia.ts`, `facturas.ts`, `equipos.ts`, `variables.ts`, `edificaciones.ts`, `lineasBase.ts` y `ajustes.ts`.
-- `src/lib/` — núcleo de dominio y seguridad: `permissions.ts` (matriz rol × módulo), `authz.ts` (guards y excepciones), `auth.ts` (JWT/bcrypt/sesiones), `lineasBase.ts` (modelos, constantes UPME y tipos), `validations/energia.ts` (esquemas Zod de importación), `audit.ts` y `prisma.ts`.
+- `src/app/` — rutas del App Router: `login/` (pública), `dashboard/` (shell protegido con `layout.tsx`, que resuelve el usuario y los módulos efectivos) y sus secciones `users/`, `datos/`, `analisis/`, `alertas/`, `estimaciones/`, `reportes/` y `espacial/`, más `api/` con los Route Handlers de autenticación y administración de usuarios.
+- `src/features/datos/` — módulo de datos (archivos en `views/`): `DatosContent.tsx` (orquestador secciones × modos), `nav.tsx`, `ImportadorFacturas|Equipos|Variables.tsx` (asistentes de 4 pasos), `GestionFacturas|Equipos|Variables|Ajustes.tsx` (CRUD y vaciado), `VistaDatos.tsx`, `existencias.ts` (*view models*), `LineasBase.tsx` y sus composiciones `LineaBaseChart.tsx` (gráfica SVG interactiva), `LineasBaseTablas.tsx` (tablas de transparencia) y `LineasBasePreguntas.tsx` (preguntas frecuentes con referencias al código).
+- `src/shared/views/` — componentes transversales: `DashboardShell.tsx`, `DashboardHeader.tsx`, `ModuleNav.tsx`, `ModulePlaceholder.tsx`, `EnergyLoader.tsx` y el subárbol `ui/`; `src/features/users/views/` — `LoginForm.tsx`, `UserManagement.tsx`, `UserDrawer.tsx`, `UserTable.tsx`, `PermissionMatrixModal.tsx`, `PermissionGrantDrawer.tsx` (drawer «Asignar permiso»), `detail/RolesPermissionsTab.tsx` y demás pestañas de la ficha de usuario.
+- `src/features/datos/controllers/` — Server Actions ('use server'): `facturas.ts`, `equipos.ts`, `variables.ts`, `edificaciones.ts`, `lineasBase.ts` y `ajustes.ts`.
+- `src/shared/models/` — núcleo de dominio y seguridad: `permissions.ts` (matriz rol × módulo), `authz.ts` (guards y excepciones), `auth.ts` (JWT/bcrypt/sesiones), `audit.ts` (bitácora) y `prisma.ts` (cliente único); `src/features/*/models/` — `lineasBase.ts` (modelos, constantes UPME y tipos) y `validations.ts` (esquemas Zod por dominio).
 - `prisma/` — `schema.prisma`, `seed.ts` y scripts de migración/datos.
-- `src/app/dashboard/datos/__stories__/` y `src/app/dashboard/datos/__mocks__/` — historias de Storybook y dobles deterministas de las Server Actions usados por la estrategia de pruebas (ADR-10).
+- `src/features/datos/views/__stories__/` y `src/features/datos/views/__mocks__/` — historias de Storybook y dobles deterministas de las Server Actions usados por la estrategia de pruebas (ADR-10); `src/shared/views/` aporta las historias de `ModuleNav` y `SidebarNav`.
 
-Las relaciones principales de composición son: `DatosContent` → secciones (a su vez → pestañas Carga/Visualización/Gestión); los tres importadores comparten el patrón de asistente de 4 pasos y los esquemas Zod de `lib/validations/energia.ts`; `LineasBase` compone la gráfica, las tablas y el panel de preguntas, y consume `calcularModelosLineaBase`/`guardarLineaBase` de `src/actions/lineasBase.ts`; los módulos de usuarios dependen de `lib/permissions.ts` y `lib/authz.ts` como única fuente de verdad del control de acceso.
+Las relaciones principales de composición son: `DatosContent` → secciones (a su vez → pestañas Carga/Visualización/Gestión); los tres importadores comparten el patrón de asistente de 4 pasos y los esquemas Zod de `src/features/datos/models/validations.ts`; `LineasBase` compone la gráfica, las tablas y el panel de preguntas, y consume `calcularModelosLineaBase`/`guardarLineaBase` de `src/features/datos/controllers/lineasBase.ts`; los módulos de usuarios dependen de `src/shared/models/permissions.ts` y `authz.ts` como única fuente de verdad del control de acceso.
 
 ## 9.3. Modelo de datos
 
@@ -1243,7 +1299,9 @@ Las relaciones principales de composición son: `DatosContent` → secciones (a 
 | --- |
 | **✎ INSTRUCCIÓN:**  *Figura N. Modelo de datos / esquema de almacenamiento. Nota. Elaboración propia (año). — Insertar aquí* |
 
-*fig 22. Modelo de datos relacional (esquema Prisma sobre PostgreSQL). Nota. Elaboración propia (2026).*
+![](figuras/out/fig24.png)
+
+<a id="_fig24"></a>*fig 24. Modelo de datos relacional (esquema Prisma sobre PostgreSQL). Nota. Elaboración propia (2026).*
 
 El almacenamiento es una base de datos PostgreSQL con doce tablas, definidas en `prisma/schema.prisma`:
 
@@ -1301,7 +1359,7 @@ Los coeficientes de las líneas base se almacenan como JSON porque cada modelo t
 
 *Nota. Elaboración propia (2026).*
 
-Las 84 pruebas de las 15 historias de Storybook se ejecutaron con Vitest en navegador (Chromium/Playwright) y quedaron en verde. **Cobertura pendiente:** los flujos de autenticación (HU-15) y de asignación de permisos (HU-16) no tienen casos automatizados propios —se validaron funcionalmente durante los sprints, pero quedan como deuda registrada en el ADR-10— y los módulos en construcción (HU-08 a HU-12, HU-22) no tienen casos hasta que se implementen.
+Las 88 pruebas de las 16 historias de Storybook se ejecutaron con Vitest en navegador (Chromium/Playwright) y quedaron en verde. **Cobertura pendiente:** los flujos de autenticación (HU-15) y de asignación de permisos (HU-16) no tienen casos automatizados propios —se validaron funcionalmente durante los sprints, pero quedan como deuda registrada en el ADR-10— y los módulos en construcción (HU-08 a HU-12, HU-22) no tienen casos hasta que se implementen.
 
 ## 10.2. Pruebas de usabilidad
 
@@ -1341,6 +1399,10 @@ Las 84 pruebas de las 15 historias de Storybook se ejecutaron con Vitest en nave
 |  |
 | --- |
 | **✎ INSTRUCCIÓN:**  *Figura N. Diagrama de despliegue. Nota. Elaboración propia (año). — Insertar aquí* |
+
+![](figuras/out/fig25.png)
+
+<a id="_fig25"></a>*fig 25. Diagrama de despliegue del sistema. Nota. Elaboración propia (2026).*
 
 ## 11.2. Requisitos de instalación y ejecución
 
@@ -1393,11 +1455,11 @@ Las 84 pruebas de las 15 historias de Storybook se ejecutaron con Vitest en nave
 |  |  |
 | --- | --- |
 | **RESUMEN TÉCNICO DEL SOFTWARE** |  |
-| **ARQUITECTURA** | Monolito por capas sobre Next.js 14 (App Router): presentación en React 18 con Tailwind CSS 4; lógica de servidor en middleware, Route Handlers y Server Actions con guards que releen el rol desde la base de datos; datos con Prisma 5 sobre PostgreSQL; y motor de análisis en Python invocado como CLI que intercambia JSON (ADR-04, ADR-05, ADR-08). |
+| **ARQUITECTURA** | Monolito MVC sobre Next.js 14 (App Router): vista en React 18 con Tailwind CSS 4; controlador en middleware, Route Handlers y Server Actions con guards que releen el rol desde la base de datos; modelo con Prisma 5 sobre PostgreSQL; y motor de análisis en Python invocado como CLI que intercambia JSON (ADR-04, ADR-05, ADR-08). |
 | **ESCALABILIDAD** | Las capas están separadas y cada Server Action se organiza por dominio, de modo que se pueden añadir secciones y módulos sin tocar la seguridad. La matriz de permisos se evalúa en memoria (sin consulta por petición), y los datos usan índices y claves únicas que soportan el volumen histórico de facturación sin esquema particionado. El monolito escala verticalmente; si crece el volumen de usuarios o cálculos, el acoplamiento por CLI del motor estadístico permite separarlo como servicio independiente sin reescribir la aplicación (ADR-04, ADR-08). |
 | **SEGURIDAD** | Autenticación con JWT en cookie `httpOnly`/`sameSite=lax` (`secure` en producción) y contraseñas con bcrypt (costo 12); el rol se relee de la base de datos en cada petición y nunca se confía en el token (ADR-06). Autorización en tres anillos: middleware de sesión, guards por página y por Route Handler (403 en caso contrario) y matriz de 5 roles × 6 módulos con excepciones temporales/permanentes auditadas; el módulo de usuarios no admite excepciones (ADR-07). Entradas validadas con Zod en cliente y servidor; registro público forzado al rol de comunidad universitaria. Pendientes declarados: verificación en dos factores sin implementar y sin rotación de refrescos de token. |
 | **USABILIDAD** | Navegación por secciones con modos Carga/Visualización/Gestión que se deshabilitan para perfiles de solo lectura; asistentes de 4 pasos con vista previa editable y estados vacíos con guía; tema claro/oscuro persistido y aplicado antes del pintado; encabezado reubicable; foco visible y gráfica navegable por teclado con anuncios `aria-live`. Los resultados de las pruebas de usabilidad con usuarios reales están pendientes (sección 10.2): aún no se han ejecutado, por lo que no se han incorporado mejoras derivadas de ellas. |
-| **MANTENIBILIDAD** | TypeScript estricto, esquemas Zod compartidos entre cliente y servidor, Server Actions centralizadas por dominio y una única fuente de verdad para permisos (`src/lib/permissions.ts`). La documentación viva y la regresión funcional se apoyan en 15 historias de Storybook (84 pruebas en verde con Vitest en navegador) y en dobles deterministas de las Server Actions (ADR-10); no hay cobertura de código configurada ni pruebas unitarias de `src/lib`. |
+| **MANTENIBILIDAD** | TypeScript estricto, esquemas Zod compartidos entre cliente y servidor, Server Actions centralizadas por dominio y una única fuente de verdad para permisos (`src/shared/models/permissions.ts`). La documentación viva y la regresión funcional se apoyan en 16 historias de Storybook (88 pruebas en verde con Vitest en navegador) y en dobles deterministas de las Server Actions (ADR-10); no hay cobertura de código configurada ni pruebas unitarias aisladas del núcleo de dominio. |
 | **DOCUMENTACIÓN** | Incluye: descripción del negocio con BPMN AS-IS (sección 2.2), actores (2.3), registro de decisiones técnicas ADR-01 a ADR-10 (sección 4), plan de sprints (6.3), backlog de 22 HU (7.2), arquitectura y modelo de datos (sección 9), plan de pruebas con 15 casos (10.1) y requisitos de instalación (11.2). Manuales de usuario e instalación pendientes (11.3 y 11.4). Repositorio: el proyecto aún no tiene repositorio remoto publicado; despliegue en producción: pendiente (sección 11). |
 
 *Nota. Elaboración propia (2026).*
