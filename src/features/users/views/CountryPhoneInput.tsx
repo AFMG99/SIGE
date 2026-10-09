@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react'
 
 /**
  * Phone input with a country dial-code selector.
@@ -158,6 +158,57 @@ export function CountryPhoneInput({
   const rootRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
+  // Colocación del listbox: se calcula contra el viewport para que nunca sobresalga
+  // de la pantalla (flip hacia arriba si abajo no cabe, clamp horizontal y `max-height`
+  // al espacio libre). Todo en coordenadas del root, que es el bloque de posición.
+  const [panel, setPanel] = useState({
+    arriba: false,
+    y: 0,
+    left: 0,
+    ancho: 304,
+    altura: 320,
+  })
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const EDGE = 8
+    const GAP = 4
+    const ANCHO = 304 // 19rem
+
+    const medir = () => {
+      const root = rootRef.current
+      if (!root) return
+      const r = root.getBoundingClientRect()
+      const espacioAbajo = window.innerHeight - r.bottom - GAP - EDGE
+      const espacioArriba = r.top - GAP - EDGE
+      const arriba = espacioAbajo < 240 && espacioArriba > espacioAbajo
+      const espacio = Math.max(0, arriba ? espacioArriba : espacioAbajo)
+      const ancho = Math.min(ANCHO, window.innerWidth - 2 * EDGE)
+      const bordeDcho = Math.max(EDGE, window.innerWidth - ancho - EDGE)
+      const left = Math.min(Math.max(r.left, EDGE), bordeDcho) - r.left
+      const siguiente = {
+        arriba,
+        y: r.height + GAP,
+        left,
+        ancho,
+        altura: Math.min(320, espacio),
+      }
+      setPanel((prev) =>
+        prev.arriba === siguiente.arriba &&
+        prev.y === siguiente.y &&
+        prev.left === siguiente.left &&
+        prev.ancho === siguiente.ancho &&
+        prev.altura === siguiente.altura
+          ? prev
+          : siguiente
+      )
+    }
+
+    medir()
+    window.addEventListener('resize', medir)
+    return () => window.removeEventListener('resize', medir)
+  }, [open])
+
   const initial = splitPhone(value)
   // Default country: Colombia (+57) — overridden when the value carries its own dial code.
   const [selectedCca2, setSelectedCca2] = useState<string | null>('CO')
@@ -306,8 +357,16 @@ export function CountryPhoneInput({
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-[19rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl animate-fade-in dark:border-slate-700 dark:bg-slate-900">
-          <div className="border-b border-gray-100 p-2 dark:border-slate-800">
+        <div
+          style={{
+            ...(panel.arriba ? { bottom: panel.y } : { top: panel.y }),
+            left: panel.left,
+            width: panel.ancho,
+            maxHeight: panel.altura,
+          }}
+          className="absolute z-30 flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl animate-fade-in dark:border-slate-700 dark:bg-slate-900"
+        >
+          <div className="shrink-0 border-b border-gray-100 p-2 dark:border-slate-800">
             <input
               ref={searchRef}
               type="text"
@@ -318,7 +377,7 @@ export function CountryPhoneInput({
               className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
             />
           </div>
-          <ul className="max-h-64 overflow-y-auto py-1" role="listbox" aria-label="Países">
+          <ul className="min-h-0 flex-1 overflow-y-auto py-1" role="listbox" aria-label="Países">
             {!countries && (
               <li className="px-3 py-2 text-sm text-gray-400 dark:text-gray-500">Cargando países…</li>
             )}
@@ -353,7 +412,7 @@ export function CountryPhoneInput({
               </li>
             ))}
           </ul>
-          <p className="border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-400 dark:border-slate-800 dark:text-gray-500">
+          <p className="shrink-0 border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-400 dark:border-slate-800 dark:text-gray-500">
             Países: jsDelivr (world-countries) · Banderas: flagcdn.com
           </p>
         </div>

@@ -283,7 +283,11 @@
 
   /* -- Modal surface -- */
   .ui-modal {
-    @apply w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-slate-900;
+    /* El diálogo nunca supera su overlay (que llena la ventana): el contenido
+       largo hace scroll interno en vez de recortarse fuera de la pantalla.
+       `max-height: 100%` se resuelve contra el overlay en vez de contra una
+       unidad de viewport (`dvh`/`vh`), así que no depende de cómo se mida. */
+    @apply w-full max-w-lg max-h-full overflow-y-auto rounded-xl bg-white p-6 shadow-xl dark:bg-slate-900;
   }
 
   /* Shared surface for the dashboard chrome (header bar / docked sidebar and

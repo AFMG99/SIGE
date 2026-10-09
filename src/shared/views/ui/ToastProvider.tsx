@@ -78,7 +78,7 @@ function ToastContainer({ toasts, onHide }: { toasts: Toast[]; onHide: (id: stri
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm"
+      className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-[min(24rem,calc(100vw_-_2rem))]"
       aria-live="polite"
       aria-label="Notificaciones"
     >
@@ -89,10 +89,10 @@ function ToastContainer({ toasts, onHide }: { toasts: Toast[]; onHide: (id: stri
           role="alert"
         >
           {variantIcons[toast.variant]}
-          <p className="flex-1 text-sm font-medium">{toast.message}</p>
+          <p className="min-w-0 flex-1 break-words text-sm font-medium">{toast.message}</p>
           <button
             onClick={() => onHide(toast.id)}
-            className="flex-shrink-0 p-1 rounded-lg hover:bg-white/20 transition-colors focus-ring"
+            className="flex-shrink-0 min-h-10 min-w-10 p-2 rounded-lg hover:bg-white/20 transition-colors focus-ring lg:min-h-0 lg:min-w-0"
             aria-label="Cerrar notificación"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

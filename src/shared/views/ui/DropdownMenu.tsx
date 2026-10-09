@@ -1,6 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
+import {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  KeyboardEvent as ReactKeyboardEvent,
+  ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 
 interface DropdownMenuProps {
@@ -19,9 +27,13 @@ interface DropdownItem {
 
 interface MenuPosition {
   top: number
-  left?: number
-  right?: number
+  left: number
 }
+
+/** Distance kept from the viewport edges when clamping the menu. */
+const EDGE = 8
+/** Gap between trigger and menu. */
+const GAP = 6
 
 export function DropdownMenu({ trigger, items, align = 'right' }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -50,17 +62,43 @@ export function DropdownMenu({ trigger, items, align = 'right' }: DropdownMenuPr
     itemRefs.current[index]?.focus()
   }
 
+  // Provisional placement: the real coordinates are measured (and clamped to
+  // the viewport) in the layout effect below, before the browser paints.
   const updatePosition = () => {
     const rect = triggerRef.current?.getBoundingClientRect()
     if (!rect) return
-    const MENU_OFFSET = 6
     setPosition({
-      top: Math.min(rect.bottom + MENU_OFFSET, window.innerHeight - 8),
-      ...(align === 'right'
-        ? { right: Math.max(window.innerWidth - rect.right, 8) }
-        : { left: Math.max(rect.left, 8) }),
+      top: rect.bottom + GAP,
+      left: align === 'right' ? rect.right : rect.left,
     })
   }
+
+  // Keep the menu inside the viewport on both axes: clamp horizontally,
+  // flip above the trigger when it does not fit below, otherwise clamp it up.
+  // The menu is capped with `max-h`/`max-w`, so `menu` already reports the
+  // clamped size.
+  useLayoutEffect(() => {
+    if (!isOpen || !position) return
+    const trigger = triggerRef.current?.getBoundingClientRect()
+    const menu = menuRef.current?.getBoundingClientRect()
+    if (!trigger || !menu) return
+
+    const left = Math.min(
+      Math.max(align === 'right' ? trigger.right - menu.width : trigger.left, EDGE),
+      Math.max(EDGE, window.innerWidth - menu.width - EDGE)
+    )
+
+    const below = trigger.bottom + GAP
+    const above = trigger.top - GAP - menu.height
+    const top =
+      below + menu.height <= window.innerHeight - EDGE
+        ? below
+        : above >= EDGE
+          ? above
+          : Math.max(EDGE, window.innerHeight - menu.height - EDGE)
+
+    setPosition((prev) => (prev?.top === top && prev.left === left ? prev : { top, left }))
+  }, [isOpen, position, align])
 
   // Open toggle: any click/keyboard-activated click on the trigger bubbles here.
   const handleTriggerClick = () => {
@@ -170,8 +208,8 @@ export function DropdownMenu({ trigger, items, align = 'right' }: DropdownMenuPr
   const menuContent = isOpen && position ? (
     <div
       ref={menuRef}
-      style={{ top: position.top, left: position.left, right: position.right }}
-      className="fixed z-50 min-w-[176px] rounded-xl border border-gray-100 bg-white py-1 shadow-lg animate-fade-in dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/40"
+      style={{ top: position.top, left: position.left }}
+      className="fixed z-50 min-w-[176px] max-w-[calc(100vw_-_1rem)] max-h-[calc(100vh_-_1rem)] overflow-y-auto rounded-xl border border-gray-100 bg-white py-1 shadow-lg animate-fade-in dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/40"
       role="menu"
       aria-orientation="vertical"
       onKeyDown={handleMenuKeyDown}
