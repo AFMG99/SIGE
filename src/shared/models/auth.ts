@@ -23,18 +23,25 @@ export async function getSession(): Promise<JWTPayload | null> {
   return verifyToken(token)
 }
 
+// Creates the session row AND sets the auth cookie. Used by phase-1 login for
+// users who do not have 2FA enabled.
 export async function createSession(userId: string, email: string, role: string) {
   const token = await createToken({ userId, email, role })
+  await persistSession(userId, token)
+  await setAuthCookie(token)
+  return token
+}
+
+// Persists a session row for an already-issued JWT. Used by the 2FA verify
+// step, which mints the token only after the second factor succeeds.
+export async function persistSession(userId: string, token: string) {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
-  
-  await prisma.session.create({
-    data: {
-      userId,
-      token,
-      expiresAt,
-    },
-  })
-  
+  await prisma.session.create({ data: { userId, token, expiresAt } })
+}
+
+// Sets the auth cookie for a token whose DB row already exists.
+export async function setAuthCookie(token: string) {
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   const cookieStore = await cookies()
   cookieStore.set('auth-token', token, {
     httpOnly: true,
@@ -43,8 +50,6 @@ export async function createSession(userId: string, email: string, role: string)
     expires: expiresAt,
     path: '/',
   })
-  
-  return token
 }
 
 export async function destroySession() {

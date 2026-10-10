@@ -16,6 +16,16 @@ export interface JWTPayload {
   role: string
 }
 
+// Short-lived token handed out after the password check when 2FA is required.
+// It is NOT a session — it only proves "password already verified" and must be
+// exchanged for a real session at /api/auth/2fa/verify. `purpose` scopes it so
+// a step token can never be mistaken for a session token.
+export interface LoginStepPayload extends JWTPayload {
+  purpose: 'login-step'
+}
+
+export const LOGIN_STEP_TTL = '5m'
+
 function secretoJwt(): Uint8Array {
   const secreto = process.env.JWT_SECRET
   if (!secreto) {
@@ -41,6 +51,27 @@ export async function createToken(payload: JWTPayload): Promise<string> {
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
     const { payload } = await jwtVerify(token, secretoJwt())
+    return payload as unknown as JWTPayload
+  } catch {
+    return null
+  }
+}
+
+export async function createLoginStepToken(payload: JWTPayload): Promise<string> {
+  return new SignJWT({ ...payload, purpose: 'login-step' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(LOGIN_STEP_TTL)
+    .sign(secretoJwt())
+}
+
+// Returns the payload only when the token is a genuine login-step token.
+// A real session token (no `purpose`) is rejected — the two are never
+// interchangeable.
+export async function verifyLoginStepToken(token: string): Promise<JWTPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, secretoJwt())
+    if (payload.purpose !== 'login-step') return null
     return payload as unknown as JWTPayload
   } catch {
     return null

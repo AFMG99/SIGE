@@ -11,6 +11,15 @@ export const loginSchema = z.object({
   password: passwordSchema,
 })
 
+// 2FA TOTP — a user-submitted code is exactly 6 digits.
+export const totpCodeSchema = z.string().regex(/^\d{6}$/, 'El código debe tener 6 dígitos')
+
+// Second-phase login: a short-lived step token plus the TOTP code.
+export const verifyTwoFactorSchema = z.object({
+  stepToken: z.string().min(10, 'Token de sesión inválido'),
+  code: totpCodeSchema,
+})
+
 // Admin user management (POST /api/users)
 export const createUserSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
