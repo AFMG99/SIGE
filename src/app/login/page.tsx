@@ -16,7 +16,7 @@ const ENERGY_DURATION = 7000  // cargador verde ~7s, explota y dispersa
 // Coloca tu imagen en public/university/ y pon aquí la ruta.
 // Si la imagen no existe, se usa la silueta procedural automáticamente.
 // ============================================
-const UNIVERSITY_IMAGE = '/university/campus.jpg'
+const UNIVERSITY_IMAGE = '/university/campus.webp'
 const IMAGE_BLUR = 10        // px de desenfoque (0 = nítida)
 const IMAGE_OPACITY = 0.58   // 0..1 opacidad sobre el fondo
 
