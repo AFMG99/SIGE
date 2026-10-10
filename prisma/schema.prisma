@@ -24,13 +24,37 @@ model User {
   phone                 String?
   lastLoginAt           DateTime?
   twoFactorEnabled      Boolean                   @default(false)
+  // TOTP secret encrypted with AES-256-GCM (TOTP_ENCRYPTION_KEY env).
+  // Null when the user has never started enrollment. Only trusted for
+  // login once totpConfirmedAt is set — setup alone never enables 2FA.
+  totpSecretEnc         String?
+  totpPendingAt         DateTime?
+  totpConfirmedAt       DateTime?
+  // Replay protection: highest TOTP time step accepted for this user.
+  // Codes at or below this step are rejected even if cryptographically valid.
+  totpLastUsedStep      Int?
   emailVerified         DateTime?
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
   sessions              Session[]
   permissionOverrides   UserPermissionOverride[]
+  twoFactorBackupCodes  TwoFactorBackupCode[]
 
   @@map("users")
+}
+
+model TwoFactorBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  // SHA-256 hash of the normalized code; the plaintext is shown to the
+  // user exactly once at enrollment and never stored.
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("two_factor_backup_codes")
 }
 
 model UserPermissionOverride {

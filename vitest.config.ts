@@ -15,10 +15,28 @@ export default defineConfig({
   test: {
     projects: [
       {
+        // Unit tests (Node environment): `src/**/*.test.ts`.
+        // Covers pure server modules (crypto, policies) with no DOM or
+        // browser dependency.
+        extends: true,
+        resolve: {
+          alias: { '@': path.resolve(dirname, 'src') },
+        },
+        test: {
+          name: 'node',
+          include: ['src/**/*.test.ts'],
+          // Los tests responsivos (*.responsive.test.tsx) y los de Storybook
+          // viven en otros proyectos; el glob *.test.ts también los casaría
+          // por el sufijo, así que se excluyen explícitamente.
+          exclude: ['**/*.responsive.test.tsx', '**/*.stories.test.ts', '**/node_modules/**'],
+          environment: 'node',
+        },
+      },
+      {
         extends: true,
         plugins: [
           // The plugin will run tests for the stories defined in your Storybook config
-          // See options at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon#storybooktest
+          // See options at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
           storybookTest({ configDir: path.join(dirname, '.storybook') }),
         ],
         test: {
