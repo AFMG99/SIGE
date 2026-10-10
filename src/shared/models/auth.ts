@@ -1,17 +1,12 @@
-import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { prisma } from './prisma'
 import bcrypt from 'bcryptjs'
+import { createToken, verifyToken, type JWTPayload } from './jwt'
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret-change-in-production-min-32-chars-long'
-)
-
-export interface JWTPayload {
-  userId: string
-  email: string
-  role: string
-}
+// La criptografía JWT vive en ./jwt (módulo edge-safe para el middleware);
+// aquí se re-exporta para mantener el API público de la app sin cambios.
+export { createToken, verifyToken }
+export type { JWTPayload }
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12)
@@ -19,23 +14,6 @@ export async function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash)
-}
-
-export async function createToken(payload: JWTPayload): Promise<string> {
-  return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime(process.env.JWT_EXPIRES_IN || '7d')
-    .sign(JWT_SECRET)
-}
-
-export async function verifyToken(token: string): Promise<JWTPayload | null> {
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET)
-    return payload as unknown as JWTPayload
-  } catch {
-    return null
-  }
 }
 
 export async function getSession(): Promise<JWTPayload | null> {

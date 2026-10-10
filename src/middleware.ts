@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { verifyToken, JWTPayload } from '@/shared/models/auth'
+import { verifyToken, JWTPayload } from '@/shared/models/jwt'
 
 const protectedPaths = ['/dashboard']
 const authPaths = ['/login']
