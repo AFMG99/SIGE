@@ -3,7 +3,7 @@ import { prisma } from './prisma'
 import bcrypt from 'bcryptjs'
 import { createToken, verifyToken, type JWTPayload } from './jwt'
 
-// La criptografía JWT vive en ./jwt (módulo edge-safe para el middleware);
+// La criptografía JWT vive en ./jwt (módulo sin dependencias de Node);
 // aquí se re-exporta para mantener el API público de la app sin cambios.
 export { createToken, verifyToken }
 export type { JWTPayload }
