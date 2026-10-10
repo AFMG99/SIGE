@@ -160,21 +160,19 @@ def _ajustar(modelo, fabrica_pred) -> tuple[dict, np.ndarray | None]:
         return _error(f"{type(e).__name__}: {e}"), None
 
 
-def main() -> int:
-    try:
-        entrada = json.load(sys.stdin)
-    except json.JSONDecodeError as e:
-        json.dump({"ok": False, "error": f"JSON de entrada invalido: {e}"},
-                  sys.stdout, ensure_ascii=False)
-        return 0
+def calcular_desde_payload(entrada: dict) -> dict:
+    """
+    Nucleo del contrato JSON: payload -> dict de salida, sin I/O.
 
+    Lo comparten el CLI (`main`, stdin/stdout) y el endpoint FastAPI
+    (api/lben.py), para que ambas rutas ejecuten exactamente la misma
+    logica y devuelvan la misma estructura.
+    """
     bloque_id = entrada.get("bloque_id")
     registros = entrada.get("registros")
     ajustes = entrada.get("ajustes")  # lista de ajustes no rutinarios (Anexo 4)
     if not bloque_id or not isinstance(registros, list) or not registros:
-        json.dump({"ok": False, "error": "Falta bloque_id o registros vacios."},
-                  sys.stdout, ensure_ascii=False)
-        return 0
+        return {"ok": False, "error": "Falta bloque_id o registros vacios."}
 
     vars_reg = entrada.get("variables_regresion") or list(VARS_REGRESION_DEFECTO)
 
@@ -189,12 +187,8 @@ def main() -> int:
             ajustado,
         ) = depurar_con_bandas({str(bloque_id): registros}, ajustes)
     except Exception as e:  # noqa: BLE001
-        json.dump(
-            {"ok": False, "error": f"Depuracion falló: {e}",
-             "originales": len(registros)},
-            sys.stdout, ensure_ascii=False,
-        )
-        return 0
+        return {"ok": False, "error": f"Depuracion falló: {e}",
+                "originales": len(registros)}
 
     resultados: dict[str, dict] = {}
     preds: dict[str, np.ndarray | None] = {}
@@ -325,6 +319,18 @@ def main() -> int:
         "resultados": resultados,
         "serie": serie,
     }
+    return salida
+
+
+def main() -> int:
+    try:
+        entrada = json.load(sys.stdin)
+    except json.JSONDecodeError as e:
+        json.dump({"ok": False, "error": f"JSON de entrada invalido: {e}"},
+                  sys.stdout, ensure_ascii=False)
+        return 0
+
+    salida = calcular_desde_payload(entrada)
     json.dump(salida, sys.stdout, ensure_ascii=False, default=_json_default)
     return 0
 

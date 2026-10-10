@@ -1,0 +1,10 @@
+# Dependencias del motor LBEn para el runtime Python de Vercel (api/lben.py).
+# IMPORTANTE: no anadir pyproject.toml en la raiz sin uv.lock — el builder
+# de Vercel lo prioriza sobre requirements.txt y puede omitir las
+# dependencias (vercel/vercel#14041).
+fastapi>=0.110
+uvicorn>=0.27
+numpy>=1.24.0
+pandas>=1.5.0
+scipy>=1.10.0
+statsmodels>=0.14.0
