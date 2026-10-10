@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { loginSchema, LoginInput } from '@/features/users/models/validations'
+import { TwoFactorCodeForm } from '@/features/users/views/twofa/TwoFactorCodeForm'
 
 export function LoginForm() {
   const router = useRouter()
@@ -12,6 +13,9 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [serverError, setServerError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  // 2FA second phase: after a valid password the server may ask for a TOTP/backup code.
+  const [stepToken, setStepToken] = useState<string | null>(null)
+  const [enrollmentRequired, setEnrollmentRequired] = useState(false)
 
   const validateField = (name: keyof LoginInput, value: string) => {
     const fieldSchema = loginSchema.shape[name]
@@ -40,7 +44,7 @@ export function LoginForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setServerError('')
-    
+
     const result = loginSchema.safeParse(formData)
     if (!result.success) {
       const fieldErrors: Partial<LoginInput> = {}
@@ -60,9 +64,17 @@ export function LoginForm() {
       })
 
       const data = await res.json()
-      
+
       if (!res.ok) {
         throw new Error(data.message || 'Error al iniciar sesión')
+      }
+
+      if (data.twoFactorRequired) {
+        setStepToken(data.stepToken)
+        setEnrollmentRequired(!!data.enrollmentRequired)
+        setServerError('')
+        setIsLoading(false)
+        return
       }
 
       router.push('/dashboard')
@@ -72,6 +84,82 @@ export function LoginForm() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleVerifyCode = async (code: string) => {
+    if (!stepToken) return
+    const res = await fetch('/api/auth/2fa/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stepToken, code }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message || 'Error al verificar el código')
+
+    if (enrollmentRequired) {
+      // Role mandates 2FA but the user has not enrolled yet — the login response
+      // still carried a step token so we can land them on the enrollment screen
+      // already authenticated enough to complete setup.
+      router.push('/twofa/setup')
+      router.refresh()
+      return
+    }
+
+    router.push('/dashboard')
+    router.refresh()
+  }
+
+  if (stepToken) {
+    return (
+      <div className="relative z-10 w-full max-w-md mx-auto px-4 py-12">
+        <motion.div
+          initial={{ opacity: 0, y: 30, filter: 'blur(8px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="bg-white/95 backdrop-blur-xl rounded-3xl border border-white/30 shadow-2xl p-8 dark:border-white/10 dark:bg-slate-900/90"
+        >
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-serif font-light text-gray-900 tracking-tight dark:text-gray-50">
+              Verificación en dos pasos
+            </h1>
+            <p className="ui-muted mt-2 text-sm">
+              {enrollmentRequired
+                ? 'Tu rol requiere 2FA. Verifica tu identidad para configurarlo.'
+                : 'Introduce el código de tu app de autenticación para continuar.'}
+            </p>
+          </div>
+
+          {serverError && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="ui-callout ui-callout-danger mb-6"
+              role="alert"
+            >
+              {serverError}
+            </motion.div>
+          )}
+
+          <TwoFactorCodeForm onSubmit={handleVerifyCode} submitLabel="Continuar" />
+
+          <button
+            type="button"
+            onClick={() => {
+              setStepToken(null)
+              setEnrollmentRequired(false)
+              setServerError('')
+            }}
+            className="mt-6 w-full text-center text-sm font-medium text-emerald-600 hover:text-emerald-700 focus-ring"
+          >
+            Volver a iniciar sesión
+          </button>
+        </motion.div>
+
+        <div className="mt-8 text-center">
+          <p className="text-xs text-gray-400 dark:text-gray-500">SIGE-TdeA &copy; 2026</p>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -101,7 +101,9 @@ export async function updateUser(
     const extendedUpdateSchema = updateUserSchema.extend({
       phone: z.string().optional().nullable(),
       status: z.enum(['ACTIVE', 'INACTIVE', 'PENDING']).optional(),
-      twoFactorEnabled: z.boolean().optional(),
+      // twoFactorEnabled is intentionally NOT admin-editable: flipping it here
+      // would leave the user with no TOTP secret enrolled, breaking their login.
+      // 2FA is only ever toggled through the self-service 2FA endpoints.
     })
 
     const result = extendedUpdateSchema.safeParse(body)
@@ -175,7 +177,6 @@ export async function updateUser(
         ...(data.role !== undefined && { role: data.role }),
         ...(data.phone !== undefined && { phone: data.phone }),
         ...(data.status !== undefined && { status: data.status as UserStatus }),
-        ...(data.twoFactorEnabled !== undefined && { twoFactorEnabled: data.twoFactorEnabled }),
         ...(passwordHash !== undefined && { passwordHash }),
       },
       select: userSelect,

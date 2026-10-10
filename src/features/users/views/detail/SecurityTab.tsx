@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { formatDateTimeLocale } from '@/shared/utils/date-utils'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
@@ -17,7 +19,6 @@ interface SecurityTabProps {
   userEmail: string
   sessions: Session[]
   twoFactorEnabled: boolean
-  onToggle2FA: (enabled: boolean) => Promise<void>
   onRevokeSession: (sessionId: string) => Promise<void>
   onRevokeAllSessions: () => Promise<void>
   currentUserId: string
@@ -28,30 +29,17 @@ export function SecurityTab({
   userEmail,
   sessions,
   twoFactorEnabled,
-  onToggle2FA,
   onRevokeSession,
   onRevokeAllSessions,
   currentUserId,
 }: SecurityTabProps) {
+  const router = useRouter()
   const { showToast } = useToast()
   const [confirmDialog, setConfirmDialog] = useState<{ sessionId: string } | null>(null)
   const [confirmRevokeAll, setConfirmRevokeAll] = useState(false)
-  const [toggling2FA, setToggling2FA] = useState(false)
-
-  const handle2FAToggle = async () => {
-    setToggling2FA(true)
-    try {
-      await onToggle2FA(!twoFactorEnabled)
-      showToast(
-        twoFactorEnabled ? 'Autenticación de dos factores desactivada' : 'Autenticación de dos factores activada',
-        'success'
-      )
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Error al cambiar 2FA', 'error')
-    } finally {
-      setToggling2FA(false)
-    }
-  }
+  const [confirmDisable2FA, setConfirmDisable2FA] = useState(false)
+  const [disablePassword, setDisablePassword] = useState('')
+  const [disableCode, setDisableCode] = useState('')
 
   const handleRevoke = async (sessionId: string) => {
     if (sessionId === sessions.find((s) => s.current)?.id) {
@@ -82,8 +70,10 @@ export function SecurityTab({
       <div className="ui-panel">
         <h3 className="ui-title text-base">Autenticación de dos factores (2FA)</h3>
         <p className="ui-muted mt-1 text-sm">
-          Activación TOTP disponible en una fase posterior.
+          Añade una capa extra de seguridad: además de tu contraseña, deberás introducir un código
+          de 6 dígitos de tu app de autenticación.
         </p>
+
         <div className="mt-4 flex items-center justify-between">
           <div>
             <p className="ui-title text-base">Estado actual</p>
@@ -91,21 +81,23 @@ export function SecurityTab({
               {twoFactorEnabled ? 'Activado' : 'Desactivado'}
             </p>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={twoFactorEnabled}
-            onClick={handle2FAToggle}
-            disabled={toggling2FA}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-ring ${twoFactorEnabled ? 'bg-emerald-600' : 'bg-gray-200 dark:bg-slate-700'} ${toggling2FA ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                twoFactorEnabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-              aria-hidden="true"
-            />
-          </button>
+
+          {twoFactorEnabled ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDisable2FA(true)}
+              className="ui-btn cursor-pointer border border-red-300 bg-white text-red-600 hover:bg-red-50 dark:border-red-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
+            >
+              Desactivar 2FA
+            </button>
+          ) : (
+            <Link
+              href="/twofa/setup"
+              className="ui-btn ui-btn-primary cursor-pointer"
+            >
+              Activar 2FA
+            </Link>
+          )}
         </div>
       </div>
 
@@ -234,6 +226,85 @@ export function SecurityTab({
           confirmText="Cerrar todas"
           variant="destructive"
         />
+      )}
+
+      {/* Disable 2FA — requires password + a current TOTP/backup code (server enforces) */}
+      {confirmDisable2FA && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900">
+            <h3 className="ui-title text-lg">Desactivar 2FA</h3>
+            <p className="ui-muted mt-2 text-sm">
+              Introduce tu contraseña y un código actual de tu app (o de respaldo) para desactivar 2FA.
+            </p>
+            <form
+              className="mt-4 space-y-3"
+              onSubmit={async (e) => {
+                e.preventDefault()
+                try {
+                  const res = await fetch('/api/auth/2fa/disable', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: disablePassword, code: disableCode }),
+                  })
+                  const data = await res.json()
+                  if (!res.ok) throw new Error(data.message || 'Error al desactivar 2FA')
+                  showToast('2FA desactivado', 'success')
+                  router.refresh()
+                } catch (error) {
+                  showToast(error instanceof Error ? error.message : 'Error inesperado', 'error')
+                } finally {
+                  setConfirmDisable2FA(false)
+                  setDisablePassword('')
+                  setDisableCode('')
+                }
+              }}
+            >
+              <div>
+                <label htmlFor="disable-password" className="ui-label mb-1.5">Contraseña</label>
+                <input
+                  id="disable-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={disablePassword}
+                  onChange={(e) => setDisablePassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="ui-input py-2"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label htmlFor="disable-code" className="ui-label mb-1.5">Código de verificación</label>
+                <input
+                  id="disable-code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={disableCode}
+                  onChange={(e) => setDisableCode(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                  maxLength={10}
+                  placeholder="123456 o código de respaldo"
+                  className="ui-input py-2 text-center font-mono tracking-[0.2em]"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setConfirmDisable2FA(false); setDisablePassword(''); setDisableCode('') }}
+                  className="ui-btn flex-1 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={disablePassword.length < 1 || disableCode.length < 6}
+                  className="ui-btn flex-1 cursor-pointer bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Desactivar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -167,17 +167,6 @@ export function UserDetailClient({
     }
   }
 
-  const handleToggle2FA = async (enabled: boolean) => {
-    const res = await fetch(`/api/users/${user.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ twoFactorEnabled: enabled }),
-    })
-    const result = await res.json()
-    if (!res.ok) throw new Error(result.message || 'Error al cambiar 2FA')
-    setUser((prev) => ({ ...prev, twoFactorEnabled: enabled }))
-  }
-
   const handleRevokeSession = async (sessionId: string) => {
     const res = await fetch(`/api/users/${user.id}/sessions/${sessionId}`, { method: 'DELETE' })
     const result = await res.json()
@@ -305,7 +294,6 @@ export function UserDetailClient({
               userEmail={user.email}
               sessions={sessions}
               twoFactorEnabled={user.twoFactorEnabled}
-              onToggle2FA={handleToggle2FA}
               onRevokeSession={handleRevokeSession}
               onRevokeAllSessions={handleRevokeAllSessions}
               currentUserId={currentUserId}
