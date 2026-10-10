@@ -3,7 +3,7 @@ import { prisma } from '@/shared/models/prisma'
 import { createToken, persistSession, setAuthCookie, verifyPassword } from '@/shared/models/auth'
 import { verifyLoginStepToken } from '@/shared/models/jwt'
 import { logAudit } from '@/shared/models/audit'
-import { getCurrentUser } from '@/shared/models/authz'
+import { getCurrentUser, requireAdmin } from '@/shared/models/authz'
 import {
   consultarEstado2FA,
   iniciarEnrolamiento,
@@ -11,6 +11,7 @@ import {
   verificarCodigo2FA,
   deshabilitar2FA,
 } from './twoFactor'
+import { generarBackupCodes } from '@/shared/models/twoFactorBackupCodes'
 import {
   consultarRateLimit,
   abrirVentanaIntentos,
@@ -220,4 +221,54 @@ export async function disable2FA(request: NextRequest) {
   })
 
   return NextResponse.json({ success: true })
+}
+
+// POST /api/users/[id]/2fa/backup-codes — regenerate a user's backup codes
+// (ADMIN_TI only). The plaintext codes are returned exactly once so the admin
+// can hand them over out-of-band; they are never persisted or logged. Only
+// meaningful when the target already has 2FA enabled — a user without a TOTP
+// secret has nothing to recover.
+export async function resetBackupCodes(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const admin = await requireAdmin()
+  if (!admin) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  try {
+    const target = await prisma.user.findUnique({
+      where: { id: params.id },
+      select: { id: true, email: true, twoFactorEnabled: true },
+    })
+    if (!target) {
+      return NextResponse.json({ message: 'Usuario no encontrado' }, { status: 404 })
+    }
+    if (!target.twoFactorEnabled) {
+      return NextResponse.json(
+        { message: 'El usuario no tiene 2FA activo' },
+        { status: 400 }
+      )
+    }
+
+    const backupCodes = await generarBackupCodes(target.id)
+
+    await logAudit({
+      actorId: admin.id,
+      actorEmail: admin.email,
+      action: '2fa.backup_codes.reset',
+      targetId: target.id,
+      targetEmail: target.email,
+      detail: 'Códigos de respaldo de 2FA regenerados por administrador',
+    })
+
+    return NextResponse.json({ backupCodes })
+  } catch (error) {
+    console.error('Reset backup codes error:', error)
+    return NextResponse.json(
+      { message: 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
 }

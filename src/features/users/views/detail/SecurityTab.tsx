@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { formatDateTimeLocale } from '@/shared/utils/date-utils'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
+import { BackupCodesDisplay } from '@/features/users/views/twofa/BackupCodesDisplay'
 
 interface Session {
   id: string
@@ -19,27 +19,33 @@ interface SecurityTabProps {
   userEmail: string
   sessions: Session[]
   twoFactorEnabled: boolean
-  onRevokeSession: (sessionId: string) => Promise<void>
-  onRevokeAllSessions: () => Promise<void>
   currentUserId: string
+  // Optional optimistic-update callbacks; the tab performs the API calls itself
+  // and only asks the parent to sync its local state.
+  onSessionsChanged?: (sessions: Session[]) => void
+  onSessionsCleared?: () => void
 }
 
+// Security settings for a user's own account, shown in the admin user-detail
+// view. 2FA is self-service only: the admin cannot silently flip another user's
+// 2FA on/off (that would bypass the enrolment proof). The only admin lever here
+// is regenerating backup codes for a user who already has 2FA enabled, after an
+// explicit confirmation.
 export function SecurityTab({
   userId,
   userEmail,
   sessions,
   twoFactorEnabled,
-  onRevokeSession,
-  onRevokeAllSessions,
   currentUserId,
+  onSessionsChanged,
+  onSessionsCleared,
 }: SecurityTabProps) {
-  const router = useRouter()
   const { showToast } = useToast()
   const [confirmDialog, setConfirmDialog] = useState<{ sessionId: string } | null>(null)
   const [confirmRevokeAll, setConfirmRevokeAll] = useState(false)
-  const [confirmDisable2FA, setConfirmDisable2FA] = useState(false)
-  const [disablePassword, setDisablePassword] = useState('')
-  const [disableCode, setDisableCode] = useState('')
+  const [confirmResetCodes, setConfirmResetCodes] = useState(false)
+  const [resettingCodes, setResettingCodes] = useState(false)
+  const [newBackupCodes, setNewBackupCodes] = useState<string[] | null>(null)
 
   const handleRevoke = async (sessionId: string) => {
     if (sessionId === sessions.find((s) => s.current)?.id) {
@@ -52,7 +58,12 @@ export function SecurityTab({
   const confirmRevoke = async () => {
     if (!confirmDialog) return
     try {
-      await onRevokeSession(confirmDialog.sessionId)
+      const res = await fetch(`/api/users/${userId}/sessions/${confirmDialog.sessionId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.message || 'Error al revocar sesión')
+      }
+      onSessionsChanged?.(sessions.filter((s) => s.id !== confirmDialog.sessionId))
       showToast('Sesión revocada correctamente', 'success')
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Error al revocar sesión', 'error')
@@ -63,6 +74,22 @@ export function SecurityTab({
 
   const otherSessions = sessions.filter((s) => !s.current)
   const currentSession = sessions.find((s) => s.current)
+
+  const handleResetCodes = async () => {
+    setResettingCodes(true)
+    try {
+      const res = await fetch(`/api/users/${userId}/2fa/backup-codes`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Error al regenerar códigos')
+      setNewBackupCodes(data.backupCodes)
+      showToast('Códigos de respaldo regenerados', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Error inesperado', 'error')
+    } finally {
+      setResettingCodes(false)
+      setConfirmResetCodes(false)
+    }
+  }
 
   return (
     <div className="space-y-6" role="tabpanel" id="security-panel" aria-labelledby="security-tab">
@@ -82,21 +109,39 @@ export function SecurityTab({
             </p>
           </div>
 
-          {twoFactorEnabled ? (
+          <div className="flex items-center gap-3">
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                twoFactorEnabled
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-gray-300'
+              }`}
+            >
+              {twoFactorEnabled ? 'Activado' : 'Desactivado'}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {!twoFactorEnabled && (
+            <p className="ui-muted text-sm">
+              Este usuario aún no tiene 2FA. Puede activarlo desde{' '}
+              <Link href="/twofa/setup" className="font-medium text-emerald-600 hover:text-emerald-700">
+                Configurar 2FA
+              </Link>
+              .
+            </p>
+          )}
+
+          {twoFactorEnabled && (
             <button
               type="button"
-              onClick={() => setConfirmDisable2FA(true)}
-              className="ui-btn cursor-pointer border border-red-300 bg-white text-red-600 hover:bg-red-50 dark:border-red-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
+              onClick={() => setConfirmResetCodes(true)}
+              disabled={resettingCodes}
+              className="ui-btn cursor-pointer border border-amber-300 bg-white text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-400 dark:hover:bg-amber-950/30"
             >
-              Desactivar 2FA
+              {resettingCodes ? 'Regenerando...' : 'Regenerar códigos de respaldo'}
             </button>
-          ) : (
-            <Link
-              href="/twofa/setup"
-              className="ui-btn ui-btn-primary cursor-pointer"
-            >
-              Activar 2FA
-            </Link>
           )}
         </div>
       </div>
@@ -216,9 +261,15 @@ export function SecurityTab({
           onClose={() => setConfirmRevokeAll(false)}
           onConfirm={async () => {
             try {
-              await onRevokeAllSessions()
+              const res = await fetch(`/api/users/${userId}/sessions`, { method: 'DELETE' })
+              if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                throw new Error(data.message || 'Error al cerrar sesiones')
+              }
+              onSessionsCleared?.()
+              showToast('Todas las sesiones cerradas', 'success')
             } catch (error) {
-              // Error handled in onRevokeAllSessions
+              showToast(error instanceof Error ? error.message : 'Error al cerrar sesiones', 'error')
             }
           }}
           title="Cerrar todas las sesiones"
@@ -228,83 +279,37 @@ export function SecurityTab({
         />
       )}
 
-      {/* Disable 2FA — requires password + a current TOTP/backup code (server enforces) */}
-      {confirmDisable2FA && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-900">
-            <h3 className="ui-title text-lg">Desactivar 2FA</h3>
-            <p className="ui-muted mt-2 text-sm">
-              Introduce tu contraseña y un código actual de tu app (o de respaldo) para desactivar 2FA.
-            </p>
-            <form
-              className="mt-4 space-y-3"
-              onSubmit={async (e) => {
-                e.preventDefault()
-                try {
-                  const res = await fetch('/api/auth/2fa/disable', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: disablePassword, code: disableCode }),
-                  })
-                  const data = await res.json()
-                  if (!res.ok) throw new Error(data.message || 'Error al desactivar 2FA')
-                  showToast('2FA desactivado', 'success')
-                  router.refresh()
-                } catch (error) {
-                  showToast(error instanceof Error ? error.message : 'Error inesperado', 'error')
-                } finally {
-                  setConfirmDisable2FA(false)
-                  setDisablePassword('')
-                  setDisableCode('')
-                }
-              }}
+      {/* New backup codes — shown once after an admin reset */}
+      {newBackupCodes && (
+        <div className="ui-panel">
+          <h3 className="ui-title text-base">Nuevos códigos de respaldo</h3>
+          <p className="ui-muted mt-1 text-sm">
+            Entrega estos códigos a {userEmail} de forma segura. Se muestran una sola vez.
+          </p>
+          <div className="mt-4 space-y-3">
+            <BackupCodesDisplay codes={newBackupCodes} />
+            <button
+              type="button"
+              onClick={() => setNewBackupCodes(null)}
+              className="ui-btn w-full cursor-pointer"
             >
-              <div>
-                <label htmlFor="disable-password" className="ui-label mb-1.5">Contraseña</label>
-                <input
-                  id="disable-password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={disablePassword}
-                  onChange={(e) => setDisablePassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="ui-input py-2"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label htmlFor="disable-code" className="ui-label mb-1.5">Código de verificación</label>
-                <input
-                  id="disable-code"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={disableCode}
-                  onChange={(e) => setDisableCode(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
-                  maxLength={10}
-                  placeholder="123456 o código de respaldo"
-                  className="ui-input py-2 text-center font-mono tracking-[0.2em]"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setConfirmDisable2FA(false); setDisablePassword(''); setDisableCode('') }}
-                  className="ui-btn flex-1 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={disablePassword.length < 1 || disableCode.length < 6}
-                  className="ui-btn flex-1 cursor-pointer bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Desactivar
-                </button>
-              </div>
-            </form>
+              Cerrar
+            </button>
           </div>
         </div>
+      )}
+
+      {/* Confirm Dialog - Reset backup codes */}
+      {confirmResetCodes && (
+        <ConfirmDialog
+          isOpen
+          onClose={() => setConfirmResetCodes(false)}
+          onConfirm={handleResetCodes}
+          title="Regenerar códigos de respaldo"
+          description={`Los códigos actuales de ${userEmail} dejarán de funcionar. Se generarán 8 códigos nuevos que se mostrarán una sola vez.`}
+          confirmText="Regenerar"
+          variant="primary"
+        />
       )}
     </div>
   )

@@ -167,21 +167,6 @@ export function UserDetailClient({
     }
   }
 
-  const handleRevokeSession = async (sessionId: string) => {
-    const res = await fetch(`/api/users/${user.id}/sessions/${sessionId}`, { method: 'DELETE' })
-    const result = await res.json()
-    if (!res.ok) throw new Error(result.message || 'Error al revocar sesión')
-    setSessions((prev) => prev.filter((s) => s.id !== sessionId))
-  }
-
-  const handleRevokeAllSessions = async () => {
-    const res = await fetch(`/api/users/${user.id}/sessions`, { method: 'DELETE' })
-    const result = await res.json()
-    if (!res.ok) throw new Error(result.message || 'Error al cerrar sesiones')
-    setSessions([])
-    showToast(`Se cerraron todas las sesiones de ${user.name || user.email}`, 'success')
-  }
-
   const tabs: { id: Tab; label: string }[] = [
     { id: 'profile', label: 'Perfil' },
     { id: 'roles', label: 'Roles y permisos' },
@@ -294,9 +279,9 @@ export function UserDetailClient({
               userEmail={user.email}
               sessions={sessions}
               twoFactorEnabled={user.twoFactorEnabled}
-              onRevokeSession={handleRevokeSession}
-              onRevokeAllSessions={handleRevokeAllSessions}
               currentUserId={currentUserId}
+              onSessionsChanged={setSessions}
+              onSessionsCleared={() => setSessions([])}
             />
           )}
           {activeTab === 'activity' && <ActivityTab auditLogs={auditLogs} />}
