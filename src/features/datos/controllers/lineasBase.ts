@@ -4,10 +4,12 @@
 //
 // El cálculo real vive en Python: python/lben/cli.py envuelve
 // el paquete lben (Resolución UPME 0016 de 2024) y habla JSON por
-// stdin/stdout. Aquí se arma la serie según la jerarquía de consumo
+// stdin/stdout. En Vercel el mismo núcleo se expone como función
+// Python (api/lben.py) y se invoca por HTTP; en desarrollo local se
+// spawnea el CLI. Aquí se arma la serie según la jerarquía de consumo
 // (facturas globales × share del bloque × share de carga de equipos del
-// espacio), se invoca el CLI con timeout y se tipa la salida junto con
-// las tablas de preparación y segmentación.
+// espacio), se invoca el motor con timeout y se tipa la salida junto
+// con las tablas de preparación y segmentación.
 //
 // El share del bloque sale de dos criterios posibles (ver `OrigenShare`):
 // reparto por área con cobertura completa, o estimación por carga
@@ -41,8 +43,10 @@ import type {
 } from '@/features/datos/models/lineasBase'
 import type { ResultadoGestion } from '@/features/datos/models/validations'
 
-/** Timeout del proceso Python (statsmodels tarda ~3 s; margen generoso). */
+/** Timeout del proceso Python local (statsmodels tarda ~3 s; margen generoso). */
 const TIMEOUT_CLI_MS = 15000
+/** Timeout HTTP contra api/lben.py en serverless (incluye el import frío de scipy). */
+const TIMEOUT_HTTP_MS = 30000
 
 type RegistroCli = {
   mes: number
@@ -97,11 +101,35 @@ function normalizarJsonNoEstandar(texto: string): string {
   return texto.replace(/(?<=[:,[]\s*)-?(?:NaN|Infinity)/g, 'null')
 }
 
-/** Ejecuta el CLI de Python y devuelve su JSON (o un error tipado). */
+type PayloadCli = {
+  bloque_id: string
+  registros: RegistroCli[]
+  ajustes: { periodo_inicio: string; periodo_fin: string; proporcion: number; direccion: string; descripcion: string }[]
+}
+
+/**
+ * Ejecuta el motor y devuelve su JSON (o un error tipado).
+ *
+ * En Vercel (serverless) no hay proceso Python que spawneear: el motor
+ * corre como función Python (api/lben.py) y se invoca por HTTP con el
+ * header `x-lben-key`. En desarrollo local se conserva el spawn del CLI
+ * para que `npm run dev` no dependa de `vercel dev`.
+ */
 function ejecutarCli(
   bloqueId: string,
   registros: RegistroCli[],
   ajustes?: { periodo_inicio: string; periodo_fin: string; proporcion: number; direccion: string; descripcion: string }[]
+): Promise<{ salida?: SalidaCli; error?: string }> {
+  const payload: PayloadCli = { bloque_id: bloqueId, registros, ajustes: ajustes ?? [] }
+  if (process.env.VERCEL) {
+    return invocarMotorHttp(payload)
+  }
+  return invocarMotorCli(payload)
+}
+
+/** Ruta local: spawnea `python -m lben.cli` (JSON por stdin/stdout). */
+function invocarMotorCli(
+  payload: PayloadCli
 ): Promise<{ salida?: SalidaCli; error?: string }> {
   return new Promise((resolve) => {
     const proceso = spawn('python', ['-m', 'lben.cli'], {
@@ -167,11 +195,68 @@ function ejecutarCli(
       }
     })
 
-    proceso.stdin.write(
-      JSON.stringify({ bloque_id: bloqueId, registros, ajustes: ajustes ?? [] })
-    )
+    proceso.stdin.write(JSON.stringify(payload))
     proceso.stdin.end()
   })
+}
+
+/** Ruta serverless: POST al endpoint FastAPI (api/lben.py) con LBEN_SECRET. */
+async function invocarMotorHttp(
+  payload: PayloadCli
+): Promise<{ salida?: SalidaCli; error?: string }> {
+  const secreto = process.env.LBEN_SECRET
+  if (!secreto) {
+    return {
+      error: 'Falta LBEN_SECRET: configure la variable de entorno del motor.',
+    }
+  }
+  const base = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : process.env.NEXT_PUBLIC_APP_URL
+  if (!base) {
+    return {
+      error: 'Falta la URL del motor: configure VERCEL_URL o NEXT_PUBLIC_APP_URL.',
+    }
+  }
+
+  let respuesta: Response
+  try {
+    respuesta = await fetch(`${base}/api/lben`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-lben-key': secreto },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(TIMEOUT_HTTP_MS),
+    })
+  } catch (e) {
+    if (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')) {
+      return {
+        error: 'El cálculo tardó más de lo esperado (timeout). Intente nuevamente.',
+      }
+    }
+    return { error: 'No se pudo contactar al motor de cálculo. Intente nuevamente.' }
+  }
+
+  if (!respuesta.ok) {
+    return {
+      error: `El motor respondió con error HTTP ${respuesta.status}. Intente nuevamente.`,
+    }
+  }
+
+  const texto = await respuesta.text()
+  try {
+    const salida = JSON.parse(normalizarJsonNoEstandar(texto)) as SalidaCli
+    if (!salida.ok) {
+      return { error: salida.error ?? 'El motor no devolvió resultados.' }
+    }
+    return { salida }
+  } catch {
+    const fragmento = texto.replace(/\s+/g, ' ').trim().slice(0, 160)
+    return {
+      error: `El motor Python devolvió JSON inválido${
+        fragmento ? `: "${fragmento}${texto.length > 160 ? '…' : ''}"` : ' (sin salida).'
+      }`,
+    }
+  }
 }
 
 /**
