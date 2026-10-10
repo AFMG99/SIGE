@@ -4,9 +4,10 @@
 //
 // El cálculo real vive en Python: python/lben/cli.py envuelve
 // el paquete lben (Resolución UPME 0016 de 2024) y habla JSON por
-// stdin/stdout. En Vercel el mismo núcleo se expone como función
-// Python (api/lben.py) y se invoca por HTTP; en desarrollo local se
-// spawnea el CLI. Aquí se arma la serie según la jerarquía de consumo
+// stdin/stdout. En Vercel el mismo núcleo se expone como el servicio
+// interno `engine` (python/main.py) y se invoca por HTTP vía el binding
+// LBEN_URL; en desarrollo local se spawnea el CLI. Aquí se arma la serie
+// según la jerarquía de consumo
 // (facturas globales × share del bloque × share de carga de equipos del
 // espacio), se invoca el motor con timeout y se tipa la salida junto
 // con las tablas de preparación y segmentación.
@@ -45,7 +46,7 @@ import type { ResultadoGestion } from '@/features/datos/models/validations'
 
 /** Timeout del proceso Python local (statsmodels tarda ~3 s; margen generoso). */
 const TIMEOUT_CLI_MS = 15000
-/** Timeout HTTP contra api/lben.py en serverless (incluye el import frío de scipy). */
+/** Timeout HTTP contra el servicio engine en serverless (incluye el import frío de scipy). */
 const TIMEOUT_HTTP_MS = 30000
 
 type RegistroCli = {
@@ -111,9 +112,10 @@ type PayloadCli = {
  * Ejecuta el motor y devuelve su JSON (o un error tipado).
  *
  * En Vercel (serverless) no hay proceso Python que spawneear: el motor
- * corre como función Python (api/lben.py) y se invoca por HTTP con el
- * header `x-lben-key`. En desarrollo local se conserva el spawn del CLI
- * para que `npm run dev` no dependa de `vercel dev`.
+ * corre como servicio interno `engine` (python/main.py) y se invoca por
+ * HTTP con el binding LBEN_URL + header `x-lben-key`. En desarrollo
+ * local se conserva el spawn del CLI para que `npm run dev` no dependa
+ * de `vercel dev`.
  */
 function ejecutarCli(
   bloqueId: string,
@@ -200,7 +202,7 @@ function invocarMotorCli(
   })
 }
 
-/** Ruta serverless: POST al endpoint FastAPI (api/lben.py) con LBEN_SECRET. */
+/** Ruta serverless: POST al servicio engine (binding LBEN_URL) con LBEN_SECRET. */
 async function invocarMotorHttp(
   payload: PayloadCli
 ): Promise<{ salida?: SalidaCli; error?: string }> {
@@ -210,18 +212,18 @@ async function invocarMotorHttp(
       error: 'Falta LBEN_SECRET: configure la variable de entorno del motor.',
     }
   }
-  const base = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : process.env.NEXT_PUBLIC_APP_URL
+  // Binding del modo Services (vercel.json): URL interna del servicio
+  // `engine`; el motor no tiene ruta pública.
+  const base = process.env.LBEN_URL
   if (!base) {
     return {
-      error: 'Falta la URL del motor: configure VERCEL_URL o NEXT_PUBLIC_APP_URL.',
+      error: 'Falta LBEN_URL: el binding del servicio engine no está inyectado (vercel.json).',
     }
   }
 
   let respuesta: Response
   try {
-    respuesta = await fetch(`${base}/api/lben`, {
+    respuesta = await fetch(new URL('/api/lben', base), {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-lben-key': secreto },
       body: JSON.stringify(payload),

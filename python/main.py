@@ -1,11 +1,11 @@
 """
-Endpoint HTTP del motor LBEn para Vercel (runtime Python).
+Servicio Python del motor LBEn en Vercel (modo Services, vercel.json).
 
-POST /api/lben — mismo contrato JSON que python/lben/cli.py (stdin/stdout),
-envuelto como funcion serverless. Autenticacion: header obligatorio
-`x-lben-key` con el valor de la variable de entorno LBEN_SECRET; sin
-secret configurado el endpoint responde 503 para que un despliegue mal
-configurado sea ruidoso y no silencioso.
+POST / y POST /api/lben — mismo contrato JSON que python/lben/cli.py
+(stdin/stdout), expuesto por el servicio `engine`. El servicio es
+INTERNO: no hay rewrite publico, solo lo alcanza la app Next.js via el
+binding LBEN_URL. Autenticacion: header obligatorio `x-lben-key` con el
+valor de la variable de entorno LBEN_SECRET (segunda barra defensiva).
 """
 
 from __future__ import annotations
@@ -20,9 +20,10 @@ from pathlib import Path
 import numpy as np
 from fastapi import FastAPI, Header, HTTPException
 
-# El paquete lben vive en python/lben (monorepo): se anade al path para
-# que `lben` sea importable desde api/.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "python"))
+# `lben` es un paquete hermano de este archivo (python/lben). El runtime
+# del servicio agrega la raíz al sys.path; este insert defensivo cubre
+# ejecuciones manuales desde otras carpetas (uvicorn, pruebas locales).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lben.cli import _json_default, calcular_desde_payload  # noqa: E402
 
@@ -54,8 +55,8 @@ def _json_safe(obj):
     return obj
 
 
-# Se registran ambas rutas porque el runtime de Vercel puede montar la
-# app con el prefijo completo (/api/lben) o con la raiz del archivo (/).
+# Se registran ambas rutas: `/` es la raiz interna del servicio (la que
+# usa el binding LBEN_URL) y `/api/lben` queda por si el montaje cambia.
 @app.post("/api/lben")
 @app.post("/")
 def calcular_linea_base(

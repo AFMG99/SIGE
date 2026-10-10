@@ -165,8 +165,9 @@ def calcular_desde_payload(entrada: dict) -> dict:
     Nucleo del contrato JSON: payload -> dict de salida, sin I/O.
 
     Lo comparten el CLI (`main`, stdin/stdout) y el endpoint FastAPI
-    (api/lben.py), para que ambas rutas ejecuten exactamente la misma
-    logica y devuelvan la misma estructura.
+    (python/main.py, servicio `engine` de vercel.json), para que ambas
+    rutas ejecuten exactamente la misma logica y devuelvan la misma
+    estructura.
     """
     bloque_id = entrada.get("bloque_id")
     registros = entrada.get("registros")
