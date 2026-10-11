@@ -22,6 +22,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
       phone: true,
       lastLoginAt: true,
       twoFactorEnabled: true,
+      twoFactorRequired: true,
       createdAt: true,
     },
   })

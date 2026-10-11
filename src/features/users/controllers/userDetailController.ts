@@ -17,6 +17,7 @@ const userSelect = {
   phone: true,
   lastLoginAt: true,
   twoFactorEnabled: true,
+  twoFactorRequired: true,
   createdAt: true,
   updatedAt: true,
 }

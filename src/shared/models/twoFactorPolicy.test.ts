@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { isTwoFactorRequiredForRole, TWO_FACTOR_REQUIRED_ROLES } from './twoFactorPolicy'
+import {
+  isTwoFactorRequired,
+  isTwoFactorRequiredForRole,
+  TWO_FACTOR_REQUIRED_ROLES,
+} from './twoFactorPolicy'
 
 describe('twoFactorPolicy', () => {
   it('requires 2FA for ADMIN_TI', () => {
@@ -26,5 +30,27 @@ describe('twoFactorPolicy', () => {
     expect(TWO_FACTOR_REQUIRED_ROLES).toContain('ADMIN_TI')
     expect(TWO_FACTOR_REQUIRED_ROLES).toContain('GESTOR_ENERGETICO')
     expect(TWO_FACTOR_REQUIRED_ROLES).toHaveLength(2)
+  })
+
+  describe('isTwoFactorRequired (role OR admin-forced flag)', () => {
+    it('requires 2FA for a mandatory role even without the flag', () => {
+      expect(isTwoFactorRequired({ role: 'ADMIN_TI', twoFactorRequired: false })).toBe(true)
+    })
+
+    it('requires 2FA for an optional role when the admin flag is on', () => {
+      expect(
+        isTwoFactorRequired({ role: 'COMUNIDAD_UNIVERSITARIA', twoFactorRequired: true })
+      ).toBe(true)
+    })
+
+    it('does not require 2FA for an optional role without the flag', () => {
+      expect(
+        isTwoFactorRequired({ role: 'COORD_INFRAESTRUCTURA', twoFactorRequired: false })
+      ).toBe(false)
+    })
+
+    it('keeps DIRECTIVO optional when only the role is checked', () => {
+      expect(isTwoFactorRequired({ role: 'DIRECTIVO', twoFactorRequired: false })).toBe(false)
+    })
   })
 })

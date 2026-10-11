@@ -17,3 +17,13 @@ export const TWO_FACTOR_REQUIRED_ROLES: readonly Role[] = [
 export function isTwoFactorRequiredForRole(role: Role): boolean {
   return (TWO_FACTOR_REQUIRED_ROLES as readonly string[]).includes(role)
 }
+
+// Combined requirement: role policy OR the admin-forced per-user switch
+// (User.twoFactorRequired). Every server guard should use this function so an
+// admin "exigir 2FA" toggle behaves exactly like a mandatory role.
+export function isTwoFactorRequired(user: {
+  role: Role
+  twoFactorRequired: boolean
+}): boolean {
+  return user.twoFactorRequired || isTwoFactorRequiredForRole(user.role)
+}

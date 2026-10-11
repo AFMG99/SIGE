@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/shared/models/prisma'
 import { verifyPassword, createSession, destroySession } from '@/shared/models/auth'
 import { createLoginStepToken } from '@/shared/models/jwt'
-import { isTwoFactorRequiredForRole } from '@/shared/models/twoFactorPolicy'
+import { isTwoFactorRequired } from '@/shared/models/twoFactorPolicy'
 import { loginSchema } from '@/features/users/models/validations'
 
 // POST /api/auth/login
@@ -49,14 +49,15 @@ export async function login(request: NextRequest) {
     // 2FA gate. Two distinct cases:
     //
     // 1. 2FA enabled → require the TOTP/backup code before issuing a session.
-    // 2. Policy mandates 2FA but the user has not enrolled yet → issue the
-    //    session NOW and send them straight to /twofa/setup. The dashboard
-    //    layout still enforces the enrolment redirect as a safety net, so the
-    //    session exists only long enough to complete setup.
+    // 2. Policy mandates 2FA (role policy or admin-forced User.twoFactorRequired)
+    //    but the user has not enrolled yet → issue the session NOW and send
+    //    them straight to /twofa/setup. The dashboard layout still enforces the
+    //    enrolment redirect as a safety net, so the session exists only long
+    //    enough to complete setup.
     //
     // The old flow asked for a TOTP code in case 2, which was impossible —
     // the user had no authenticator app yet. That was a dead end.
-    const policyRequires = isTwoFactorRequiredForRole(user.role)
+    const policyRequires = isTwoFactorRequired(user)
     if (policyRequires && !user.twoFactorEnabled) {
       await createSession(user.id, user.email, user.role)
       prisma.user

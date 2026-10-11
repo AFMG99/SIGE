@@ -24,6 +24,10 @@ model User {
   phone                 String?
   lastLoginAt           DateTime?
   twoFactorEnabled      Boolean                   @default(false)
+  // Admin-forced 2FA requirement (on/off switch in the admin SecurityTab).
+  // Independent of the role policy: an optional-2FA user with this flag is
+  // redirected to /twofa/setup exactly like a mandatory role.
+  twoFactorRequired     Boolean                   @default(false)
   // TOTP secret encrypted with AES-256-GCM (TOTP_ENCRYPTION_KEY env).
   // Null when the user has never started enrollment. Only trusted for
   // login once totpConfirmedAt is set — setup alone never enables 2FA.

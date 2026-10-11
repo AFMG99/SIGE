@@ -22,6 +22,7 @@ interface AdminUser {
   phone: string | null
   lastLoginAt: string | null
   twoFactorEnabled: boolean
+  twoFactorRequired: boolean
   createdAt: string
 }
 
@@ -279,6 +280,8 @@ export function UserDetailClient({
               userEmail={user.email}
               sessions={sessions}
               twoFactorEnabled={user.twoFactorEnabled}
+              twoFactorRequired={user.twoFactorRequired}
+              role={user.role}
               currentUserId={currentUserId}
               onSessionsChanged={setSessions}
               onSessionsCleared={() => setSessions([])}

@@ -18,7 +18,7 @@ import {
   registrarFallo,
   limpiarIntentos,
 } from '@/shared/models/twoFactorRateLimit'
-import { verifyTwoFactorSchema, totpCodeSchema } from '../models/validations'
+import { verifyTwoFactorSchema, totpCodeSchema, setTwoFactorRequiredSchema } from '../models/validations'
 
 // A backup code is 10 lowercase hex chars (see twoFactorBackupCodes.ts). The
 // TOTP code is exactly 6 digits, so the shapes are unambiguous.
@@ -317,6 +317,77 @@ export async function resetBackupCodes(
     return NextResponse.json({ backupCodes })
   } catch (error) {
     console.error('Reset backup codes error:', error)
+    return NextResponse.json(
+      { message: 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}
+
+// POST /api/users/[id]/2fa/require — toggle the admin-forced 2FA requirement
+// for any user (ADMIN_TI only). Turning it ON forces the target to enrol at
+// next login/session (dashboard layout + login policy treat the flag like a
+// mandatory role); turning it OFF restores the optional behaviour for that
+// user. Does not touch twoFactorEnabled — an already-enrolled user keeps 2FA
+// either way (use reset2FA to remove it).
+export async function setTwoFactorRequirement(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const admin = await requireAdmin()
+  if (!admin) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ message: 'Datos inválidos' }, { status: 400 })
+  }
+
+  const parsed = setTwoFactorRequiredSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { message: 'Datos inválidos', errors: parsed.error.flatten().fieldErrors },
+      { status: 400 }
+    )
+  }
+
+  const { required } = parsed.data
+
+  try {
+    const target = await prisma.user.findUnique({
+      where: { id: params.id },
+      select: { id: true, email: true, role: true, twoFactorRequired: true },
+    })
+    if (!target) {
+      return NextResponse.json({ message: 'Usuario no encontrado' }, { status: 404 })
+    }
+
+    if (target.twoFactorRequired === required) {
+      return NextResponse.json({ success: true, twoFactorRequired: required })
+    }
+
+    await prisma.user.update({
+      where: { id: target.id },
+      data: { twoFactorRequired: required },
+    })
+
+    await logAudit({
+      actorId: admin.id,
+      actorEmail: admin.email,
+      action: required ? '2fa.require.enable' : '2fa.require.disable',
+      targetId: target.id,
+      targetEmail: target.email,
+      detail: required
+        ? 'Exigencia de 2FA activada por administrador; el usuario deberá enrolarse en su próximo acceso'
+        : 'Exigencia de 2FA desactivada por administrador; el 2FA del usuario queda opcional',
+    })
+
+    return NextResponse.json({ success: true, twoFactorRequired: required })
+  } catch (error) {
+    console.error('Set 2FA requirement error:', error)
     return NextResponse.json(
       { message: 'Error interno del servidor' },
       { status: 500 }

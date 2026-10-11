@@ -7,6 +7,8 @@ import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { BackupCodesDisplay } from '@/features/users/views/twofa/BackupCodesDisplay'
 import { TwoFactorCodeForm } from '@/features/users/views/twofa/TwoFactorCodeForm'
+import { isTwoFactorRequiredForRole } from '@/shared/models/twoFactorPolicy'
+import type { Role } from '@/shared/models/permissions'
 
 interface Session {
   id: string
@@ -20,6 +22,8 @@ interface SecurityTabProps {
   userEmail: string
   sessions: Session[]
   twoFactorEnabled: boolean
+  twoFactorRequired: boolean
+  role: Role
   currentUserId: string
   // Optional optimistic-update callbacks; the tab performs the API calls itself
   // and only asks the parent to sync its local state.
@@ -28,15 +32,19 @@ interface SecurityTabProps {
 }
 
 // Security settings for a user's own account, shown in the admin user-detail
-// view. 2FA is self-service only: the admin cannot silently flip another user's
-// 2FA on/off (that would bypass the enrolment proof). The only admin lever here
-// is regenerating backup codes for a user who already has 2FA enabled, after an
-// explicit confirmation.
+// view. 2FA activation is still self-service only: the admin cannot silently
+// flip another user's 2FA enrolment on/off (that would bypass the enrolment
+// proof). The admin levers are: the per-user 2FA requirement switch (forces
+// enrolment at next login without touching the secret) and — for a user who
+// already enrolled — regenerating backup codes or a full 2FA reset, both after
+// an explicit confirmation.
 export function SecurityTab({
   userId,
   userEmail,
   sessions,
   twoFactorEnabled,
+  twoFactorRequired,
+  role,
   currentUserId,
   onSessionsChanged,
   onSessionsCleared,
@@ -52,6 +60,36 @@ export function SecurityTab({
   const [showDisableForm, setShowDisableForm] = useState(false)
   const [disablePassword, setDisablePassword] = useState('')
   const [disabling, setDisabling] = useState(false)
+  const [requirementForced, setRequirementForced] = useState(twoFactorRequired)
+  const [togglingRequirement, setTogglingRequirement] = useState(false)
+
+  // Roles already covered by the global policy don't need — and shouldn't
+  // expose — a per-user switch; the requirement is permanent for them.
+  const roleMandatory = isTwoFactorRequiredForRole(role)
+
+  const handleToggleRequirement = async (required: boolean) => {
+    setTogglingRequirement(true)
+    try {
+      const res = await fetch(`/api/users/${userId}/2fa/require`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ required }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Error al actualizar la exigencia de 2FA')
+      setRequirementForced(required)
+      showToast(
+        required
+          ? 'Exigencia de 2FA activada. El usuario deberá configurarlo en su próximo acceso.'
+          : 'Exigencia de 2FA desactivada. El 2FA del usuario queda opcional.',
+        'success'
+      )
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Error inesperado', 'error')
+    } finally {
+      setTogglingRequirement(false)
+    }
+  }
 
   const handleRevoke = async (sessionId: string) => {
     if (sessionId === sessions.find((s) => s.current)?.id) {
@@ -172,12 +210,12 @@ export function SecurityTab({
             <p className="ui-muted text-sm">
               {isSelf
                 ? 'Aún no tienes 2FA activo. Puedes configurarlo ahora para añadir una capa extra de seguridad.'
-                : 'Este usuario aún no tiene 2FA. Puede activarlo desde Configurar 2FA.'}
+                : 'Este usuario aún no tiene 2FA activo. Debe configurarlo desde su propia pestaña Seguridad; con la exigencia de 2FA activa, el sistema lo redirigirá automáticamente en su próximo acceso.'}
             </p>
           )}
 
           <div className="flex flex-wrap gap-3">
-            {!twoFactorEnabled && (
+            {!twoFactorEnabled && isSelf && (
               <Link
                 href="/twofa/setup"
                 className="ui-btn ui-btn-primary cursor-pointer"
@@ -217,6 +255,37 @@ export function SecurityTab({
               </>
             )}
           </div>
+
+          {!isSelf && (
+            <div className="mt-4 border-t border-gray-100 pt-4 dark:border-slate-800">
+              <label
+                htmlFor="force-2fa"
+                className="flex cursor-pointer items-start justify-between gap-4"
+              >
+                <span>
+                  <span className="ui-title block text-base">Exigir 2FA a este usuario</span>
+                  <span className="ui-muted block text-sm">
+                    Con la exigencia activa, {userEmail} será redirigido a la configuración de 2FA
+                    en su próximo acceso hasta completarla. No se toca su 2FA actual.
+                  </span>
+                </span>
+                <input
+                  id="force-2fa"
+                  type="checkbox"
+                  role="switch"
+                  checked={roleMandatory || requirementForced}
+                  disabled={roleMandatory || togglingRequirement}
+                  onChange={(e) => handleToggleRequirement(e.target.checked)}
+                  className="mt-1 h-5 w-5 shrink-0 cursor-pointer rounded border-gray-300 accent-emerald-600 disabled:cursor-not-allowed focus-ring"
+                />
+              </label>
+              {roleMandatory && (
+                <p className="ui-muted mt-1 text-xs">
+                  Este rol ya tiene 2FA obligatorio por política; la exigencia no puede desactivarse.
+                </p>
+              )}
+            </div>
+          )}
 
           {twoFactorEnabled && isSelf && showDisableForm && (
             <div className="ui-panel mt-4 space-y-4">

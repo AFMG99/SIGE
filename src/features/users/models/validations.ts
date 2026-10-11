@@ -20,6 +20,11 @@ export const verifyTwoFactorSchema = z.object({
   code: totpCodeSchema,
 })
 
+// Admin-forced 2FA requirement (POST /api/users/[id]/2fa/require)
+export const setTwoFactorRequiredSchema = z.object({
+  required: z.boolean(),
+})
+
 // Admin user management (POST /api/users)
 export const createUserSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100),
