@@ -38,7 +38,17 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <ToastProvider>
-      <DashboardShell role={user?.role ?? null} extraModules={extraModules}>{children}</DashboardShell>
+      <DashboardShell
+        role={user?.role ?? null}
+        extraModules={extraModules}
+        account={
+          user
+            ? { name: user.name, email: user.email, avatarUrl: user.avatarUrl }
+            : null
+        }
+      >
+        {children}
+      </DashboardShell>
     </ToastProvider>
   )
 }

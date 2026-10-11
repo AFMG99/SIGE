@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState, type CSSProperties, type ReactNode } from 'react'
-import { DashboardHeader, type HeaderPos } from './DashboardHeader'
+import { DashboardHeader, type HeaderAccount, type HeaderPos } from './DashboardHeader'
 import { HeaderPosProvider, SubNavProvider } from './nav/NavContext'
 
 const TRANS = 'padding 0.3s cubic-bezier(0.22,1,0.36,1)'
@@ -17,10 +17,13 @@ export function DashboardShell({
   children,
   role,
   extraModules = [],
+  account = null,
 }: {
   children: ReactNode
   role?: string | null
   extraModules?: string[]
+  /** Logged-in identity forwarded to the header's account menu. */
+  account?: HeaderAccount | null
 }) {
   const [pos, setPos] = useState<HeaderPos>('center')
   const [railW, setRailW] = useState(0)
@@ -46,6 +49,7 @@ export function DashboardShell({
             onSidebarWidth={onSidebarWidth}
             role={role}
             extraModules={extraModules}
+            account={account}
           />
           {children}
         </div>

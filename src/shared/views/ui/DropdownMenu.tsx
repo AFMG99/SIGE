@@ -15,6 +15,8 @@ interface DropdownMenuProps {
   trigger: ReactNode
   items: DropdownItem[]
   align?: 'left' | 'right'
+  /** Optional block rendered above the items (identity card, section kicker...). */
+  header?: ReactNode
 }
 
 interface DropdownItem {
@@ -35,7 +37,7 @@ const EDGE = 8
 /** Gap between trigger and menu. */
 const GAP = 6
 
-export function DropdownMenu({ trigger, items, align = 'right' }: DropdownMenuProps) {
+export function DropdownMenu({ trigger, items, align = 'right', header }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [position, setPosition] = useState<MenuPosition | null>(null)
   const [activeIndex, setActiveIndex] = useState(-1)
@@ -214,6 +216,11 @@ export function DropdownMenu({ trigger, items, align = 'right' }: DropdownMenuPr
       aria-orientation="vertical"
       onKeyDown={handleMenuKeyDown}
     >
+      {header && (
+        <div className="border-b border-gray-100 px-3 py-2.5 dark:border-slate-800">
+          {header}
+        </div>
+      )}
       {items.map((item, index) => (
         <button
           key={index}
@@ -223,7 +230,7 @@ export function DropdownMenu({ trigger, items, align = 'right' }: DropdownMenuPr
           type="button"
           onClick={() => handleItemClick(item.onClick)}
           disabled={item.disabled}
-          className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
+          className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-lg transition-colors ${
             item.variant === 'destructive'
               ? 'text-red-600 hover:bg-red-50 focus:bg-red-50 focus:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40 dark:focus:bg-red-950/40'
               : 'text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:text-gray-900 dark:text-gray-200 dark:hover:bg-slate-800 dark:focus:bg-slate-800 dark:focus:text-gray-100'

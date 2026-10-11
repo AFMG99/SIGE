@@ -3,11 +3,18 @@ import { cookies } from 'next/headers'
 import { getSession } from '@/shared/models/auth'
 import { prisma } from '@/shared/models/prisma'
 import { SettingsView } from '@/features/users/views/settings/SettingsView'
+import { SETTINGS_TABS, type Tab } from '@/features/users/views/settings/settingsTypes'
 
 // Account settings for the logged-in user (/dashboard/configuracion).
 // Thin server page: session guard + Prisma queries → serializable props.
 // No module gate — every authenticated user manages their own account.
-export default async function SettingsPage() {
+// `?tab=<id>` deep-links a section (from the header's account menu); anything
+// else falls back to the default tab.
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: { tab?: string | string[] }
+}) {
   const session = await getSession()
   if (!session) redirect('/login')
 
@@ -40,9 +47,15 @@ export default async function SettingsPage() {
 
   const viewerToken = (await cookies()).get('auth-token')?.value
 
+  const requestedTab = typeof searchParams.tab === 'string' ? searchParams.tab : null
+  const initialTab: Tab = SETTINGS_TABS.some((t) => t.id === requestedTab)
+    ? (requestedTab as Tab)
+    : 'perfil'
+
   return (
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
       <SettingsView
+        initialTab={initialTab}
         initialUser={{
           ...user,
           lastLoginAt: user.lastLoginAt?.toISOString() ?? null,

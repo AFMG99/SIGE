@@ -1,16 +1,32 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ModuleNav } from './ModuleNav'
 import type { HeaderPos } from './nav/NavContext'
 import { MobileNavDrawer } from './nav/MobileNavDrawer'
 import { useBreakpoint } from '@/shared/hooks/useBreakpoint'
 import { toggleTheme, getCurrentTheme } from '@/shared/utils/theme'
+import { Avatar } from './ui/Avatar'
+import { DropdownMenu } from './ui/DropdownMenu'
+import {
+  IconBell,
+  IconShield,
+  IconSun,
+  IconUser,
+} from '@/features/users/views/settings/settingsIcons'
 
 export type { HeaderPos }
 
+/** Identity carried from the server session into the header's account menu. */
+export interface HeaderAccount {
+  name: string | null
+  email: string
+  avatarUrl?: string | null
+}
+
 // ==========================================
-// Post-login header (Panel de Usuario + Cerrar sesión).
+// Post-login header: brand + module nav + theme toggle + account menu.
 // Modes:
 //  - center (normal): full-width top bar, h-64px
 //  - left/right SIDEBAR: full-height, rectangular, attached to the edge
@@ -46,6 +62,7 @@ export function DashboardHeader({
   onSidebarWidth,
   role,
   extraModules = [],
+  account = null,
 }: {
   onPosChange?: (p: HeaderPos) => void
   onSidebarWidth?: (w: number) => void
@@ -53,7 +70,10 @@ export function DashboardHeader({
   role?: string | null
   /** Module IDs granted via temporary overrides. */
   extraModules?: string[]
+  /** Logged-in identity — drives the avatar trigger and the account menu. */
+  account?: HeaderAccount | null
 }) {
+  const router = useRouter()
   const [pos, setPos] = useState<HeaderPos>('center')
   /** Below `lg` the desktop chrome (rail, drag, inline module nav) is off. */
   const isDesktop = useBreakpoint('lg')
@@ -80,6 +100,12 @@ export function DashboardHeader({
     toggleTheme()
     setDark(getCurrentTheme() === 'dark')
   }
+
+  /** Submits the (hidden) logout form kept next to the trigger. */
+  const logoutFormRef = useRef<HTMLFormElement>(null)
+
+  const goToSettingsTab = (tab: string) =>
+    router.push(`/dashboard/configuracion?tab=${tab}`)
 
   const headerRef = useRef<HTMLElement>(null)
   const posRef = useRef<HeaderPos>('center')
@@ -527,43 +553,120 @@ export function DashboardHeader({
               </span>
             </button>
 
-            <form
-              action="/api/auth/logout"
-              method="POST"
-              className={isBar ? '' : 'w-full'}
-            >
-              <button
-                type="submit"
-                aria-label="Cerrar sesión"
-                title="Cerrar sesión"
-                className={`cursor-pointer text-sm font-medium text-emerald-50/90 transition-colors hover:text-white ${
-                  isBar
-                    ? 'flex min-h-10 items-center gap-2 px-4 py-2.5 lg:min-h-0 lg:py-2'
-                    : `flex w-full items-center justify-center gap-2 border border-white/15 bg-white/10 hover:bg-white/20 ${
-                        rail ? 'h-8 px-0' : 'px-4 py-2.5'
-                      }`
-                }`}
-              >
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-                <span className={rail ? 'hidden' : 'hidden whitespace-nowrap lg:inline'}>
-                  Cerrar sesión
-                </span>
-              </button>
-            </form>
+            {/* account menu: avatar trigger → settings sections + logout */}
+            {account && (
+              <DropdownMenu
+                align="right"
+                header={
+                  <div className="flex items-center gap-3">
+                    <Avatar
+                      name={account.name}
+                      email={account.email}
+                      src={account.avatarUrl}
+                      size="md"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {account.name?.trim() || account.email}
+                      </p>
+                      <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                        {account.email}
+                      </p>
+                    </div>
+                  </div>
+                }
+                trigger={
+                  <button
+                    type="button"
+                    data-no-expand
+                    aria-label="Menú de cuenta"
+                    title="Menú de cuenta"
+                    className={`cursor-pointer items-center gap-1.5 border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime ${
+                      isBar
+                        ? 'flex h-10 pr-2 lg:h-8'
+                        : rail
+                          ? 'flex h-8 w-full justify-center'
+                          : 'flex w-full px-3 py-2.5'
+                    }`}
+                  >
+                    <Avatar
+                      name={account.name}
+                      email={account.email}
+                      src={account.avatarUrl}
+                      size="sm"
+                    />
+                    {!rail && (
+                      <>
+                        {isBar ? null : (
+                          <span className="min-w-0 flex-1 truncate text-left text-sm">
+                            {account.name?.trim() || account.email}
+                          </span>
+                        )}
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                          className="shrink-0 opacity-80"
+                        >
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                }
+                items={[
+                  {
+                    label: 'Perfil',
+                    icon: <IconUser width={16} height={16} />,
+                    onClick: () => goToSettingsTab('perfil'),
+                  },
+                  {
+                    label: 'Apariencia',
+                    icon: <IconSun width={16} height={16} />,
+                    onClick: () => goToSettingsTab('apariencia'),
+                  },
+                  {
+                    label: 'Seguridad',
+                    icon: <IconShield width={16} height={16} />,
+                    onClick: () => goToSettingsTab('seguridad'),
+                  },
+                  {
+                    label: 'Notificaciones',
+                    icon: <IconBell width={16} height={16} />,
+                    onClick: () => goToSettingsTab('notificaciones'),
+                  },
+                  {
+                    label: 'Cerrar sesión',
+                    variant: 'destructive' as const,
+                    icon: (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                    ),
+                    onClick: () => logoutFormRef.current?.requestSubmit(),
+                  },
+                ]}
+              />
+            )}
+            <form ref={logoutFormRef} action="/api/auth/logout" method="POST" hidden />
 
             {/* position cycle: left → normal bar → right */}
             <button

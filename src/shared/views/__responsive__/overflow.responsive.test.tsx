@@ -195,7 +195,14 @@ const ajustesVacios = {
 }
 
 const shell = (
-  <DashboardShell role="ADMIN_TI">
+  <DashboardShell
+    role="ADMIN_TI"
+    account={{
+      name: 'Ana Pérez',
+      email: 'ana.perez@udea.edu.co',
+      avatarUrl: null,
+    }}
+  >
     <div>contenido de página</div>
   </DashboardShell>
 )
@@ -520,19 +527,45 @@ describe('Fase 3 — objetivos táctiles y desplegables', () => {
         const tema = document.querySelector<HTMLButtonElement>(
           'header button[title^="Tema"]'
         )
-        const salir = document.querySelector<HTMLButtonElement>(
-          'header button[title="Cerrar sesión"]'
+        const cuenta = document.querySelector<HTMLButtonElement>(
+          'header button[title="Menú de cuenta"]'
         )
         expect(burger).not.toBeNull()
         expect(tema).not.toBeNull()
-        expect(salir).not.toBeNull()
-        return [burger!, tema!, salir!]
+        expect(cuenta).not.toBeNull()
+        return [burger!, tema!, cuenta!]
       })
       for (const boton of botones) {
         const r = boton.getBoundingClientRect()
         expect(r.height).toBeGreaterThanOrEqual(39.5)
         expect(r.width).toBeGreaterThanOrEqual(39.5)
       }
+    })
+
+    it('Menú de cuenta: se despliega con sus secciones y cabe en el viewport', async () => {
+      render(shell)
+      const trigger = await vi.waitFor(() => {
+        const el = document.querySelector<HTMLButtonElement>(
+          'header button[title="Menú de cuenta"]'
+        )
+        expect(el).not.toBeNull()
+        return el as HTMLButtonElement
+      })
+      trigger.click()
+
+      const menu = await vi.waitFor(() => {
+        const el = document.querySelector<HTMLElement>('[role="menu"]')
+        expect(el).not.toBeNull()
+        return el as HTMLElement
+      })
+      // 4 secciones de configuración + cerrar sesión
+      const items = menu.querySelectorAll('[role="menuitem"]')
+      expect(items).toHaveLength(5)
+      expect(
+        Array.from(items).map((i) => i.textContent?.trim())
+      ).toEqual(['Perfil', 'Apariencia', 'Seguridad', 'Notificaciones', 'Cerrar sesión'])
+      dentroDelViewport(menu)
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
     })
 
     it('Barra central: los módulos no se solapan ni salen de pantalla', async () => {

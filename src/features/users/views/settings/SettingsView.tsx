@@ -79,15 +79,27 @@ function fileToAvatarDataUrl(file: File, maxSize = 256): Promise<string> {
 interface SettingsViewProps {
   initialUser: SettingsUser
   initialSessions: SettingsSession[]
+  /** Tab preselected from a validated `?tab=` deep link. */
+  initialTab?: Tab
 }
 
-export function SettingsView({ initialUser, initialSessions }: SettingsViewProps) {
+export function SettingsView({
+  initialUser,
+  initialSessions,
+  initialTab,
+}: SettingsViewProps) {
   const { showToast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [user, setUser] = useState<SettingsUser>(initialUser)
   const [sessions, setSessions] = useState<SettingsSession[]>(initialSessions)
-  const [activeTab, setActiveTab] = useState<Tab>('perfil')
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'perfil')
+
+  // The server re-renders the page on `?tab=` changes (account menu links);
+  // this keeps the active tab in sync with the URL without useSearchParams.
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab)
+  }, [initialTab])
 
   // Perfil
   const [name, setName] = useState(initialUser.name ?? '')
