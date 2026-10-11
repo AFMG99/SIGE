@@ -5,7 +5,7 @@ import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { isTwoFactorRequired } from '@/shared/models/twoFactorPolicy'
 import { getCurrentTheme, setTheme, type Theme } from '@/shared/utils/theme'
-import { SettingsHero } from './SettingsHero'
+import { SettingsTabs } from './SettingsTabs'
 import { SETTINGS_TABS, type Tab } from './settingsTypes'
 import { PerfilTab } from './tabs/PerfilTab'
 import { AparienciaTab } from './tabs/AparienciaTab'
@@ -322,16 +322,7 @@ export function SettingsView({
 
   return (
     <div className="space-y-6">
-      <SettingsHero
-        user={user}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        fileInputRef={fileInputRef}
-        onFileChange={handleAvatarFile}
-        onPickPhoto={() => fileInputRef.current?.click()}
-        onRemovePhoto={handleRemoveAvatar}
-        photoBusy={changingAvatar}
-      />
+      <SettingsTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="ui-panel p-6 sm:p-8">
         {/* `key` remounts the panel on tab change so the fade-up replays. */}
@@ -345,6 +336,12 @@ export function SettingsView({
               onPhoneChange={setPhone}
               saving={savingProfile}
               onSave={handleSaveProfile}
+              avatarUrl={user.avatarUrl}
+              fileInputRef={fileInputRef}
+              onFileChange={handleAvatarFile}
+              onPickPhoto={() => fileInputRef.current?.click()}
+              onRemovePhoto={handleRemoveAvatar}
+              photoBusy={changingAvatar}
             />
           )}
 
