@@ -193,6 +193,18 @@ npm run storybook      # Storybook en :6006
 
 ---
 
+## 📝 Mantenimiento del informe TDG
+
+`docs/Plantilla_TDG_Desarrollo_SW_InformeTecnico.md` es un entregable académico vivo que debe reflejar siempre el estado real del proyecto. Sincronizarlo es parte de la Definition of Done. Reglas:
+
+- **HU nueva** → fila nueva en la **sección 7.2** (Backlog), con los puntos y el estado actuales.
+- **HU que cambia de estado** (`estado:pendiente` → `en-progreso` → `completado` en GitHub) → actualizar su fila en la **7.2** y la narrativa + fila de la tabla de la revisión del sprint correspondiente (**8.1.2** = Sprint 1, **8.2.2** = Sprint 2).
+- **Bug corregido o funcionalidad añadida sobre una HU ya completada** (issues cerrados después de que la HU marcó `completado`) → **no reescribir** la narrativa original: añadir una nota de revisión fechada (`**Nota de revisión (dd de mes de año).**`) en la revisión del sprint de su módulo (8.1.2 para carga de datos, 8.2.2 para HU-04/05/07 y LBEn) + fila «Correcciones posteriores» en la tabla de ese sprint. Respetar el mapeo 1:1 con issues de GitHub.
+- **Afirmación ya falsa** (p. ej. «2FA sin implementar», «middleware») → corregirla en su sitio con grep: el informe nunca debe contradecir al código. Antes de asumir que un hallazgo es nuevo, buscar el texto con `grep -n` y verificar contra el código/`gh`.
+- Estados espejo de los labels de GitHub: `estado:pendiente` → Pendiente · `estado:en-progreso` → En progreso · `estado:completado` → Completado.
+
+---
+
 ## 📚 Docs relacionados
 
 - `GIT_WORKFLOW.md` — flujo git completo, ramas, Dependabot, secrets, staging/production.
