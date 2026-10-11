@@ -27,7 +27,7 @@ interface AvatarProps {
   email: string
   /** Optional image (data-URL or remote URL). Falls back to initials when absent. */
   src?: string | null
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   className?: string
 }
 
@@ -36,6 +36,7 @@ const sizeClasses = {
   md: 'w-10 h-10 text-sm',
   lg: 'w-12 h-12 text-base',
   xl: 'w-16 h-16 text-lg',
+  '2xl': 'w-24 h-24 text-2xl',
 }
 
 export const Avatar: FC<AvatarProps> = ({ name, email, src, size = 'md', className = '' }) => {

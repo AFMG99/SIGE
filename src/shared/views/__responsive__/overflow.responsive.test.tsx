@@ -112,6 +112,11 @@ import type {
 } from '@/features/datos/views/useCatalogoEdificaciones'
 import { UserTable, type AdminUser } from '@/features/users/views/UserTable'
 import { CountryPhoneInput } from '@/features/users/views/CountryPhoneInput'
+import { SettingsView } from '@/features/users/views/settings/SettingsView'
+import {
+  settingsSessions,
+  settingsUser,
+} from '@/features/users/views/settings/__fixtures__/settings'
 import { ROLES, USER_STATUSES } from '@/shared/models/permissions'
 import { DashboardShell } from '@/shared/views/DashboardShell'
 import SidebarNav from '@/shared/views/sidebar/SidebarNav'
@@ -1032,6 +1037,62 @@ describe('ListboxSelect — la lista siempre cabe en el viewport', () => {
       await vi.waitFor(() => {
         expect(document.querySelector('[role="listbox"]')).toBeNull()
       })
+    })
+  })
+})
+
+describe('Configuración — hero y pestañas', () => {
+  beforeEach(() => cleanup())
+  afterEach(() => cleanup())
+
+  const renderSettings = async () => {
+    render(
+      <ToastProvider>
+        <SettingsView initialUser={settingsUser} initialSessions={settingsSessions} />
+      </ToastProvider>
+    )
+    await vi.waitFor(() => {
+      expect(document.querySelector('[role="tablist"]')).not.toBeNull()
+    })
+  }
+
+  describe.each(VIEWPORTS)('$nombre', ({ width, height }) => {
+    beforeEach(async () => {
+      await ajustarViewport(width, height)
+    })
+
+    it('el documento y la barra de pestañas no desbordan', async () => {
+      await renderSettings()
+      const tablist = document.querySelector<HTMLElement>('[role="tablist"]')
+      expect(tablist).not.toBeNull()
+      expect(tablist!.getBoundingClientRect().right).toBeLessThanOrEqual(
+        window.innerWidth + 1
+      )
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+    })
+
+    it('las 4 pestañas miden ≥ 40px por debajo de lg', async () => {
+      await renderSettings()
+      const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
+      expect(tabs).toHaveLength(4)
+      if (width < 1024) {
+        for (const tab of tabs) {
+          expect(tab.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+        }
+      }
+    })
+
+    it('cambiar de pestaña no desborda el documento', async () => {
+      await renderSettings()
+      for (const id of ['apariencia', 'seguridad', 'notificaciones'] as const) {
+        const tab = document.querySelector<HTMLButtonElement>(`#${id}-tab`)
+        expect(tab).not.toBeNull()
+        tab!.click()
+        await vi.waitFor(() => {
+          expect(document.getElementById(`${id}-panel`)).not.toBeNull()
+        })
+        expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+      }
     })
   })
 })
