@@ -205,6 +205,18 @@ npm run storybook      # Storybook en :6006
 
 ---
 
+## 📌 Issues y Project
+
+El tablero **SIGE** (GitHub Projects v2: `github.com/users/AFMG99/projects/5`) es el espejo del avance. Reglas para toda tarea o corrección derivada de una HU:
+
+- **Abrir la issue antes de codificar**: `[TASK]` o `[BUG]` con labels `sub-task`, `estado:pendiente`, el módulo (`m1-*`…`m6-*` o `usuarios-permisos`) y el sprint; vincularla como **sub-issue** de su HU (Parent issue en el board). Si el trabajo ya se hizo sin issue, crearla retroactivamente con los SHAs en el cuerpo (referencia #56–#58).
+- **Asignación**: la issue y el item del board van **asignados al colaborador que asume el trabajo** (`Assignees` del board es un espejo de la asignatura de la issue).
+- **Campos del board al abrir**: `Size` (T-shirt) y `Estimate` en story points alineados (**XS=1 · S=2 · M=3 · L=5 · XL=8**), `Start date` y `Target date` reales, `Priority` (P0/P1/P2).
+- **Estados espejo**: label `estado:*` ↔ campo `Status` (`estado:pendiente`→Backlog, `estado:en-progreso`→In progress, `estado:completado`→Done). **`Status=Done` cierra automáticamente la issue** (campo Status integrado de GitHub): al terminar el trabajo, mover el Status a Done y verificar el label `estado:completado`.
+- **Trazabilidad**: los commits/PRs que implementan la issue deben mencionarla (`Ref #N` / `Closes #N`) o documentar los SHAs en el cuerpo de la issue. Las correcciones sobre HU completadas también se registran en el informe TDG (sección anterior).
+
+---
+
 ## 📚 Docs relacionados
 
 - `GIT_WORKFLOW.md` — flujo git completo, ramas, Dependabot, secrets, staging/production.
