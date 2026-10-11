@@ -6,6 +6,7 @@ import { formatDateTimeLocale } from '@/shared/utils/date-utils'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { BackupCodesDisplay } from '@/features/users/views/twofa/BackupCodesDisplay'
+import { TwoFactorCodeForm } from '@/features/users/views/twofa/TwoFactorCodeForm'
 
 interface Session {
   id: string
@@ -48,6 +49,9 @@ export function SecurityTab({
   const [newBackupCodes, setNewBackupCodes] = useState<string[] | null>(null)
   const [confirmReset2FA, setConfirmReset2FA] = useState(false)
   const [resetting2FA, setResetting2FA] = useState(false)
+  const [showDisableForm, setShowDisableForm] = useState(false)
+  const [disablePassword, setDisablePassword] = useState('')
+  const [disabling, setDisabling] = useState(false)
 
   const handleRevoke = async (sessionId: string) => {
     if (sessionId === sessions.find((s) => s.current)?.id) {
@@ -109,6 +113,29 @@ export function SecurityTab({
     }
   }
 
+  const isSelf = userId === currentUserId
+
+  const handleDisableSubmit = async (code: string) => {
+    setDisabling(true)
+    try {
+      const res = await fetch('/api/auth/2fa/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: disablePassword, code }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Error al desactivar 2FA')
+      showToast('2FA desactivado correctamente', 'success')
+      setShowDisableForm(false)
+      setDisablePassword('')
+      onSessionsCleared?.()
+    } catch (error) {
+      throw error
+    } finally {
+      setDisabling(false)
+    }
+  }
+
   return (
     <div className="space-y-6" role="tabpanel" id="security-panel" aria-labelledby="security-tab">
       {/* 2FA Section */}
@@ -143,31 +170,89 @@ export function SecurityTab({
         <div className="mt-4 space-y-3">
           {!twoFactorEnabled && (
             <p className="ui-muted text-sm">
-              Este usuario aún no tiene 2FA. Puede activarlo desde{' '}
-              <Link href="/twofa/setup" className="font-medium text-emerald-600 hover:text-emerald-700">
-                Configurar 2FA
-              </Link>
-              .
+              {isSelf
+                ? 'Aún no tienes 2FA activo. Puedes configurarlo ahora para añadir una capa extra de seguridad.'
+                : 'Este usuario aún no tiene 2FA. Puede activarlo desde Configurar 2FA.'}
             </p>
           )}
 
-          {twoFactorEnabled && (
-            <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3">
+            {!twoFactorEnabled && (
+              <Link
+                href="/twofa/setup"
+                className="ui-btn ui-btn-primary cursor-pointer"
+              >
+                Configurar 2FA
+              </Link>
+            )}
+
+            {twoFactorEnabled && isSelf && !showDisableForm && (
               <button
                 type="button"
-                onClick={() => setConfirmResetCodes(true)}
-                disabled={resettingCodes}
-                className="ui-btn cursor-pointer border border-amber-300 bg-white text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                onClick={() => setShowDisableForm(true)}
+                className="ui-btn cursor-pointer border border-red-300 bg-white text-red-700 hover:bg-red-50 dark:border-red-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
               >
-                {resettingCodes ? 'Regenerando...' : 'Regenerar códigos de respaldo'}
+                Desactivar 2FA
               </button>
+            )}
+
+            {twoFactorEnabled && !isSelf && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setConfirmResetCodes(true)}
+                  disabled={resettingCodes}
+                  className="ui-btn cursor-pointer border border-amber-300 bg-white text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                >
+                  {resettingCodes ? 'Regenerando...' : 'Regenerar códigos de respaldo'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmReset2FA(true)}
+                  disabled={resetting2FA}
+                  className="ui-btn cursor-pointer border border-red-300 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                >
+                  {resetting2FA ? 'Reseteando...' : 'Resetear 2FA completo'}
+                </button>
+              </>
+            )}
+          </div>
+
+          {twoFactorEnabled && isSelf && showDisableForm && (
+            <div className="ui-panel mt-4 space-y-4">
+              <h4 className="ui-title text-sm">Desactivar 2FA</h4>
+              <p className="ui-muted text-sm">
+                Introduce tu contraseña y un código de verificación para desactivar 2FA.
+              </p>
+              <div>
+                <label htmlFor="disable-password" className="ui-label mb-1.5">
+                  Contraseña
+                </label>
+                <input
+                  id="disable-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={disablePassword}
+                  onChange={(e) => setDisablePassword(e.target.value)}
+                  disabled={disabling}
+                  className="ui-input py-2.5"
+                  placeholder="••••••••"
+                />
+              </div>
+              <TwoFactorCodeForm
+                onSubmit={handleDisableSubmit}
+                submitLabel="Desactivar 2FA"
+                disabled={disabling || !disablePassword}
+              />
               <button
                 type="button"
-                onClick={() => setConfirmReset2FA(true)}
-                disabled={resetting2FA}
-                className="ui-btn cursor-pointer border border-red-300 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                onClick={() => {
+                  setShowDisableForm(false)
+                  setDisablePassword('')
+                }}
+                className="ui-btn w-full cursor-pointer"
               >
-                {resetting2FA ? 'Reseteando...' : 'Resetear 2FA completo'}
+                Cancelar
               </button>
             </div>
           )}
