@@ -15,7 +15,6 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   // 2FA second phase: after a valid password the server may ask for a TOTP/backup code.
   const [stepToken, setStepToken] = useState<string | null>(null)
-  const [enrollmentRequired, setEnrollmentRequired] = useState(false)
 
   const validateField = (name: keyof LoginInput, value: string) => {
     const fieldSchema = loginSchema.shape[name]
@@ -69,9 +68,14 @@ export function LoginForm() {
         throw new Error(data.message || 'Error al iniciar sesión')
       }
 
+      if (data.needsEnrollment) {
+        router.push('/twofa/setup')
+        router.refresh()
+        return
+      }
+
       if (data.twoFactorRequired) {
         setStepToken(data.stepToken)
-        setEnrollmentRequired(!!data.enrollmentRequired)
         setServerError('')
         setIsLoading(false)
         return
@@ -96,15 +100,6 @@ export function LoginForm() {
     const data = await res.json()
     if (!res.ok) throw new Error(data.message || 'Error al verificar el código')
 
-    if (enrollmentRequired) {
-      // Role mandates 2FA but the user has not enrolled yet — the login response
-      // still carried a step token so we can land them on the enrollment screen
-      // already authenticated enough to complete setup.
-      router.push('/twofa/setup')
-      router.refresh()
-      return
-    }
-
     router.push('/dashboard')
     router.refresh()
   }
@@ -123,9 +118,7 @@ export function LoginForm() {
               Verificación en dos pasos
             </h1>
             <p className="ui-muted mt-2 text-sm">
-              {enrollmentRequired
-                ? 'Tu rol requiere 2FA. Verifica tu identidad para configurarlo.'
-                : 'Introduce el código de tu app de autenticación para continuar.'}
+              Introduce el código de tu app de autenticación para continuar.
             </p>
           </div>
 
@@ -146,7 +139,6 @@ export function LoginForm() {
             type="button"
             onClick={() => {
               setStepToken(null)
-              setEnrollmentRequired(false)
               setServerError('')
             }}
             className="mt-6 w-full text-center text-sm font-medium text-emerald-600 hover:text-emerald-700 focus-ring"

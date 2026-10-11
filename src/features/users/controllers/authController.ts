@@ -46,21 +46,32 @@ export async function login(request: NextRequest) {
       return NextResponse.json({ message: 'Credenciales inválidas' }, { status: 401 })
     }
 
-    // 2FA gate: enabled always requires the second factor. Mandated roles that
-    // have not enrolled yet are sent to enrolment rather than straight in —
-    // policy would otherwise be trivially bypassed by never enabling 2FA.
+    // 2FA gate. Two distinct cases:
+    //
+    // 1. 2FA enabled → require the TOTP/backup code before issuing a session.
+    // 2. Policy mandates 2FA but the user has not enrolled yet → issue the
+    //    session NOW and send them straight to /twofa/setup. The dashboard
+    //    layout still enforces the enrolment redirect as a safety net, so the
+    //    session exists only long enough to complete setup.
+    //
+    // The old flow asked for a TOTP code in case 2, which was impossible —
+    // the user had no authenticator app yet. That was a dead end.
     const policyRequires = isTwoFactorRequiredForRole(user.role)
-    if (user.twoFactorEnabled || policyRequires) {
+    if (policyRequires && !user.twoFactorEnabled) {
+      await createSession(user.id, user.email, user.role)
+      prisma.user
+        .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+        .catch(() => {})
+      return NextResponse.json({ needsEnrollment: true })
+    }
+
+    if (user.twoFactorEnabled) {
       const stepToken = await createLoginStepToken({
         userId: user.id,
         email: user.email,
         role: user.role,
       })
-      return NextResponse.json({
-        twoFactorRequired: true,
-        enrollmentRequired: !user.twoFactorEnabled,
-        stepToken,
-      })
+      return NextResponse.json({ twoFactorRequired: true, stepToken })
     }
 
     // No 2FA — full session immediately.
