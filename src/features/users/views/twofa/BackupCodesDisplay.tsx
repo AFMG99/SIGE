@@ -9,6 +9,10 @@ interface BackupCodesDisplayProps {
 
 export function BackupCodesDisplay({ codes, onComplete }: BackupCodesDisplayProps) {
   const [downloaded, setDownloaded] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const saved = downloaded || copied
+
+  const codesText = codes.join('\n')
 
   const handleDownload = () => {
     const content = [
@@ -32,6 +36,21 @@ export function BackupCodesDisplay({ codes, onComplete }: BackupCodesDisplayProp
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
     setDownloaded(true)
+  }
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(codesText)
+      setCopied(true)
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = codesText
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+      setCopied(true)
+    }
   }
 
   return (
@@ -64,14 +83,21 @@ export function BackupCodesDisplay({ codes, onComplete }: BackupCodesDisplayProp
         >
           Descargar códigos
         </button>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="ui-btn flex-1 cursor-pointer"
+        >
+          {copied ? 'Copiados al portapapeles' : 'Copiar códigos'}
+        </button>
         {onComplete && (
           <button
             type="button"
             onClick={onComplete}
-            disabled={!downloaded}
+            disabled={!saved}
             className="ui-btn flex-1 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {downloaded ? 'Ya los guardé, continuar' : 'Descarga los códigos primero'}
+            {saved ? 'Ya los guardé, continuar' : 'Guarda los códigos primero'}
           </button>
         )}
       </div>
