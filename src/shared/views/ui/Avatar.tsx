@@ -25,6 +25,8 @@ function hashString(str: string): number {
 interface AvatarProps {
   name: string | null | undefined
   email: string
+  /** Optional image (data-URL or remote URL). Falls back to initials when absent. */
+  src?: string | null
   size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
 }
@@ -36,8 +38,20 @@ const sizeClasses = {
   xl: 'w-16 h-16 text-lg',
 }
 
-export const Avatar: FC<AvatarProps> = ({ name, email, size = 'md', className = '' }) => {
+export const Avatar: FC<AvatarProps> = ({ name, email, src, size = 'md', className = '' }) => {
   const displayName = name?.trim() || email
+
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- avatars are small data-URLs; next/image adds no value here
+      <img
+        src={src}
+        alt={displayName}
+        className={`inline-flex shrink-0 rounded-full object-cover ${sizeClasses[size]} ${className}`}
+      />
+    )
+  }
+
   const initials = displayName
     .split(/\s+/)
     .map((part) => part[0])

@@ -40,6 +40,11 @@ model User {
   // Rate limiting for TOTP verification (replica-safe, lives in the DB).
   twoFactorFailedAttempts Int                   @default(0)
   twoFactorLockedUntil    DateTime?
+  // Account settings (self-service, /dashboard/configuracion)
+  avatarUrl               String?                 // data-URL (WebP ~256px) — base64, no external storage
+  timezone                String                  @default("America/Bogota")
+  notificationsEmail      Boolean                 @default(true)
+  notificationsInApp      Boolean                 @default(true)
   emailVerified         DateTime?
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
@@ -83,6 +88,9 @@ model Session {
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
+  // Raw User-Agent captured at login — shown in the user's own session list
+  // ("Sesiones activas") so people can spot devices they don't recognise.
+  userAgent String?
   expiresAt DateTime
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

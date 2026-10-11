@@ -39,6 +39,16 @@ export function toggleTheme(): void {
 }
 
 /**
+ * Set an explicit theme and persist (used by the Settings page, where the
+ * user picks light/dark instead of toggling).
+ */
+export function setTheme(theme: Theme): void {
+  if (typeof window === 'undefined') return
+  applyTheme(theme)
+  localStorage.setItem(STORAGE_KEY, theme)
+}
+
+/**
  * Apply theme to document root.
  */
 function applyTheme(theme: Theme): void {

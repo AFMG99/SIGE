@@ -39,6 +39,31 @@ export const updateUserSchema = createUserSchema.partial()
 // Phone validation (loose regex for international formats)
 export const phoneSchema = z.string().regex(/^[\d\s\-+()]{7,20}$/, 'Formato de teléfono inválido').optional().nullable()
 
+// Self-service account settings (PATCH /api/profile). Email is deliberately
+// NOT editable here (identity field, admin-only change) and the password has
+// its own dedicated endpoint.
+export const updateProfileSchema = z.object({
+  name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').max(100).optional(),
+  phone: phoneSchema,
+  avatarUrl: z
+    .string()
+    .max(300_000, 'La imagen es demasiado grande; usa una de hasta 256px')
+    .regex(/^data:image\/(webp|png|jpeg);base64,/, 'Formato de imagen no soportado')
+    .optional()
+    .nullable(),
+  timezone: z.string().min(1).max(64).optional(),
+  notificationsEmail: z.boolean().optional(),
+  notificationsInApp: z.boolean().optional(),
+})
+
+// Self-service password change (POST /api/profile/password)
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Ingresa tu contraseña actual'),
+  newPassword: passwordSchema,
+})
+
 export type LoginInput = z.infer<typeof loginSchema>
 export type CreateUserInput = z.infer<typeof createUserSchema>
 export type UpdateUserInput = z.infer<typeof updateUserSchema>
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>

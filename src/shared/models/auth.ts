@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { prisma } from './prisma'
 import bcrypt from 'bcryptjs'
 import { createToken, verifyToken, type JWTPayload } from './jwt'
@@ -34,9 +34,14 @@ export async function createSession(userId: string, email: string, role: string)
 
 // Persists a session row for an already-issued JWT. Used by the 2FA verify
 // step, which mints the token only after the second factor succeeds.
+// The User-Agent is captured here (single choke point for every login path)
+// so the user's own session list can show which device each session belongs to.
 export async function persistSession(userId: string, token: string) {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
-  await prisma.session.create({ data: { userId, token, expiresAt } })
+  const userAgent = (await headers()).get('user-agent')
+  await prisma.session.create({
+    data: { userId, token, expiresAt, userAgent: userAgent?.slice(0, 255) ?? null },
+  })
 }
 
 // Sets the auth cookie for a token whose DB row already exists.
