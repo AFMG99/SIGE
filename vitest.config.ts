@@ -45,6 +45,11 @@ export default defineConfig({
             enabled: true,
             headless: true,
             provider: playwright({}),
+            // El server Vite del browser usa 63315 por defecto; en Windows
+            // ese puerto cae dentro de los rangos de exclusión de Hyper-V
+            // (EACCES: permission denied al escuchar). Fijar uno fuera de
+            // los rangos típicos (50k / 62k / 63k).
+            api: { port: 62010 },
             instances: [{ browser: 'chromium' }],
           },
         },
@@ -87,6 +92,9 @@ export default defineConfig({
             enabled: true,
             headless: true,
             provider: playwright({}),
+            // Ver comentario del proyecto storybook: 63315 (default) puede
+            // caer en un rango excluido por Hyper-V en Windows.
+            api: { port: 62011 },
             instances: [{ browser: 'chromium' }],
           },
         },

@@ -258,8 +258,19 @@ export function DashboardHeader({
     // still-held pointer never visually detaches the header.
   }, [setDrag])
 
+  // Portal content (e.g. the account menu rendered in document.body) bubbles
+  // through the React tree: events whose DOM target is outside the header must
+  // never arm drag/expand/focus behaviour — arming pointer capture on a menu
+  // click retargets the click away from the item and kills its onClick.
+  const isInternalEvent = useCallback(
+    (target: EventTarget | null): boolean =>
+      !!target && headerRef.current?.contains(target as Node) === true,
+    []
+  )
+
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLElement>) => {
+      if (!isInternalEvent(e.target)) return
       // the rail/hold-to-drag interaction only exists on desktop: below `lg`
       // there is nothing to expand or detach, so taps go straight to the links
       if (!isDesktop) return
@@ -278,7 +289,7 @@ export function DashboardHeader({
         if (pendingRef.current) beginDrag(pendingRef.current.clientX)
       }, HOLD_MS)
     },
-    [isDesktop, expand, beginDrag]
+    [isInternalEvent, isDesktop, expand, beginDrag]
   )
 
   const onPointerMove = useCallback(
@@ -388,8 +399,12 @@ export function DashboardHeader({
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        onFocusCapture={expand}
+        onFocusCapture={(e) => {
+          if (!isInternalEvent(e.target)) return
+          expand()
+        }}
         onBlurCapture={(e) => {
+          if (!isInternalEvent(e.target)) return
           if (
             !hoverRef.current &&
             !e.currentTarget.contains(e.relatedTarget as Node | null)

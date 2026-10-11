@@ -47,13 +47,15 @@ vi.mock(
   }
 )
 
+const { routerPushSpy } = vi.hoisted(() => ({ routerPushSpy: vi.fn() }))
+
 vi.mock(
   'next/navigation',
   () => ({
     __esModule: true,
     usePathname: () => '/dashboard/datos',
     useRouter: () => ({
-      push: () => {},
+      push: routerPushSpy,
       replace: () => {},
       prefetch: () => {},
       back: () => {},
@@ -566,6 +568,66 @@ describe('Fase 3 — objetivos táctiles y desplegables', () => {
       ).toEqual(['Perfil', 'Apariencia', 'Seguridad', 'Notificaciones', 'Cerrar sesión'])
       dentroDelViewport(menu)
       expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+    })
+
+    // Regresión #62: el pointer capture del header (armado por pointerdowns
+    // del portal) re-dirigía el click y los items nunca ejecutaban su onClick.
+    it('Menú de cuenta: hacer click en una sección navega con ?tab=', async () => {
+      render(shell)
+      const trigger = await vi.waitFor(() => {
+        const el = document.querySelector<HTMLButtonElement>(
+          'header button[title="Menú de cuenta"]'
+        )
+        expect(el).not.toBeNull()
+        return el as HTMLButtonElement
+      })
+      routerPushSpy.mockClear()
+      trigger.click()
+
+      const perfil = await vi.waitFor(() => {
+        const el = Array.from(
+          document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
+        ).find((b) => b.textContent?.trim() === 'Perfil')
+        expect(el).toBeInstanceOf(HTMLButtonElement)
+        return el as HTMLButtonElement
+      })
+      perfil.click()
+      expect(routerPushSpy).toHaveBeenCalledWith(
+        '/dashboard/configuracion?tab=perfil'
+      )
+    })
+
+    it('Menú de cuenta: Cerrar sesión envía el form de logout', async () => {
+      render(shell)
+      const submitSpy = vi
+        .spyOn(HTMLFormElement.prototype, 'requestSubmit')
+        .mockImplementation(() => {})
+      try {
+        const trigger = await vi.waitFor(() => {
+          const el = document.querySelector<HTMLButtonElement>(
+            'header button[title="Menú de cuenta"]'
+          )
+          expect(el).not.toBeNull()
+          return el as HTMLButtonElement
+        })
+        trigger.click()
+
+        const salir = await vi.waitFor(() => {
+          const el = Array.from(
+            document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
+          ).find((b) => b.textContent?.trim() === 'Cerrar sesión')
+          expect(el).toBeInstanceOf(HTMLButtonElement)
+          return el as HTMLButtonElement
+        })
+        salir.click()
+        expect(submitSpy).toHaveBeenCalledTimes(1)
+        const form = document.querySelector<HTMLFormElement>(
+          'form[action="/api/auth/logout"]'
+        )
+        expect(form).not.toBeNull()
+      } finally {
+        submitSpy.mockRestore()
+      }
     })
 
     it('Barra central: los módulos no se solapan ni salen de pantalla', async () => {
