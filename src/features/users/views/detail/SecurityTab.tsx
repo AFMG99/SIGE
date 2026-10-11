@@ -276,7 +276,11 @@ export function SecurityTab({
                   checked={roleMandatory || requirementForced}
                   disabled={roleMandatory || togglingRequirement}
                   onChange={(e) => handleToggleRequirement(e.target.checked)}
-                  className="mt-1 h-5 w-5 shrink-0 cursor-pointer rounded border-gray-300 accent-emerald-600 disabled:cursor-not-allowed focus-ring"
+                  className="peer sr-only"
+                />
+                <span
+                  aria-hidden="true"
+                  className="relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform after:content-[''] peer-checked:bg-gray-900 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-uv-lime peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 dark:bg-slate-600 dark:peer-checked:bg-slate-100 dark:peer-checked:after:bg-gray-900"
                 />
               </label>
               {roleMandatory && (
