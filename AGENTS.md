@@ -12,7 +12,7 @@ Guía operativa única para colaboradores humanos e inteligencias artificiales q
 |---|---|---|
 | Framework | Next.js **14** App Router | `src/app/`; **no usar Edge Middleware** (Vercel Services lo rechaza) — guards en layouts/páginas server |
 | Lenguaje | TypeScript **strict** | `tsc --noEmit` en CI |
-| ORM / BD | Prisma 5 + PostgreSQL (Neon) | `npx prisma generate` (NO existe `npm run prisma:generate`) |
+| ORM / BD | Prisma 5 + PostgreSQL (Neon) | Regenerar cliente: `npm run db:generate` (NO existe `npm run prisma:generate`) |
 | Estilos | **Tailwind v4 CSS-first** | Tokens en `src/app/globals.css` (`@theme`); **no existe `tailwind.config`** |
 | Validación | Zod | Re-validar SIEMPRE en servidor |
 | Auth | `jose` (JWT) + `bcryptjs` cost 12 | 2FA: `otplib` + `qrcode` |
@@ -155,6 +155,41 @@ src/
 5. **UI**: primitivas `ui-*` + tokens de marca (`emerald-600` para primario, `slate-*` para superficies oscuras, `.focus-ring`, radius ladder). Verificar en todos los viewports Storybook; targets ≥40px bajo `lg`.
 6. **Tests**: `__fixtures__` + `__stories__` con `play` interaction tests; unit tests `*.test.ts` para lógica pura; responsive test si hay chrome/layout nuevo.
 7. **Validar**: `npm run validate` verde local → commit convencional en inglés → PR contra `develop` con HU/issue correlacionado.
+
+---
+
+## 💻 Comandos útiles
+
+### Scripts reales (`package.json`)
+
+```bash
+npm run dev            # Next dev (localhost:3000)
+npm run build          # Build producción
+npm run lint           # next lint
+npm run typecheck      # tsc --noEmit
+npm run test           # vitest run (unit + node)
+npm run test:storybook # Tests de interacción (play) en Storybook
+npm run test:responsive# Tests responsive (overflow, touch targets)
+npm run validate       # lint + typecheck + test + build + build-storybook  ← GATE
+npm run db:generate    # prisma generate (regenerar cliente tras tocar schema)
+npm run db:push        # prisma db push (schema → Neon; NO usa migrate)
+npm run db:studio      # Prisma Studio (GUI de BD)
+npm run storybook      # Storybook en :6006
+```
+
+### Gotchas de Windows (acumulados en este repo)
+
+- **`npm run prisma:generate` NO existe** — el script es `npm run db:generate` (o `npx prisma generate`).
+- **EPERM al hacer `prisma generate`**: si `next dev` está corriendo, Windows bloquea `query_engine-windows.dll.node`. Fix: cerrar procesos node → `npm run db:generate` → limpiar los `*.tmp*` que deje.
+- **`npm run validate` puede crashear con exit `-1073740791`** (`Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)`) después del build de Storybook — es cosmético de libuv, NO un fallo del código. Fallback: `npm run lint` + `npm run typecheck` por separado (y `npm run test` si hace falta).
+- **PowerShell se come `$var` en `node -e "..."`**: usar comillas simples o escribir un archivo `.cjs` temporal y ejecutar `node archivo.cjs`.
+- **Neon free tier** suspende el compute tras ~5 min inactivo → error `Can't reach database server`. Localmente solo hay que reintentar (Vercel serverless crea cliente fresco). `DATABASE_URL` ya incluye `connection_limit=5&pool_timeout=10`.
+- **`sharp-cli`**: flags globales, no hay subcomando `webp` — `npx sharp-cli -i in.jpg -o out.webp --format webp --quality 70`.
+
+### Prisma — reglas
+
+- **`db push`, no `migrate`**: el schema vive en sincronía con Neon (`migrate diff` = "No difference"). Tras cambiar `schema.prisma`: `npm run db:generate` (cliente) + `npm run db:push` (BD).
+- Si un endpoint da **500 con columna inexistente** en Neon → falta `db push`; las columnas nuevas no llegan solas.
 
 ---
 
