@@ -223,6 +223,57 @@ export async function disable2FA(request: NextRequest) {
   return NextResponse.json({ success: true })
 }
 
+// POST /api/users/[id]/2fa/reset — fully reset a user's 2FA enrolment
+// (ADMIN_TI only). Clears the TOTP secret, pending/confirmed timestamps,
+// replay counter, and rate-limit state, and deletes all backup codes. The
+// user must re-enrol from scratch on next login (the dashboard layout gate
+// will redirect them). Use this when the user has lost their authenticator
+// app and has no backup codes.
+export async function reset2FA(
+  _request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const admin = await requireAdmin()
+  if (!admin) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  try {
+    const target = await prisma.user.findUnique({
+      where: { id: params.id },
+      select: { id: true, email: true, twoFactorEnabled: true },
+    })
+    if (!target) {
+      return NextResponse.json({ message: 'Usuario no encontrado' }, { status: 404 })
+    }
+    if (!target.twoFactorEnabled) {
+      return NextResponse.json(
+        { message: 'El usuario no tiene 2FA activo' },
+        { status: 400 }
+      )
+    }
+
+    await deshabilitar2FA(target.id)
+
+    await logAudit({
+      actorId: admin.id,
+      actorEmail: admin.email,
+      action: '2fa.reset',
+      targetId: target.id,
+      targetEmail: target.email,
+      detail: '2FA deshabilitado y enrolamiento reiniciado por administrador',
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Reset 2FA error:', error)
+    return NextResponse.json(
+      { message: 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}
+
 // POST /api/users/[id]/2fa/backup-codes — regenerate a user's backup codes
 // (ADMIN_TI only). The plaintext codes are returned exactly once so the admin
 // can hand them over out-of-band; they are never persisted or logged. Only

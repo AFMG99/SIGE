@@ -46,6 +46,8 @@ export function SecurityTab({
   const [confirmResetCodes, setConfirmResetCodes] = useState(false)
   const [resettingCodes, setResettingCodes] = useState(false)
   const [newBackupCodes, setNewBackupCodes] = useState<string[] | null>(null)
+  const [confirmReset2FA, setConfirmReset2FA] = useState(false)
+  const [resetting2FA, setResetting2FA] = useState(false)
 
   const handleRevoke = async (sessionId: string) => {
     if (sessionId === sessions.find((s) => s.current)?.id) {
@@ -88,6 +90,22 @@ export function SecurityTab({
     } finally {
       setResettingCodes(false)
       setConfirmResetCodes(false)
+    }
+  }
+
+  const handleReset2FA = async () => {
+    setResetting2FA(true)
+    try {
+      const res = await fetch(`/api/users/${userId}/2fa/reset`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.message || 'Error al resetear 2FA')
+      showToast('2FA deshabilitado. El usuario deberá configurarlo de nuevo al iniciar sesión.', 'success')
+      onSessionsCleared?.()
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Error inesperado', 'error')
+    } finally {
+      setResetting2FA(false)
+      setConfirmReset2FA(false)
     }
   }
 
@@ -134,14 +152,24 @@ export function SecurityTab({
           )}
 
           {twoFactorEnabled && (
-            <button
-              type="button"
-              onClick={() => setConfirmResetCodes(true)}
-              disabled={resettingCodes}
-              className="ui-btn cursor-pointer border border-amber-300 bg-white text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-400 dark:hover:bg-amber-950/30"
-            >
-              {resettingCodes ? 'Regenerando...' : 'Regenerar códigos de respaldo'}
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmResetCodes(true)}
+                disabled={resettingCodes}
+                className="ui-btn cursor-pointer border border-amber-300 bg-white text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:bg-slate-900 dark:text-amber-400 dark:hover:bg-amber-950/30"
+              >
+                {resettingCodes ? 'Regenerando...' : 'Regenerar códigos de respaldo'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmReset2FA(true)}
+                disabled={resetting2FA}
+                className="ui-btn cursor-pointer border border-red-300 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
+              >
+                {resetting2FA ? 'Reseteando...' : 'Resetear 2FA completo'}
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -309,6 +337,19 @@ export function SecurityTab({
           description={`Los códigos actuales de ${userEmail} dejarán de funcionar. Se generarán 8 códigos nuevos que se mostrarán una sola vez.`}
           confirmText="Regenerar"
           variant="primary"
+        />
+      )}
+
+      {/* Confirm Dialog - Reset 2FA completely */}
+      {confirmReset2FA && (
+        <ConfirmDialog
+          isOpen
+          onClose={() => setConfirmReset2FA(false)}
+          onConfirm={handleReset2FA}
+          title="Resetear 2FA completo"
+          description={`El 2FA de ${userEmail} será deshabilitado y todos sus datos de autenticación (secreto TOTP, códigos de respaldo) serán eliminados. El usuario deberá configurar 2FA de nuevo al iniciar sesión. Usa esta opción solo si el usuario perdió su app de autenticación y no tiene códigos de respaldo.`}
+          confirmText="Resetear 2FA"
+          variant="destructive"
         />
       )}
     </div>
