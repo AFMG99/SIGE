@@ -381,7 +381,7 @@ export function AnalisisChart({ periodos, media }: AnalisisChartProps) {
       </div>
 
       {/* Leyenda */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600 dark:text-gray-300">
+      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-gray-600 dark:text-gray-300">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-0.5 w-5 rounded bg-uv-forest" aria-hidden />
           Consumo mensual

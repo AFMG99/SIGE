@@ -45,6 +45,36 @@ function BadgeCalendario({ periodo }: { periodo: PeriodoAnalizado }) {
   )
 }
 
+/**
+ * Chip de icono de las tarjetas KPI. Decorativo (aria-hidden): la etiqueta
+ * de al lado carga el significado, el icono solo da jerarquía visual.
+ */
+function ChipIcon({ children, amber = false }: { children: React.ReactNode; amber?: boolean }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 rounded-md p-1.5 ${
+        amber
+          ? 'bg-amber-500/15 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400'
+          : 'bg-emerald-600/10 text-uv-forest dark:bg-emerald-500/15 dark:text-emerald-400'
+      }`}
+      aria-hidden
+    >
+      {children}
+    </span>
+  )
+}
+
+const ATRIBUTOS_ICONO = {
+  width: 14,
+  height: 14,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 2,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+} as const
+
 export interface AnalisisViewProps {
   edificaciones: { id: string; nombre: string }[]
   /** false = puede consultar la página pero no ejecutar el análisis. */
@@ -91,9 +121,9 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="space-y-1.5">
         <h1 className="ui-title text-2xl">Análisis estadístico y patrones</h1>
-        <p className="ui-muted mt-1 max-w-3xl">
+        <p className="ui-muted max-w-3xl text-sm leading-relaxed">
           Señala las épocas de consumo inusual del histórico completo de facturas y las
           relaciona con el calendario académico. Cada período se evalúa contra la banda de
           confianza de su mes (±10 %, ec. 3; ±2·DesvEst, ec. 4-5 cuando hay 10 o más
@@ -102,8 +132,8 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
       </div>
 
       {/* Controles */}
-      <div className="ui-card space-y-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+      <div className="ui-card space-y-4 p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
           <div className="ui-field min-w-0 flex-1">
             <label htmlFor="analisis-edificacion" className="ui-label">
               Edificación
@@ -154,6 +184,7 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
+            className="text-uv-forest dark:text-emerald-400"
             aria-hidden
           >
             <path d="M3 3v18h18" />
@@ -171,9 +202,9 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
       {/* Resultado */}
       {salida && resumen && resultado && (
         <>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h2 className="ui-title text-sm">{resultado.nombreEdificacion}</h2>
-            <p className="ui-muted text-xs">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 className="ui-title text-base">{resultado.nombreEdificacion}</h2>
+            <p className="ui-muted text-xs tabular-nums">
               {resultado.desde} → {resultado.hasta} · calculado el{' '}
               {new Date(resultado.calculadoEn).toLocaleString('es-CO', {
                 dateStyle: 'medium',
@@ -184,16 +215,33 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
           </div>
 
           {/* Tarjetas de resumen */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="ui-stat">
-              <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="ui-card-stat h-full">
+              <div className="flex items-center gap-2">
+                <ChipIcon>
+                  <svg {...ATRIBUTOS_ICONO}>
+                    <rect x="3" y="4" width="18" height="17" rx="2" />
+                    <path d="M8 2v4M16 2v4M3 10h18" />
+                  </svg>
+                </ChipIcon>
+                <p className="ui-muted text-xs">Períodos analizados</p>
+              </div>
+              <p className="ui-title mt-2 text-2xl tabular-nums">
                 {formatoNumero(resumen.periodos, 0)}
               </p>
-              <p className="ui-muted mt-0.5 text-xs">Períodos analizados</p>
             </div>
-            <div className="ui-stat">
+            <div className="ui-card-stat h-full">
+              <div className="flex items-center gap-2">
+                <ChipIcon amber>
+                  <svg {...ATRIBUTOS_ICONO}>
+                    <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+                    <path d="M12 9v4M12 17h.01" />
+                  </svg>
+                </ChipIcon>
+                <p className="ui-muted text-xs">Períodos inusuales</p>
+              </div>
               <p
-                className={`text-xl font-semibold ${
+                className={`mt-2 text-2xl font-semibold tabular-nums ${
                   resumen.atipicos > 0
                     ? 'text-amber-700 dark:text-amber-300'
                     : 'text-gray-900 dark:text-gray-100'
@@ -201,74 +249,97 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
               >
                 {formatoNumero(resumen.atipicos, 0)}
               </p>
-              <p className="ui-muted mt-0.5 text-xs">Períodos inusuales</p>
             </div>
-            <div className="ui-stat">
-              <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            <div className="ui-card-stat h-full">
+              <div className="flex items-center gap-2">
+                <ChipIcon>
+                  <svg {...ATRIBUTOS_ICONO}>
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                    <path d="m9 12 2 2 4-4" />
+                  </svg>
+                </ChipIcon>
+                <p className="ui-muted text-xs">Evaluados con banda</p>
+              </div>
+              <p className="ui-title mt-2 text-2xl tabular-nums">
                 {resumen.periodos > 0
                   ? `${formatoNumero((resumen.periodos_con_banda / resumen.periodos) * 100, 0)} %`
                   : '—'}
               </p>
-              <p className="ui-muted mt-0.5 text-xs">Evaluados con banda</p>
             </div>
-            <div className="ui-stat">
-              <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            <div className="ui-card-stat h-full">
+              <div className="flex items-center gap-2">
+                <ChipIcon>
+                  <svg {...ATRIBUTOS_ICONO}>
+                    <path d="M22 7 13.5 15.5 8.5 10.5 2 17" />
+                    <path d="M16 7h6v6" />
+                  </svg>
+                </ChipIcon>
+                <p className="ui-muted text-xs">Tendencia anual</p>
+              </div>
+              <p className="ui-title mt-2 text-2xl tabular-nums">
                 {typeof salida.tendencia.variacion_pct_anual === 'number'
                   ? formatoPct(salida.tendencia.variacion_pct_anual)
                   : '—'}
               </p>
-              <p className="ui-muted mt-0.5 text-xs">Tendencia anual</p>
             </div>
           </div>
 
           {/* Avisos de cobertura */}
-          {salida.meses_insuficientes.length > 0 && (
-            <p className="ui-callout ui-callout-warn">
-              {salida.meses_insuficientes.length}{' '}
-              {salida.meses_insuficientes.length === 1
-                ? 'mes sin banda evaluable'
-                : 'meses sin banda evaluable'}
-              {' (se requieren '}
-              {salida.min_valores_por_mes} facturas del mismo mes calendario): sus períodos
-              aparecen como «sin banda» y no se pudieron evaluar.
-            </p>
-          )}
-          {resumen.sin_calendario > 0 && (
-            <p className="ui-callout ui-callout-info">
-              {resumen.sin_calendario}{' '}
-              {resumen.sin_calendario === 1
-                ? 'período no tiene'
-                : 'períodos no tienen'}{' '}
-              datos de días lectivos. Registre las variables operativas de los bloques para
-              ver el overlay del calendario académico.
-            </p>
-          )}
-          {resumen.ajustes > 0 && (
-            <p className="ui-callout ui-callout-info">
-              Se aplicaron {resumen.ajustes}{' '}
-              {resumen.ajustes === 1 ? 'ajuste no rutinario' : 'ajustes no rutinarios'} del
-              Anexo 4 antes del análisis (períodos ya justificados por el gestor no se
-              reportan como inusuales).
-            </p>
+          {(salida.meses_insuficientes.length > 0 ||
+            resumen.sin_calendario > 0 ||
+            resumen.ajustes > 0) && (
+            <div className="space-y-3">
+              {salida.meses_insuficientes.length > 0 && (
+                <p className="ui-callout ui-callout-warn">
+                  {salida.meses_insuficientes.length}{' '}
+                  {salida.meses_insuficientes.length === 1
+                    ? 'mes sin banda evaluable'
+                    : 'meses sin banda evaluable'}
+                  {' (se requieren '}
+                  {salida.min_valores_por_mes} facturas del mismo mes calendario): sus
+                  períodos aparecen como «sin banda» y no se pudieron evaluar.
+                </p>
+              )}
+              {resumen.sin_calendario > 0 && (
+                <p className="ui-callout ui-callout-info">
+                  {resumen.sin_calendario}{' '}
+                  {resumen.sin_calendario === 1
+                    ? 'período no tiene'
+                    : 'períodos no tienen'}{' '}
+                  datos de días lectivos. Registre las variables operativas de los bloques
+                  para ver el overlay del calendario académico.
+                </p>
+              )}
+              {resumen.ajustes > 0 && (
+                <p className="ui-callout ui-callout-info">
+                  Se aplicaron {resumen.ajustes}{' '}
+                  {resumen.ajustes === 1 ? 'ajuste no rutinario' : 'ajustes no rutinarios'}{' '}
+                  del Anexo 4 antes del análisis (períodos ya justificados por el gestor no
+                  se reportan como inusuales).
+                </p>
+              )}
+            </div>
           )}
 
           {/* Gráfica */}
-          <div className="ui-card space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h3 className="ui-title text-sm">Serie histórica de consumo</h3>
-              <p className="ui-muted text-xs">
+              <p className="ui-muted text-xs tabular-nums">
                 kWh normalizados a 30 días · media de la serie:{' '}
                 {typeof salida.estadisticos.media === 'number'
                   ? formatoKwh(salida.estadisticos.media)
                   : '—'}
               </p>
             </div>
-            <AnalisisChart periodos={salida.periodos} media={salida.estadisticos.media} />
+            <div className="ui-card p-5 sm:p-6">
+              <AnalisisChart periodos={salida.periodos} media={salida.estadisticos.media} />
+            </div>
           </div>
 
           {/* Períodos inusuales */}
           <div className="space-y-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h3 className="ui-title text-sm">Períodos inusuales</h3>
               <p className="ui-muted text-xs">
                 {resumen.atipicos_alza} en alza · {resumen.atipicos_caida} en caída ·{' '}
