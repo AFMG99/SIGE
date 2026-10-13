@@ -74,7 +74,7 @@ export const ConResultados: Story = {
 
     // Tarjetas de resumen
     await canvas.findByText('Períodos analizados')
-    await canvas.findByText('Períodos inusuales')
+    await canvas.findByText('Períodos inusuales', { selector: 'p' })
     await canvas.findByText('Evaluados con banda')
     await canvas.findByText('Tendencia anual')
     await canvas.findByText('+0,8 %')
@@ -90,14 +90,16 @@ export const ConResultados: Story = {
     await canvas.findByText(/Vacaciones \(calendario académico\)/i)
 
     // Tabla de períodos inusuales con su explicación estadística
-    await canvas.findByText('Períodos inusuales')
+    await canvas.findByRole('heading', { level: 3, name: 'Períodos inusuales' })
     await canvas.findByText(/1 en alza · 1 en caída · 2 en período lectivo/)
     await canvas.findByText('marzo de 2024')
     await canvas.findByText(/El consumo de marzo de 2024 \(14\.000,0 kWh\)/)
     await canvas.findByText(/agosto de 2023 \(8\.000,0 kWh\)/)
     await canvas.findByText('↑ Alza')
     await canvas.findByText('↓ Caída')
-    await canvas.findByText(/Período lectivo · 21 d/)
+    // Ambos atípicos caen en meses lectivos de 21 días: dos badges idénticos
+    const badges = await canvas.findAllByText(/Período lectivo · 21 d/)
+    expect(badges).toHaveLength(2)
 
     // Los atípicos son focalizables en el teclado y anuncian su señal
     const punto = await canvas.findAllByRole('img', {
@@ -142,8 +144,9 @@ export const SinPermisoDeAnalisis: Story = {
     const boton = await canvas.findByRole('button', { name: /ejecutar análisis/i })
     await waitFor(() => expect(boton).toBeDisabled())
 
-    // El selector (con la única edificación ya elegida) también está bloqueado
-    const selector = await canvas.findByRole('button', { name: /campus robledo/i })
+    // El selector (con la única edificación ya elegida) también está bloqueado.
+    // Se localiza por su <label for>: su nombre accesible es «Edificación».
+    const selector = await canvas.findByLabelText(/^edificación$/i)
     await waitFor(() => expect(selector).toBeDisabled())
   },
 }
