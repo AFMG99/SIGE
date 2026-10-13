@@ -13,7 +13,9 @@ Contrato (stdin/stdout JSON, igual que lben.cli):
       "bloque_id": "edificacion-…|global",   # solo identifica la serie
       "registros": [
         {"mes": 1, "ano": 2023, "consumo_kwh": 12480.5,
-         "dias_facturados": 30, "dias_lectivos": 21}
+         "dias_facturados": 30, "dias_lectivos": 21,
+         # variables operativas (promedio del periodo, opcionales):
+         "poblacion_fija": 70, "poblacion_flotante": 13500, "gde": 5.2}
       ],
       "ajustes": []          # Anexo 4 (opcional): se aplican ANTES del análisis
     }
@@ -35,6 +37,27 @@ Contrato (stdin/stdout JSON, igual que lben.cli):
                     ("alza"|"caida"|null), "desviacion_pct", "dias_lectivos",
                     "calendario" ("lectivo"|"vacaciones"|"sin_datos"),
                     "explicacion" (str|null)} ...],
+      "modelos": {           # §7.4-7.5 + §8.1: TODOS los modelos en UNA
+                             # invocación (el selector TS recalcula al vuelo)
+        "valor_absoluto"|"cociente"|"regresion"|"ingenieria"|"confort": {
+          "estado": "disponible"|"no_disponible",
+          "motivo": str|null,       # por qué no está disponible
+          "etiqueta": str,          # «Valor absoluto»
+          "formula": str,           # fórmula visible del modelo
+          "unidad": str,            # «kWh/mes» | «kWh/persona·mes»
+          "n": int,                 # registros usados por el modelo
+          "lben_mensual": [12 x (número|null)],   # LBEn por mes calendario
+          "validacion": {"n", "min_datos_ic", "criterio", "intervalo_inf",
+                         "intervalo_sup", "r2", "mape", "p_value_max"},
+          "ahorro": {               # §8.1 ec. 9-12; null si no aplica
+            "por_mes": [{"mes", "lben", "mejor", "potencial",
+                         "potencial_pct"} ...],
+            "potencial_mensual": número,   # «Promedio x Año» del Anexo 1
+            "potencial_pct": número        # ec. 12 sobre la media
+          } | null,
+          "nota": str|null          # aclaración (p. ej. §8.1 no aplica)
+        }                           # `ingenieria` siempre no_disponible
+      },
       "resumen": {"periodos": 48, "atipicos": 4, "atipicos_alza": 3,
                   "atipicos_caida": 1, "en_lectivo": 3, "en_vacaciones": 1,
                   "sin_calendario": 0, "periodos_con_banda": 48,
@@ -52,13 +75,26 @@ from __future__ import annotations
 import json
 import sys
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 
-from .bandas import depurar_con_bandas
-from .cli import _json_default, _num
-from .constants import MIN_DATOS_IC, MIN_VALORES_POR_MES
+from .bandas import _banda_de_grupo, base_cruda, depurar_con_bandas
+from .cli import (
+    VARS_REGRESION_DEFECTO,
+    _json_default,
+    _num,
+    _predecir_regresion,  # predict alineado a params (evita el bug de `const`)
+)
+from .constants import MIN_DATOS_IC, MIN_MESES_BASE, MIN_VALORES_POR_MES
+from .exceptions import DataValidationError, ModelSelectionError
+from .modelos import (
+    ModeloCociente,
+    ModeloConfortThermal,
+    ModeloRegresion,
+    ModeloValorAbsoluto,
+)
 
 # Días lectivos ≤ a este umbral ⇒ mes vacacional (calendario TdeA).
 UMBRAL_DIAS_LECTIVOS = 12
@@ -143,6 +179,406 @@ def _tendencia(valores: np.ndarray) -> Dict[str, Optional[float]]:
         "pendiente_kwh_por_mes": _num(pendiente),
         "variacion_pct_anual": _num(pct_anual),
     }
+
+
+# ── Sección `modelos` (§7.4-7.5) + ahorro §8.1 (ec. 9-12) ───────────────
+
+# Identidad textual de cada modelo: (etiqueta, fórmula, unidad). El motor es
+# la fuente única; la UI solo la reproduce junto a su descripción larga.
+MODELOS_TEXTOS: Dict[str, Tuple[str, str, str]] = {
+    "valor_absoluto": (
+        "Valor absoluto",
+        "LBEn_m = promedio simple de los consumos normalizados del mes (ec. 2)",
+        "kWh/mes",
+    ),
+    "cociente": (
+        "Cociente de valores medidos",
+        "cociente = consumo normalizado ÷ población (ec. 6); "
+        "LBEn_m = promedio de los cocientes del mes (ec. 7)",
+        "kWh/persona·mes",
+    ),
+    "regresion": (
+        "Regresión estadística",
+        "consumo = β0 + β1·población + β2·GDE + … (ec. 8)",
+        "kWh/mes",
+    ),
+    "ingenieria": (
+        "Modelo de ingeniería",
+        "simulación de cargas de la edificación (§7.4.4)",
+        "kWh/mes",
+    ),
+    "confort": (
+        "Confort térmico (ASHRAE 55)",
+        "energía base + ΔT · 15 kWh/°C (indicador propio, no es uno de los "
+        "cuatro modelos de la Resolución)",
+        "kWh/mes",
+    ),
+}
+
+
+def _validacion(
+    n: int,
+    criterio: Optional[str],
+    intervalo: Optional[List[float]] = None,
+    r2: Optional[float] = None,
+    mape: Optional[float] = None,
+    p_value_max: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Chips de validación: objeto fijo con nulls donde el dato no aplica."""
+    intervalo_inf = intervalo_sup = None
+    if intervalo:
+        intervalo_inf, intervalo_sup = _num(intervalo[0]), _num(intervalo[1])
+    return {
+        "n": int(n),
+        "min_datos_ic": MIN_DATOS_IC,
+        "criterio": criterio,
+        "intervalo_inf": intervalo_inf,
+        "intervalo_sup": intervalo_sup,
+        "r2": _num(r2),
+        "mape": _num(mape),
+        "p_value_max": _num(p_value_max),
+    }
+
+
+def _no_disponible(
+    clave: str, motivo: str, nota: Optional[str] = None
+) -> Dict[str, Any]:
+    """Hoja uniforme de un modelo no calculable (la UI la pinta igual)."""
+    etiqueta, formula, unidad = MODELOS_TEXTOS[clave]
+    return {
+        "estado": "no_disponible",
+        "motivo": str(motivo)[:400],
+        "etiqueta": etiqueta,
+        "formula": formula,
+        "unidad": unidad,
+        "n": 0,
+        "lben_mensual": [None] * 12,
+        "validacion": _validacion(0, None),
+        "ahorro": None,
+        "nota": nota,
+    }
+
+
+def _disponible(
+    clave: str,
+    *,
+    n: int,
+    lben_mensual: List[Optional[float]],
+    validacion: Dict[str, Any],
+    ahorro: Optional[Dict[str, Any]],
+    nota: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Hoja uniforme de un modelo calculado con éxito."""
+    etiqueta, formula, unidad = MODELOS_TEXTOS[clave]
+    return {
+        "estado": "disponible",
+        "motivo": None,
+        "etiqueta": etiqueta,
+        "formula": formula,
+        "unidad": unidad,
+        "n": int(n),
+        "lben_mensual": lben_mensual,
+        "validacion": validacion,
+        "ahorro": ahorro,
+        "nota": nota,
+    }
+
+
+def _fallido(clave: str, e: Exception) -> Dict[str, Any]:
+    """Un modelo que lanza deja SU hoja en `no_disponible`, nunca el análisis."""
+    if isinstance(e, (DataValidationError, ModelSelectionError)):
+        motivo = str(e)
+    else:
+        motivo = f"{type(e).__name__}: {e}"
+    return _no_disponible(clave, motivo)
+
+
+def _calcular_ahorro(
+    por_mes: Dict[int, Dict[str, float]],
+) -> Optional[Dict[str, Any]]:
+    """
+    Ahorro por mejor desempeño (§8.1) sobre un mapa {mes: {lben, mejor}}.
+
+    Convenio de signo: potencial = LBEn − mejor ≥ 0. La ec. 9 está redactada
+    como «mínimo − LBEn» (nunca positivo: la media siempre ≥ mínimo), pero el
+    ejemplo trabajado del Anexo 1 reporta ahorro POSITIVO = promedio − mínimo
+    (830 kWh en enero, 7,5 %), así que se sigue ese convenio. La ec. 12 da el
+    porcentaje contra la LBEn del mes.
+
+    `potencial_mensual` es el promedio de los potenciales mensuales (fila
+    «Promedio x Año» del Anexo 1: 468 kWh ≈ 467,6 en su ejemplo) y
+    `potencial_pct` es la ec. 12 evaluada sobre ese promedio contra la LBEn
+    media (4,1 % en el Anexo 1). Si LBEn_m es 0 el porcentaje queda en null.
+    """
+    filas: List[Dict[str, Any]] = []
+    for mes in sorted(por_mes):
+        lben = float(por_mes[mes]["lben"])
+        mejor = float(por_mes[mes]["mejor"])
+        potencial = max(lben - mejor, 0.0)
+        filas.append(
+            {
+                "mes": int(mes),
+                "lben": _num(lben),
+                "mejor": _num(mejor),
+                "potencial": _num(potencial),
+                "potencial_pct": _num(potencial / lben * 100) if lben else None,
+            }
+        )
+    if not filas:
+        return None
+    potencial_medio = float(np.mean([f["potencial"] for f in filas]))
+    lben_media = float(np.mean([f["lben"] for f in filas]))
+    return {
+        "por_mes": filas,
+        "potencial_mensual": _num(potencial_medio),
+        "potencial_pct": (
+            _num(potencial_medio / lben_media * 100) if lben_media else None
+        ),
+    }
+
+
+def _ahorro_regresion(
+    limpio: pd.DataFrame,
+    pred: np.ndarray,
+    modelo: ModeloRegresion,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """
+    §8.1 ec. 10-11 para el modelo estadístico.
+
+    ec. 10: dif_i = real_i − pred_i; los mejores desempeños son los que quedan
+    POR DEBAJO de la LBEn (dif < 0). Sobre esos puntos se ajusta la recta
+    consumo ~ variable más significativa (línea de tendencia del §8.1) y la
+    ec. 11 mide cada mes contra lo que esa recta predice con la variable
+    relevante de ese mes. Sin al menos 3 mejores desempeños (o sin variación
+    de la variable entre ellos) no hay recta: ahorro null con la nota.
+    """
+    reales = limpio["consumo_normalizado"].to_numpy(dtype=float)
+    dif = reales - pred  # ec. 10
+    mejores = dif < 0
+    n_mejores = int(mejores.sum())
+    if n_mejores < 3:
+        return None, (
+            f"Solo {n_mejores} meses con mejor desempeño (diferencia negativa "
+            "en la ec. 10); se requieren al menos 3 para ajustar la línea de "
+            "tendencia de la ec. 11."
+        )
+    if not modelo.p_values:
+        return None, "El modelo no conservó variables explicativas significativas."
+    variable = min(modelo.p_values, key=lambda v: modelo.p_values[v])
+    meses = limpio["mes"].to_numpy()
+    x = limpio[variable].to_numpy(dtype=float)
+    x_mejor = x[mejores]
+    if len(np.unique(x_mejor)) < 2:
+        return None, (
+            f"La variable «{variable}» no varía entre los mejores desempeños: "
+            "no se puede ajustar la recta de tendencia (ec. 11)."
+        )
+    pendiente, intercepto = (
+        float(v) for v in np.polyfit(x_mejor, reales[mejores], 1)
+    )
+    por_mes: Dict[int, Dict[str, float]] = {}
+    for mes in range(1, 13):
+        sel = meses == mes
+        if not sel.any():
+            continue
+        por_mes[mes] = {
+            "lben": float(np.mean(pred[sel])),
+            "mejor": float(intercepto + pendiente * float(np.mean(x[sel]))),
+        }
+    return _calcular_ahorro(por_mes), None
+
+
+def _modelos(
+    bloque_id: str,
+    registros: List[Dict[str, Any]],
+    ajustes: Optional[List[Dict[str, Any]]],
+    limpio: pd.DataFrame,
+    desv_est: Optional[float],
+    criterio: str,
+) -> Dict[str, Any]:
+    """
+    Sección `modelos`: los cuatro modelos de §7.4-7.5 + el indicador de
+    confort, calculados en UNA sola invocación para que el selector de la UI
+    recalcule LBEn, gráfica y ahorros sin round-trips.
+
+    Cada modelo va en su propio try/except: el que falle deja SU hoja en
+    `no_disponible` con el motivo y el análisis sigue en pie. El cociente
+    usa `poblacion_flotante` —la misma variable que cli.py, el motor que
+    calcula las líneas base guardadas— sobre la base cruda de la §7.5.2, y su
+    ahorro se mide en espacio de coeficientes (Anexo 2). La regresión exige
+    al menos MIN_MESES_BASE registros depurados y variables con variación.
+    """
+    modelos: Dict[str, Any] = {}
+
+    # ── Valor absoluto (§7.5.1, ec. 2) ─────────────────────────────────
+    try:
+        resultado = ModeloValorAbsoluto(
+            "Valor Absoluto", limpio, desvio_todos=desv_est
+        ).ajustar()
+        lben = resultado["lben_mensual"]
+        minimos = limpio.groupby("mes")["consumo_normalizado"].min()
+        por_mes: Dict[int, Dict[str, float]] = {}
+        for mes in range(1, 13):
+            if lben[mes - 1] is None or mes not in minimos.index:
+                continue
+            por_mes[mes] = {
+                "lben": float(lben[mes - 1]),
+                "mejor": float(minimos.loc[mes]),  # ec. 9: mínimo real del mes
+            }
+        modelos["valor_absoluto"] = _disponible(
+            "valor_absoluto",
+            n=len(limpio),
+            lben_mensual=[_num(v) for v in lben],
+            validacion=_validacion(
+                len(limpio),
+                criterio,
+                intervalo=resultado.get("intervalo_confianza"),
+                r2=resultado.get("r2"),
+                mape=resultado.get("mape"),
+            ),
+            ahorro=_calcular_ahorro(por_mes),
+        )
+    except Exception as e:  # noqa: BLE001 — un modelo no tumba el análisis
+        modelos["valor_absoluto"] = _fallido("valor_absoluto", e)
+
+    # ── Cociente (§7.5.2, ec. 6-7) sobre SU base cruda ─────────────────
+    try:
+        crudo = base_cruda({str(bloque_id): registros}, ajustes)
+        con_poblacion = crudo[crudo["poblacion_flotante"] > 0]
+        if len(con_poblacion) < 3:
+            modelos["cociente"] = _no_disponible(
+                "cociente",
+                "Se requieren al menos 3 registros con población mayor que "
+                f"cero (§7.5.2); hay {len(con_poblacion)}.",
+            )
+        else:
+            resultado = ModeloCociente(
+                crudo,
+                variable_relevante="poblacion_flotante",
+                unidad_referencia="persona",
+            ).ajustar()
+            # Ahorro en espacio de coeficientes (Anexo 2): se repite la
+            # depuración del modelo con SU _banda_de_grupo para medir el
+            # mínimo sobre exactamente el mismo set que la LBEn.
+            datos = con_poblacion.copy()
+            datos["cociente"] = (
+                datos["consumo_normalizado"] / datos["poblacion_flotante"]
+            )
+            por_mes = {}
+            n_usados = 0
+            for mes in sorted(datos["mes"].unique()):
+                idx = datos.index[datos["mes"] == mes]
+                grupo = datos.loc[idx, "cociente"]
+                banda, dentro = _banda_de_grupo(grupo, int(mes))
+                conservados = grupo[dentro]
+                if conservados.empty:
+                    continue
+                n_usados += int(len(conservados))
+                por_mes[int(mes)] = {
+                    "lben": float(banda["media"]),
+                    "mejor": float(conservados.min()),
+                }
+            modelos["cociente"] = _disponible(
+                "cociente",
+                n=n_usados,
+                lben_mensual=[_num(v) for v in resultado["cociente_mensual"]],
+                validacion=_validacion(
+                    n_usados,
+                    criterio,
+                    r2=resultado.get("r2"),
+                    mape=resultado.get("mape"),
+                ),
+                ahorro=_calcular_ahorro(por_mes),
+            )
+    except Exception as e:  # noqa: BLE001
+        modelos["cociente"] = _fallido("cociente", e)
+
+    # ── Regresión estadística (§7.5.3, ec. 8 + §8.1 ec. 10-11) ─────────
+    try:
+        if len(limpio) < MIN_MESES_BASE:
+            modelos["regresion"] = _no_disponible(
+                "regresion",
+                f"Hay {len(limpio)} < {MIN_MESES_BASE} datos depurados: la "
+                f"regresión exige al menos {MIN_MESES_BASE} meses (§7.1-7.2).",
+            )
+        else:
+            variables = [
+                v
+                for v in VARS_REGRESION_DEFECTO
+                if v in limpio.columns and limpio[v].nunique() > 1
+            ]
+            if not variables:
+                modelos["regresion"] = _no_disponible(
+                    "regresion",
+                    "Sin variables operativas con variación en el periodo "
+                    "(población, GDE); la regresión no puede ajustarse.",
+                )
+            else:
+                modelo = ModeloRegresion(limpio, variables, desvio_todos=desv_est)
+                resultado = modelo.ajustar()
+                pred = _predecir_regresion(modelo, limpio)
+                meses = limpio["mes"].to_numpy()
+                lben_mensual: List[Optional[float]] = [None] * 12
+                for mes in range(1, 13):
+                    sel = meses == mes
+                    if sel.any():
+                        lben_mensual[mes - 1] = _num(float(np.mean(pred[sel])))
+                ahorro, nota = _ahorro_regresion(limpio, pred, modelo)
+                modelos["regresion"] = _disponible(
+                    "regresion",
+                    n=len(limpio),
+                    lben_mensual=lben_mensual,
+                    validacion=_validacion(
+                        len(limpio),
+                        criterio,
+                        r2=resultado.get("r2"),
+                        mape=resultado.get("mape"),
+                        p_value_max=(
+                            _num(max(modelo.p_values.values()))
+                            if modelo.p_values
+                            else None
+                        ),
+                    ),
+                    ahorro=ahorro,
+                    nota=nota,
+                )
+    except Exception as e:  # noqa: BLE001
+        modelos["regresion"] = _fallido("regresion", e)
+
+    # ── Ingeniería (§7.4.4): fuera de alcance, siempre no_disponible ───
+    modelos["ingenieria"] = _no_disponible(
+        "ingenieria",
+        "Modelo de ingeniería/simulación (§7.4.4): requiere el modelo físico "
+        "de la edificación; fuera de alcance de esta versión.",
+    )
+
+    # ── Confort térmico (ASHRAE 55, indicador propio) ──────────────────
+    try:
+        temp = 25.0
+        if "temperatura_promedio" in limpio.columns:
+            media_temp = _num(limpio["temperatura_promedio"].mean())
+            if media_temp is not None:
+                temp = media_temp
+        resultado = ModeloConfortThermal(
+            limpio, temperatura_promedio=temp
+        ).ajustar()
+        base = float(resultado["consumo_base_kwh"])
+        modelos["confort"] = _disponible(
+            "confort",
+            n=len(limpio),
+            lben_mensual=[_num(base)] * 12,
+            validacion=_validacion(len(limpio), criterio),
+            ahorro=None,
+            nota=(
+                "Indicador complementario (ASHRAE 55): su línea base es el "
+                "consumo base medio del periodo, sin desglose mensual, y la "
+                "§8.1 no define potencial de ahorro para él."
+            ),
+        )
+    except Exception as e:  # noqa: BLE001
+        modelos["confort"] = _fallido("confort", e)
+
+    return modelos
 
 
 def analizar_desde_payload(entrada: dict) -> dict:
@@ -254,6 +690,21 @@ def analizar_desde_payload(entrada: dict) -> dict:
         "ajustes": len(ajustes_aplicados),
     }
 
+    # ── 5. Modelos del selector + ahorro §8.1 (§7.4-7.5) ────────────────
+    # Cada modelo ya tiene su propio try/except; este segundo anillo es la
+    # red de seguridad: la sección `modelos` nunca tumba el análisis.
+    try:
+        modelos = _modelos(
+            str(bloque_id), registros, ajustes, limpio, desv_est, criterio
+        )
+    except Exception as e:  # noqa: BLE001
+        modelos = {
+            clave: _no_disponible(
+                clave, f"Error interno al calcular los modelos: {e}"
+            )
+            for clave in MODELOS_TEXTOS
+        }
+
     return {
         "ok": True,
         "originales": len(registros),
@@ -280,6 +731,7 @@ def analizar_desde_payload(entrada: dict) -> dict:
             int(b["mes"]) for b in bandas if b["estimado"]
         ],
         "ajustes_aplicados": ajustes_aplicados,
+        "modelos": modelos,
         "periodos": periodos,
         "resumen": resumen,
     }
