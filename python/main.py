@@ -25,9 +25,22 @@ from fastapi import FastAPI, Header, HTTPException
 # ejecuciones manuales desde otras carpetas (uvicorn, pruebas locales).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from lben.analisis import analizar_desde_payload  # noqa: E402
 from lben.cli import _json_default, calcular_desde_payload  # noqa: E402
 
 app = FastAPI(title="SIGE motor LBEn", docs_url=None, redoc_url=None)
+
+
+def _verificar_llave(x_lben_key: str | None) -> None:
+    """Segunda barra defensiva: header `x-lben-key` == LBEN_SECRET."""
+    esperado = os.environ.get("LBEN_SECRET")
+    if not esperado:
+        raise HTTPException(
+            status_code=503,
+            detail="LBEN_SECRET no está configurado en el entorno.",
+        )
+    if not x_lben_key or not secrets.compare_digest(x_lben_key, esperado):
+        raise HTTPException(status_code=403, detail="x-lben-key inválido.")
 
 
 def _json_safe(obj):
@@ -63,14 +76,23 @@ def calcular_linea_base(
     payload: dict,
     x_lben_key: str | None = Header(default=None),
 ):
-    esperado = os.environ.get("LBEN_SECRET")
-    if not esperado:
-        raise HTTPException(
-            status_code=503,
-            detail="LBEN_SECRET no está configurado en el entorno.",
-        )
-    if not x_lben_key or not secrets.compare_digest(x_lben_key, esperado):
-        raise HTTPException(status_code=403, detail="x-lben-key inválido.")
+    _verificar_llave(x_lben_key)
 
     salida = calcular_desde_payload(payload)
+    return _json_safe(json.loads(json.dumps(salida, default=_json_default)))
+
+
+@app.post("/api/analisis")
+def analizar_consumo(
+    payload: dict,
+    x_lben_key: str | None = Header(default=None),
+):
+    """Detección de épocas de consumo inusual (Módulo 3, HU-07/HU-04).
+
+    Mismo contrato estilo cli: payload -> `analizar_desde_payload`, misma
+    autenticación `x-lben-key` que /api/lben.
+    """
+    _verificar_llave(x_lben_key)
+
+    salida = analizar_desde_payload(payload)
     return _json_safe(json.loads(json.dumps(salida, default=_json_default)))
