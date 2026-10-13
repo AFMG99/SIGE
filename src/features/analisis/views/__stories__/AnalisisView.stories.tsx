@@ -109,6 +109,33 @@ export const ConResultados: Story = {
     })
     expect(punto.length).toBeGreaterThan(0)
 
+    // Línea base del análisis: modelo automático §7.4 + ahorros §8.1
+    await canvas.findByRole('heading', {
+      level: 3,
+      name: 'Línea base del análisis',
+    })
+    // Default = valor absoluto sobre la serie plana: 10.250 kWh/mes de LBEn,
+    // ahorro en cero y la regresión exponiendo su gate de 36 meses.
+    await canvas.findByText('10.250 kWh/mes')
+    await canvas.findByText('0,0 kWh/mes')
+    await canvas.findByText(/Hay 34 < 36 datos depurados/)
+    await canvas.findByText('enero')
+
+    // Periodicidad anual: la tabla §8.1 colapsa a una fila Σ del año y
+    // la serie de la gráfica agrega a 3 puntos (misma unidad kWh/mes).
+    const periodicidad = await canvas.findByLabelText('Periodicidad')
+    await elegirListbox(periodicidad, 'ano', userEvent)
+    await canvas.findByText(/Total anual \(12 meses\)/)
+    await canvas.findByRole('img', { name: /serie anual de consumo de 3 años/i })
+    await elegirListbox(periodicidad, 'mes', userEvent)
+
+    // Confort (ASHRAE 55): §8.1 no define potencial → estado vacío con nota
+    const modeloSelector = await canvas.findByLabelText('Modelo de línea base')
+    await elegirListbox(modeloSelector, 'confort', userEvent)
+    await canvas.findByText('§8.1 no define potencial')
+    await canvas.findByText('No aplica')
+    await canvas.findByText(/sin desglose mensual/)
+
     // Indicadores de gestión: nivel exacto por defecto (issue #75)
     await canvas.findByText('Ahorro y consumo elevado')
     await canvas.findByText('Ahorro vs línea base')
@@ -150,7 +177,7 @@ export const SinAtipicos: Story = {
   },
   play: async ({ canvas, userEvent }) => {
     __setearFalloXm('ninguno')
-    // Con dos edificaciones empieza sin selección: el botón está bloqueado
+    // Con varias edificaciones empieza sin selección: el botón está bloqueado
     const boton = await canvas.findByRole('button', { name: /ejecutar análisis/i })
     await waitFor(() => expect(boton).toBeDisabled())
 
@@ -218,5 +245,69 @@ export const XmNoDisponible: Story = {
     } finally {
       __setearFalloXm('ninguno')
     }
+  },
+}
+
+export const ConVariacionAhorro: Story = {
+  name: 'Ahorro §8.1 (golden Anexo 1) · modo anual',
+  args: {
+    edificaciones: edificacionesAnalisisDemo,
+  },
+  play: async ({ canvas, userEvent }) => {
+    __setearFalloXm('ninguno')
+    const boton = await canvas.findByRole('button', { name: /ejecutar análisis/i })
+    const selector = canvas.getByLabelText(/^edificación$/i)
+    await elegirListbox(selector, 'edi-demo-variacion', userEvent)
+    await waitFor(() => expect(boton).toBeEnabled())
+    await userEvent.click(boton)
+
+    await canvas.findByRole('heading', { level: 2, name: 'Auditorio Mayor' })
+
+    // Golden del Anexo 1: «Promedio x Año» 468 kWh ≈ 467,6 kWh/mes (4,1 %)
+    await canvas.findByText('467,6 kWh/mes')
+    await canvas.findByText('4,1 %')
+    await canvas.findByText(/LBEn_m = promedio simple/)
+    // enero: 11.034,3 − 10.204 → 830,3 kWh = 7,5 % de la LBEn del mes
+    await canvas.findByText('830,3')
+    await canvas.findByText('7,5 %')
+
+    // Sin población la serie expone el gate §7.5.2 en la lista de faltantes
+    await canvas.findByText(/al menos 3 registros con población/)
+
+    // Modo anual: Σ de las 12 filas en kWh/año sobre una sola fila
+    const periodicidad = await canvas.findByLabelText('Periodicidad')
+    await elegirListbox(periodicidad, 'ano', userEvent)
+    await canvas.findByText(/Total anual \(12 meses\)/)
+    await canvas.findByText('5.611,3')
+    await canvas.findByRole('img', { name: /serie anual de consumo de 3 años/i })
+  },
+}
+
+export const SinModelos: Story = {
+  name: 'Motor antiguo · sin sección de modelos',
+  args: {
+    edificaciones: edificacionesAnalisisDemo,
+  },
+  play: async ({ canvas, userEvent }) => {
+    __setearFalloXm('ninguno')
+    const boton = await canvas.findByRole('button', { name: /ejecutar análisis/i })
+    const selector = canvas.getByLabelText(/^edificación$/i)
+    await elegirListbox(selector, 'edi-demo-sin-modelos', userEvent)
+    await waitFor(() => expect(boton).toBeEnabled())
+    await userEvent.click(boton)
+
+    await canvas.findByRole('heading', { level: 2, name: 'Biblioteca Central' })
+
+    // Callout honesto donde iría la sección de modelos…
+    await canvas.findByText(/El motor no devolvió la sección de modelos/)
+    expect(canvas.queryByText('Línea base del análisis')).toBeNull()
+
+    // …sin tocar el análisis de períodos inusuales ni la serie.
+    await canvas.findByRole('img', { name: /serie mensual de consumo de 36 períodos/i })
+    await canvas.findByRole('heading', {
+      level: 3,
+      name: 'Ahorro y consumo elevado',
+    })
+    await canvas.findByText('+6,8 %')
   },
 }

@@ -11,8 +11,10 @@
 import { z } from 'zod'
 import {
   LABEL_POR_TIPO_LBEN,
+  TEXTOS_CRITERIO,
   TIPO_LBEN_DB,
 } from '@/features/datos/models/lineasBase'
+import type { CriterioDepuracion } from '@/features/datos/models/lineasBase'
 
 // ── Solicitud ───────────────────────────────────────────────────────────
 
@@ -107,6 +109,90 @@ export const resumenAnalisisSchema = z.object({
 })
 export type ResumenAnalisis = z.infer<typeof resumenAnalisisSchema>
 
+// ── Sección `modelos` (selector de modelo, §7.4-7.5 + ahorro §8.1) ─────
+//
+// Espejo exacto de `_modelos()` en python/lben/analisis.py: el motor
+// calcula los 5 modelos en UNA pasada y la UI elige al vuelo (sin
+// red) cuál pintar. Todas las hojas tienen la MISMA forma para que
+// el selector, los chips y la tabla §8.1 no tengan casos especiales.
+
+/** Orden de presentación del selector (§7.4 de la Resolución). */
+export const ORDEN_MODELOS = [
+  'valor_absoluto',
+  'cociente',
+  'regresion',
+  'ingenieria',
+  'confort',
+] as const
+export type ModeloClave = (typeof ORDEN_MODELOS)[number]
+
+export const estadoModeloSchema = z.enum(['disponible', 'no_disponible'])
+export type EstadoModelo = z.infer<typeof estadoModeloSchema>
+
+/** Chips de validación del modelo: null donde el criterio no aplica. */
+export const validacionModeloSchema = z.object({
+  n: z.number().int(),
+  min_datos_ic: z.number().int(),
+  criterio: z.string().nullable(),
+  intervalo_inf: z.number().nullable(),
+  intervalo_sup: z.number().nullable(),
+  r2: z.number().nullable(),
+  mape: z.number().nullable(),
+  p_value_max: z.number().nullable(),
+})
+export type ValidacionModelo = z.infer<typeof validacionModeloSchema>
+
+/** Fila de la tabla §8.1: potencial de ahorro de un mes calendario. */
+export const filaAhorroSchema = z.object({
+  mes: z.number().int().min(1).max(12),
+  /** LBEn del modelo para ese mes (kWh/mes). */
+  lben: z.number(),
+  /** Consumo real mínimo del mes en el periodo base (ec. 9). */
+  mejor: z.number(),
+  /** max(LBEn − mejor, 0) en kWh. */
+  potencial: z.number(),
+  /** potencial/LBEn × 100 (ec. 12); null si LBEn = 0. */
+  potencial_pct: z.number().nullable(),
+})
+export type FilaAhorro = z.infer<typeof filaAhorroSchema>
+
+export const ahorroModeloSchema = z.object({
+  por_mes: z.array(filaAhorroSchema),
+  /** «Promedio x Año» del Anexo 1: media de los 12 potenciales (kWh/mes). */
+  potencial_mensual: z.number(),
+  /** ec. 12 sobre ese promedio; null si la LBEn media es 0. */
+  potencial_pct: z.number().nullable(),
+})
+export type AhorroModelo = z.infer<typeof ahorroModeloSchema>
+
+export const modeloLBEnSchema = z.object({
+  estado: estadoModeloSchema,
+  /** Por qué no está disponible (null cuando está disponible). */
+  motivo: z.string().nullable(),
+  etiqueta: z.string(),
+  formula: z.string(),
+  unidad: z.string(),
+  /** Datos depurados con los que se evaluó el modelo. */
+  n: z.number().int(),
+  /** LBEn por mes calendario (12); null donde el modelo no tiene valor. */
+  lben_mensual: z.array(z.number().nullable()).length(12),
+  validacion: validacionModeloSchema,
+  /** §8.1 (ec. 9-12); null cuando la Resolución no define potencial. */
+  ahorro: ahorroModeloSchema.nullable(),
+  /** Nota complementaria (p. ej. ASHRAE para confort). */
+  nota: z.string().nullable(),
+})
+export type ModeloLBEn = z.infer<typeof modeloLBEnSchema>
+
+export const modelosSchema = z.object({
+  valor_absoluto: modeloLBEnSchema,
+  cociente: modeloLBEnSchema,
+  regresion: modeloLBEnSchema,
+  ingenieria: modeloLBEnSchema,
+  confort: modeloLBEnSchema,
+})
+export type ModelosLBEn = z.infer<typeof modelosSchema>
+
 export const salidaAnalisisSchema = z.object({
   ok: z.literal(true),
   originales: z.number().int(),
@@ -122,6 +208,12 @@ export const salidaAnalisisSchema = z.object({
   ajustes_aplicados: z.array(ajusteAplicadoSchema),
   periodos: z.array(periodoAnalizadoSchema),
   resumen: resumenAnalisisSchema,
+  /**
+   * Los 5 modelos calculados al vuelo. `nullish` porque un motor
+   * desplegado sin esta sección (versión anterior) no debe tumbar el
+   * análisis: la vista degrada a un callout explícito.
+   */
+  modelos: modelosSchema.nullish(),
 })
 export type SalidaAnalisis = z.infer<typeof salidaAnalisisSchema>
 
@@ -248,6 +340,70 @@ export const TEXTO_DIRECCION: Record<DireccionAtipico, string> = {
   caida: 'Caída',
 }
 
+// ── Selector de modelo (§7.4) y ahorro §8.1 ────────────────────────────
+
+/**
+ * Descripción larga de cada modelo. El motor manda `etiqueta` y
+ * `formula` (fuente única en Python); este texto explica CUÁNDO usarlo
+ * y vive aquí porque es copy de UI, no de dominio.
+ */
+export const TEXTO_MODELO: Record<ModeloClave, string> = {
+  valor_absoluto:
+    'Promedio simple de cada mes calendario del periodo base (§7.5.1). Simple y auditable: exige que el consumo no cambie estructuralmente entre años.',
+  cociente:
+    'Expresa el consumo por persona atendida —población flotante, como el motor de líneas base— y absorbe los cambios de ocupación entre periodos (§7.5.2, Anexo 2).',
+  regresion:
+    'Ajusta el consumo a las variables operativas (población y grados día de enfriamiento) con selección de variables por p-value (§7.5.3).',
+  ingenieria:
+    'Simulación física de las cargas de la edificación (§7.4.4). Requiere el modelo de la edificación: fuera de alcance de esta versión.',
+  confort:
+    'Indicador complementario ASHRAE 55 —no es uno de los cuatro modelos de la Resolución— que controla la operación sobre el rango de confort adaptativo de Medellín.',
+}
+
+/**
+ * Fórmula visible del potencial de ahorro §8.1 (ec. 9-12) por familia
+ * de modelo. Confort e ingeniería no tienen: §8.1 no define potencial
+ * para ellos (`ahorro: null`).
+ */
+export const FORMULA_AHORRO: Partial<Record<ModeloClave, string>> = {
+  valor_absoluto:
+    'potencial_m = LBEn_m − mínimo_m (ec. 9) · %_m = potencial_m ÷ LBEn_m × 100 (ec. 12)',
+  cociente:
+    'potencial_m = LBEn_m − mínimo_m (ec. 9) en el espacio del cociente (Anexo 2) · %_m = potencial_m ÷ LBEn_m × 100 (ec. 12)',
+  regresion:
+    'dif_i = real_i − pred_i (ec. 10); los mejores desempeños ajustan la recta consumo ~ variable (ec. 11) · %_m = potencial_m ÷ LBEn_m × 100 (ec. 12)',
+}
+
+export type Periodicidad = 'dia' | 'semana' | 'mes' | 'ano'
+
+/**
+ * Granularidades de la serie. Día y semana existen en el selector pero
+ * DESHABILITADAS: el histórico de facturas es mensual y el motor de
+ * Carga no ingesta datos diarios todavía. El motivo se muestra en la UI.
+ */
+export const PERIODICIDAD: readonly {
+  valor: Periodicidad
+  etiqueta: string
+  habilitado: boolean
+  /** Indisponibilidad legible (null cuando está habilitada). */
+  motivo: string | null
+}[] = [
+  {
+    valor: 'dia',
+    etiqueta: 'Día',
+    habilitado: false,
+    motivo: 'Requiere datos diarios (pendiente en Carga)',
+  },
+  {
+    valor: 'semana',
+    etiqueta: 'Semana',
+    habilitado: false,
+    motivo: 'Requiere datos diarios (pendiente en Carga)',
+  },
+  { valor: 'mes', etiqueta: 'Mes', habilitado: true, motivo: null },
+  { valor: 'ano', etiqueta: 'Año', habilitado: true, motivo: null },
+]
+
 // ── Helpers puros (unit-test en analisis.test.ts) ──────────────────────
 
 /** mes+ano → «marzo de 2024» (1-based, es-CO). */
@@ -279,6 +435,135 @@ export function formatoKwh(valor: number): string {
 export function formatoPct(valor: number, decimales = 1): string {
   const base = formatoNumero(Math.abs(valor), decimales)
   return `${valor < 0 ? '−' : '+'}${base} %`
+}
+
+// ── Helpers puros del selector (unit-test en analisis.test.ts) ─────────
+
+/** Chip legible del criterio de depuración (fallback: el crudo). */
+export function textoCriterio(criterio: string | null): string | null {
+  if (!criterio) return null
+  return TEXTOS_CRITERIO[criterio as CriterioDepuracion]?.nombre ?? criterio
+}
+
+export type OpcionModelo = {
+  clave: ModeloClave
+  etiqueta: string
+  /** false → opción deshabilitada con `motivo` visible en la UI. */
+  habilitado: boolean
+  /** null cuando está disponible. */
+  motivo: string | null
+}
+
+/** Opciones del selector en orden §7.4 según la salida del motor. */
+export function opcionesModelo(
+  modelos: ModelosLBEn | null | undefined
+): OpcionModelo[] {
+  if (!modelos) return []
+  return ORDEN_MODELOS.map((clave) => {
+    const modelo = modelos[clave]
+    return {
+      clave,
+      etiqueta: modelo.etiqueta,
+      habilitado: modelo.estado === 'disponible',
+      motivo: modelo.estado === 'disponible' ? null : modelo.motivo,
+    }
+  })
+}
+
+/** Selección inicial: primer modelo disponible (§7.4: valor absoluto). */
+export function modeloPorDefecto(
+  modelos: ModelosLBEn | null | undefined
+): ModeloClave | null {
+  return (
+    ORDEN_MODELOS.find((clave) => modelos?.[clave]?.estado === 'disponible') ??
+    null
+  )
+}
+
+/** LBEn media del modelo seleccionado (kWh/mes); null si no tiene valores. */
+export function lbenPromedio(modelo: ModeloLBEn | null | undefined): number | null {
+  if (!modelo) return null
+  const valores = modelo.lben_mensual.filter(
+    (v): v is number => typeof v === 'number'
+  )
+  if (valores.length === 0) return null
+  return valores.reduce((suma, v) => suma + v, 0) / valores.length
+}
+
+export type PuntoAnual = {
+  ano: number
+  /** Meses con dato en el año. */
+  meses: number
+  /** Media del consumo normalizado (kWh/mes: misma unidad que la serie mensual). */
+  consumo: number
+  /** Media de la LBEn de los meses presentes; null si el modelo no tiene valores. */
+  lben: number | null
+  /** Períodos inusuales del año (→ punto ámbar en la gráfica). */
+  atipicos: number
+}
+
+/**
+ * Agrega la serie mensual a un punto por año (selector «Año»): media de
+ * `consumo_kwh` por año, recuento de inusuales y —si se pasa el modelo—
+ * media de su LBEn de los meses presentes. La unidad NO cambia: sigue
+ * siendo kWh/mes, sólo cambia la granularidad temporal.
+ */
+export function agregarAnual(
+  periodos: PeriodoAnalizado[],
+  lbenMensual?: readonly (number | null)[] | null
+): PuntoAnual[] {
+  const porAno = new Map<number, PeriodoAnalizado[]>()
+  for (const periodo of periodos) {
+    const grupo = porAno.get(periodo.ano)
+    if (grupo) grupo.push(periodo)
+    else porAno.set(periodo.ano, [periodo])
+  }
+  return Array.from(porAno.keys())
+    .sort((a, b) => a - b)
+    .map((ano) => {
+      const grupo = porAno.get(ano) as PeriodoAnalizado[]
+      const consumo =
+        grupo.reduce((suma, p) => suma + p.consumo_kwh, 0) / grupo.length
+      const lbens = grupo
+        .map((p) => lbenMensual?.[p.mes - 1] ?? null)
+        .filter((v): v is number => typeof v === 'number')
+      const lben =
+        lbens.length > 0 ? lbens.reduce((suma, v) => suma + v, 0) / lbens.length : null
+      return {
+        ano,
+        meses: grupo.length,
+        consumo,
+        lben,
+        atipicos: grupo.filter((p) => p.es_atipico === true).length,
+      }
+    })
+}
+
+export type ResumenAhorroAnual = {
+  meses: number
+  lben: number
+  mejor: number
+  potencial: number
+  potencial_pct: number | null
+}
+
+/**
+ * La tabla §8.1 en modo anual: Σ de las filas mensuales (kWh/año) con
+ * la ec. 12 sobre los totales — el «Promedio x Año» del Anexo 1 es
+ * `ahorro.potencial_mensual`, no esta función.
+ */
+export function ahorroAnual(ahorro: AhorroModelo): ResumenAhorroAnual {
+  const filas = ahorro.por_mes
+  const lben = filas.reduce((suma, f) => suma + f.lben, 0)
+  const mejor = filas.reduce((suma, f) => suma + f.mejor, 0)
+  const potencial = filas.reduce((suma, f) => suma + f.potencial, 0)
+  return {
+    meses: filas.length,
+    lben,
+    mejor,
+    potencial,
+    potencial_pct: lben > 0 ? (potencial / lben) * 100 : null,
+  }
 }
 
 // ── Helpers puros de gestión (unit-test en analisis.test.ts) ───────────

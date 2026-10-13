@@ -9,8 +9,10 @@
 // edificación (facturas, sin shares: la detección de atípicos por mes es
 // invariante a la escala, así que analizar la factura medida es tan
 // representativo como repartirla) y se le adjunta:
-//   - los días lectivos del calendario académico (promedio de los bloques
-//     de la edificación en VariableOperativa), y
+//   - los días lectivos del calendario académico y las variables
+//     operativas de §7.4-7.5 (población fija/flotante y GDE, promedio de
+//     los bloques de la edificación en VariableOperativa), necesarias
+//     para los modelos de cociente y regresión del selector, y
 //   - los ajustes no rutinarios del Anexo 4 ya documentados por el
 //     gestor (se aplican ANTES del análisis para no reportar como
 //     inusual un período ya justificado).
@@ -52,6 +54,14 @@ type RegistroCli = {
   consumo_kwh: number
   dias_facturados: number
   dias_lectivos: number | null
+  /**
+   * §7.5.2/§7.5.3 (promedio de los bloques del período). Omitidos cuando
+   * el período no tiene variables operativas: el motor distingue «sin
+   * dato» de «cero» en su gate de ≥3 registros con población > 0.
+   */
+  poblacion_fija?: number
+  poblacion_flotante?: number
+  gde?: number
 }
 
 type AjusteCli = {
@@ -264,7 +274,14 @@ export async function ejecutarAnalisis(
         }),
         prisma.variableOperativa.findMany({
           where: { bloque: { edificacionId } },
-          select: { mes: true, ano: true, diasLectivosLaborales: true },
+          select: {
+            mes: true,
+            ano: true,
+            diasLectivosLaborales: true,
+            poblacionFija: true,
+            poblacionFlotante: true,
+            gradesDiaEnfriamiento: true,
+          },
         }),
         prisma.ajusteEnergetico.findMany({
           where: { bloque: { edificacionId }, tipo: 'NO_RUTINARIO' },
@@ -317,18 +334,31 @@ export async function ejecutarAnalisis(
       }
     }
 
-    // ── Calendario académico: promedio de días lectivos de los bloques ──
-    // (VariableOperativa es por bloque; todos comparten el calendario del
-    // TdeA, el promedio es estable y redondeable).
-    const diasPorPeriodo = new Map<string, { suma: number; n: number }>()
+    // ── Variables operativas por período (promedio de los bloques) ──────
+    // El calendario académico Y las variables de §7.4-7.5 (población, GDE)
+    // viven en VariableOperativa por bloque; el análisis es por EDIFICACIÓN
+    // así que se promedian, igual que ya se hacía con los días lectivos.
+    const variablesPorPeriodo = new Map<
+      string,
+      { dias: number; fija: number; flot: number; gde: number; n: number }
+    >()
     for (const v of variables) {
       const clave = `${v.ano}-${v.mes}`
-      const acumulado = diasPorPeriodo.get(clave)
+      const acumulado = variablesPorPeriodo.get(clave)
       if (acumulado) {
-        acumulado.suma += v.diasLectivosLaborales
+        acumulado.dias += v.diasLectivosLaborales
+        acumulado.fija += v.poblacionFija
+        acumulado.flot += v.poblacionFlotante
+        acumulado.gde += v.gradesDiaEnfriamiento
         acumulado.n += 1
       } else {
-        diasPorPeriodo.set(clave, { suma: v.diasLectivosLaborales, n: 1 })
+        variablesPorPeriodo.set(clave, {
+          dias: v.diasLectivosLaborales,
+          fija: v.poblacionFija,
+          flot: v.poblacionFlotante,
+          gde: v.gradesDiaEnfriamiento,
+          n: 1,
+        })
       }
     }
 
@@ -338,13 +368,22 @@ export async function ejecutarAnalisis(
     for (const f of facturas) {
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(f.periodo)) continue
       const [ano, mes] = f.periodo.split('-').map(Number)
-      const dias = diasPorPeriodo.get(`${ano}-${mes}`)
+      const variableDelPeriodo = variablesPorPeriodo.get(`${ano}-${mes}`)
       registros.push({
         mes,
         ano,
         consumo_kwh: f.consumoNormalizado,
         dias_facturados: 30,
-        dias_lectivos: dias ? Math.round(dias.suma / dias.n) : null,
+        dias_lectivos: variableDelPeriodo
+          ? Math.round(variableDelPeriodo.dias / variableDelPeriodo.n)
+          : null,
+        ...(variableDelPeriodo
+          ? {
+              poblacion_fija: variableDelPeriodo.fija / variableDelPeriodo.n,
+              poblacion_flotante: variableDelPeriodo.flot / variableDelPeriodo.n,
+              gde: variableDelPeriodo.gde / variableDelPeriodo.n,
+            }
+          : {}),
       })
       periodos.push(f.periodo)
     }

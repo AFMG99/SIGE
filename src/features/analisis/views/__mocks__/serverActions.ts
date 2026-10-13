@@ -7,8 +7,10 @@
  * `@/features/analisis/controllers/analisis` a este módulo.
  *
  * Respuesta por edificación (permite ejercitar distintos estados):
- *  - `edi-demo-campus` → análisis con 2 períodos inusuales
- *  - cualquier otra    → análisis sin períodos inusuales
+ *  - `edi-demo-campus`     → análisis con 2 períodos inusuales
+ *  - `edi-demo-variacion`  → golden del Anexo 1 (ahorro §8.1 no nulo)
+ *  - `edi-demo-sin-modelos`→ motor antiguo sin la sección `modelos`
+ *  - cualquier otra        → análisis sin períodos inusuales
  */
 
 import type { RespuestaAnalisis, SolicitudAnalisis } from '../../models/analisis'
@@ -16,6 +18,8 @@ import type { RespuestaContextoXm, RespuestaSerieXm } from '../../models/xm'
 import {
   analisisDemo,
   analisisSinAtipicosDemo,
+  analisisSinModelosDemo,
+  analisisVariacionDemo,
   contextoDemo,
   edificacionesAnalisisDemo,
   serieMercadoDemo,
@@ -29,7 +33,11 @@ export async function ejecutarAnalisis(
   const base =
     solicitud.edificacionId === edificacionesAnalisisDemo[0].id
       ? analisisDemo
-      : analisisSinAtipicosDemo
+      : solicitud.edificacionId === 'edi-demo-variacion'
+        ? analisisVariacionDemo
+        : solicitud.edificacionId === 'edi-demo-sin-modelos'
+          ? analisisSinModelosDemo
+          : analisisSinAtipicosDemo
   return {
     ok: true,
     analisis: {
