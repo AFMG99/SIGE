@@ -28,6 +28,7 @@ import {
   UPME_MIN_VALORES_MES,
   UPME_RANGO_CONFIANZA,
 } from '@/features/datos/models/lineasBase'
+import { crearCriterioShares } from '@/features/datos/models/shares'
 import type {
   Alcance,
   AlcanceSolicitud,
@@ -400,24 +401,14 @@ export async function calcularModelosLineaBase(
       }
     }
 
-    type EspacioConCarga = (typeof espacios)[number]
-    const cargaEspacio = (e: EspacioConCarga) =>
-      e.equipos.reduce(
-        (suma, eq) =>
-          suma + eq.cantidad * eq.potenciaNominal * eq.horasUsoDia * eq.diasUsoMes,
-        0
-      )
-    const pesoDe = (b: (typeof bloques)[number]) =>
-      b.areaUtil * b.factorInfraestructura
-    const pesoTotalBloques = bloques.reduce((suma, b) => suma + pesoDe(b), 0)
     const mediaNormalizado =
       facturas.reduce((suma, f) => suma + f.consumoNormalizado, 0) /
       facturas.length
 
-    const cargaDeBloque = (b: (typeof bloques)[number]) => {
-      const hermanos = espacios.filter((e) => e.bloqueId === b.id)
-      return hermanos.reduce((suma, e) => suma + cargaEspacio(e), 0)
-    }
+    // ── Criterio de share: fuente única en models/shares.ts ───────────
+    // El módulo de análisis reutiliza exactamente el mismo criterio para
+    // sus KPIs por nivel (edificación / bloque / espacio).
+    const criterio = crearCriterioShares({ bloques, espacios, mediaNormalizado })
 
     // ── Guardas de la serie ────────────────────────────────────────────
     // G3: si la serie no aporta energía, `depurar_datos` deja el frame
@@ -431,26 +422,19 @@ export async function calcularModelosLineaBase(
       }
     }
 
-    // ── Criterio de share ──────────────────────────────────────────────
+    // ── Criterio de share (models/shares.ts) ───────────────────────────
     // El reparto por área normaliza contra Σ de lo que haya cargado: con un
     // subconjunto de bloques repartiría el 100 % entre ellos. Solo es
     // válido con cobertura completa. Mientras falte área, se normaliza
     // contra la factura media global (dataset completo): nunca infla.
-    const bloquesSinArea = bloques.filter((b) => !(b.areaUtil > 0))
-    const coberturaArea =
-      bloques.length > 0 &&
-      bloquesSinArea.length === 0 &&
-      pesoTotalBloques > 0
-    const origen: OrigenShare = coberturaArea
-      ? 'facturas_area'
-      : 'modelo_ingenieria'
+    const { origen, coberturaArea, bloquesSinArea, pesoTotalBloques } = criterio
 
     const avisoPartes: string[] = []
     if (!coberturaArea) {
       avisoPartes.push(
-        bloquesSinArea.length === bloques.length
+        bloquesSinArea === bloques.length
           ? `Ninguno de los ${bloques.length} bloques registrados tiene área útil;`
-          : `${bloquesSinArea.length} de ${bloques.length} bloques sin área útil;`
+          : `${bloquesSinArea} de ${bloques.length} bloques sin área útil;`
       )
       avisoPartes.push(
         `share estimado por modelo de ingeniería (carga nominal de equipos ÷ ${
@@ -465,17 +449,12 @@ export async function calcularModelosLineaBase(
     }
     const aviso = avisoPartes.length > 0 ? avisoPartes.join(' ') : undefined
 
-    const shareDeBloque = (b: (typeof bloques)[number]): number =>
-      origen === 'facturas_area'
-        ? pesoDe(b) / pesoTotalBloques
-        : cargaDeBloque(b) / mediaNormalizado
-
     /** Valida el share de un bloque antes de usarlo como alcance. */
     const errorShareDeBloque = (
       b: (typeof bloques)[number]
     ): string | null => {
       if (origen === 'facturas_area') return null
-      const carga = cargaDeBloque(b)
+      const carga = criterio.cargaDeBloque(b.id)
       if (!(carga > 0)) {
         return `El bloque "${b.codigo} — ${b.nombre}" no tiene inventario de equipos con consumo: no puede estimarse su share. Importe equipos para este bloque o registre su área útil.`
       }
@@ -523,7 +502,7 @@ export async function calcularModelosLineaBase(
         nombre: bloque.nombre,
         codigo: bloque.codigo,
         bloqueId: bloque.id,
-        share: shareDeBloque(bloque),
+        share: criterio.shareDeBloque(bloque.id),
         origen,
       }
     } else {
@@ -540,19 +519,15 @@ export async function calcularModelosLineaBase(
       }
       const err = errorShareDeBloque(bloque)
       if (err) return { ok: false, error: err }
-      const hermanos = espacios.filter((e) => e.bloqueId === bloque.id)
-      const cargaTotal = hermanos.reduce((s, e) => s + cargaEspacio(e), 0)
-      const shareEspacio =
-        cargaTotal > 0
-          ? cargaEspacio(espacio) / cargaTotal
-          : 1 / (hermanos.length || 1)
       alcance = {
         tipo: 'espacio',
         id: espacio.id,
         nombre: espacio.nombre,
         codigo: `${bloque.codigo} › ${espacio.nombre}`,
         bloqueId: bloque.id,
-        share: shareDeBloque(bloque) * shareEspacio,
+        share:
+          criterio.shareDeBloque(bloque.id) *
+          criterio.shareDeEspacio(bloque.id, espacio.id),
         origen,
       }
     }
@@ -674,7 +649,7 @@ export async function calcularModelosLineaBase(
       },
     ]
     for (const b of bloques) {
-      const shareBloque = shareDeBloque(b)
+      const shareBloque = criterio.shareDeBloque(b.id)
       jerarquia.push({
         nivel: 'bloque',
         id: b.id,
@@ -682,19 +657,19 @@ export async function calcularModelosLineaBase(
         codigo: b.codigo,
         padreId: null,
         criterio: criterioBloque,
-        peso: origen === 'facturas_area' ? pesoDe(b) : cargaDeBloque(b),
+        peso:
+          origen === 'facturas_area'
+            ? criterio.pesoDeBloque(b.id)
+            : criterio.cargaDeBloque(b.id),
         share: shareBloque,
         consumoPromedio: mediaNormalizado * shareBloque,
       })
       const hermanos = espacios.filter((e) => e.bloqueId === b.id)
       if (hermanos.length === 0) continue
-      const cargas = hermanos.map((e) => ({ e, carga: cargaEspacio(e) }))
-      const cargaTotal = cargas.reduce((s, c) => s + c.carga, 0)
-      for (const { e, carga } of cargas) {
-        const shareEspacio =
-          cargaTotal > 0
-            ? carga / cargaTotal
-            : 1 / hermanos.length
+      const cargaTotal = criterio.cargaTotalDeBloque(b.id)
+      for (const e of hermanos) {
+        const carga = criterio.cargaDeEspacio(e.id)
+        const shareEspacio = criterio.shareDeEspacio(b.id, e.id)
         jerarquia.push({
           nivel: 'espacio',
           id: e.id,

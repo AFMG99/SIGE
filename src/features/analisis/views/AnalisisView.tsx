@@ -8,6 +8,7 @@ import {
   formatoKwh,
   formatoNumero,
   formatoPct,
+  PRECISION_TEXTO,
   TEXTO_CALENDARIO,
   TEXTO_DIRECCION,
   type AnalisisResultado,
@@ -88,6 +89,8 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
   const [resultado, setResultado] = React.useState<AnalisisResultado | null>(null)
   const [cargando, setCargando] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  /** Nivel de los KPIs de gestión: 'edi' (exacto) | 'b:<id>' | 'e:<id>'. */
+  const [nivelId, setNivelId] = React.useState('edi')
 
   const opciones: ListboxOption[] = edificaciones.map((e) => ({
     value: e.id,
@@ -103,8 +106,11 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
     setError(null)
     try {
       const respuesta = await ejecutarAnalisis({ edificacionId })
-      if (respuesta.ok) setResultado(respuesta.analisis)
-      else {
+      if (respuesta.ok) {
+        setResultado(respuesta.analisis)
+        // Un análisis nuevo vuelve al nivel exacto (edificación).
+        setNivelId('edi')
+      } else {
         setResultado(null)
         setError(respuesta.error)
       }
@@ -118,6 +124,12 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
 
   const salida = resultado?.salida
   const resumen = salida?.resumen
+  const niveles = resultado?.gestion.niveles ?? []
+  const nivel = niveles.find((n) => n.clave === nivelId) ?? niveles[0] ?? null
+  const opcionesNivel: ListboxOption[] = niveles.map((n) => ({
+    value: n.clave,
+    label: n.precision === 'estimado' ? `${n.nombre} · estimado` : n.nombre,
+  }))
 
   return (
     <div className="space-y-6">
@@ -318,6 +330,151 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
                   se reportan como inusuales).
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Indicadores de gestión por nivel (KPIs ahorro/elevado/inusuales) */}
+          {nivel && (
+            <div className="ui-card space-y-4 p-5 sm:p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 className="ui-title text-sm">Ahorro y consumo elevado</h3>
+                <span
+                  className={
+                    nivel.precision === 'exacto'
+                      ? `${CLASE_BADGE} border-emerald-600/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300`
+                      : `${CLASE_BADGE} border-sky-600/40 bg-sky-50 text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-300`
+                  }
+                >
+                  {PRECISION_TEXTO[nivel.tipo]}
+                </span>
+              </div>
+
+              <div className="ui-field">
+                <label htmlFor="analisis-nivel" className="ui-label">
+                  Nivel de análisis
+                </label>
+                <ListboxSelect
+                  id="analisis-nivel"
+                  value={nivel.clave}
+                  onChange={setNivelId}
+                  options={opcionesNivel}
+                  placeholder="— Seleccione un nivel —"
+                  className="ui-input min-h-10 w-full sm:max-w-md"
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                {/* Ahorro frente a la línea base guardada */}
+                <div className="ui-card-stat">
+                  <div className="flex items-center gap-2">
+                    <ChipIcon>
+                      <svg {...ATRIBUTOS_ICONO}>
+                        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                        <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                      </svg>
+                    </ChipIcon>
+                    <p className="ui-muted text-xs">Ahorro vs línea base</p>
+                  </div>
+                  {nivel.ahorro.ahorroPct !== null ? (
+                    <>
+                      <p
+                        className={`mt-2 text-2xl font-semibold tabular-nums ${
+                          nivel.ahorro.ahorroPct < 0
+                            ? 'text-amber-700 dark:text-amber-300'
+                            : 'text-gray-900 dark:text-gray-100'
+                        }`}
+                      >
+                        {formatoPct(nivel.ahorro.ahorroPct)}
+                      </p>
+                      <p className="ui-muted mt-1 text-xs tabular-nums">
+                        {formatoNumero(nivel.ahorro.ahorroKwh ?? 0, 0)} kWh/mes vs{' '}
+                        {formatoNumero(nivel.ahorro.lbKwh ?? 0, 0)} · {nivel.ahorro.lbModelo}
+                      </p>
+                      {nivel.ahorro.lbCobertura && (
+                        <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                          {nivel.ahorro.lbCobertura}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                      {nivel.ahorro.nota ?? 'Sin línea base para comparar.'}
+                    </p>
+                  )}
+                </div>
+
+                {/* Consumo elevado: por encima de la banda superior del mes */}
+                <div className="ui-card-stat">
+                  <div className="flex items-center gap-2">
+                    <ChipIcon amber={nivel.elevado.meses > 0}>
+                      <svg {...ATRIBUTOS_ICONO}>
+                        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+                      </svg>
+                    </ChipIcon>
+                    <p className="ui-muted text-xs">Consumo elevado</p>
+                  </div>
+                  <p
+                    className={`mt-2 text-2xl font-semibold tabular-nums ${
+                      nivel.elevado.meses > 0
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-gray-900 dark:text-gray-100'
+                    }`}
+                  >
+                    {formatoNumero(nivel.elevado.meses, 0)}
+                  </p>
+                  <p className="ui-muted mt-1 text-xs">
+                    {nivel.elevado.meses === 1
+                      ? 'mes por encima de la banda superior'
+                      : 'meses por encima de la banda superior'}
+                  </p>
+                  {nivel.elevado.maximoPeriodo && nivel.elevado.maximoKwh !== null && (
+                    <p className="mt-1 text-xs tabular-nums text-gray-600 dark:text-gray-300">
+                      Máximo:{' '}
+                      {etiquetaPeriodo(
+                        Number(nivel.elevado.maximoPeriodo.slice(5, 7)),
+                        Number(nivel.elevado.maximoPeriodo.slice(0, 4))
+                      )}{' '}
+                      · {formatoKwh(nivel.elevado.maximoKwh)}
+                    </p>
+                  )}
+                </div>
+
+                {/* Períodos inusuales ya escala al nivel seleccionado */}
+                <div className="ui-card-stat">
+                  <div className="flex items-center gap-2">
+                    <ChipIcon amber={nivel.inusuales.cantidad > 0}>
+                      <svg {...ATRIBUTOS_ICONO}>
+                        <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+                        <path d="M12 9v4M12 17h.01" />
+                      </svg>
+                    </ChipIcon>
+                    <p className="ui-muted text-xs">Períodos inusuales del nivel</p>
+                  </div>
+                  <p
+                    className={`mt-2 text-2xl font-semibold tabular-nums ${
+                      nivel.inusuales.cantidad > 0
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-gray-900 dark:text-gray-100'
+                    }`}
+                  >
+                    {formatoNumero(nivel.inusuales.cantidad, 0)}
+                  </p>
+                  <p className="ui-muted mt-1 text-xs tabular-nums">
+                    {formatoKwh(nivel.inusuales.kwh)} en el período
+                  </p>
+                  <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                    El conteo es igual en todos los niveles: la detección es por mes
+                    calendario, invariante a la escala.
+                  </p>
+                </div>
+              </div>
+
+              <p className="ui-muted text-xs tabular-nums">
+                Consumo promedio del nivel: {formatoKwh(nivel.consumoPromedioKwh)}/mes (30 d)
+                {nivel.share !== null && ` · share ${formatoNumero(nivel.share * 100, 1)} %`}
+                {nivel.elevado.variacionPctAnual !== null &&
+                  ` · tendencia ${formatoPct(nivel.elevado.variacionPctAnual)}`}
+              </p>
             </div>
           )}
 

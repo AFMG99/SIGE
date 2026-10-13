@@ -30,9 +30,14 @@ import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { prisma } from '@/shared/models/prisma'
 import { canWithOverrides, getCurrentUser } from '@/shared/models/authz'
+import { crearCriterioShares } from '@/features/datos/models/shares'
 import {
+  construirGestion,
+  mejorLineaBaseGuardada,
+  notaSinLineaBase,
   salidaAnalisisSchema,
   solicitudAnalisisSchema,
+  type EntradaNivelGestion,
   type RespuestaAnalisis,
   type SalidaAnalisis,
   type SolicitudAnalisis,
@@ -247,30 +252,62 @@ export async function ejecutarAnalisis(
       return { ok: false, error: 'La edificación seleccionada ya no existe.' }
     }
 
-    const [facturas, variables, ajustes] = await Promise.all([
-      prisma.facturaEnergia.findMany({
-        where: { edificacionId },
-        orderBy: { periodo: 'asc' },
-        select: {
-          periodo: true,
-          consumoNormalizado: true,
-        },
-      }),
-      prisma.variableOperativa.findMany({
-        where: { bloque: { edificacionId } },
-        select: { mes: true, ano: true, diasLectivosLaborales: true },
-      }),
-      prisma.ajusteEnergetico.findMany({
-        where: { bloque: { edificacionId }, tipo: 'NO_RUTINARIO' },
-        select: {
-          periodoInicio: true,
-          periodoFin: true,
-          valorAjuste: true,
-          direccion: true,
-          descripcion: true,
-        },
-      }),
-    ])
+    const [facturas, variables, ajustes, bloques, espacios, lineasBase] =
+      await Promise.all([
+        prisma.facturaEnergia.findMany({
+          where: { edificacionId },
+          orderBy: { periodo: 'asc' },
+          select: {
+            periodo: true,
+            consumoNormalizado: true,
+          },
+        }),
+        prisma.variableOperativa.findMany({
+          where: { bloque: { edificacionId } },
+          select: { mes: true, ano: true, diasLectivosLaborales: true },
+        }),
+        prisma.ajusteEnergetico.findMany({
+          where: { bloque: { edificacionId }, tipo: 'NO_RUTINARIO' },
+          select: {
+            periodoInicio: true,
+            periodoFin: true,
+            valorAjuste: true,
+            direccion: true,
+            descripcion: true,
+          },
+        }),
+        // ── KPIs de gestión por nivel (issue #75) ─────────────────────
+        prisma.bloque.findMany({
+          where: { edificacionId },
+          select: {
+            id: true,
+            codigo: true,
+            nombre: true,
+            areaUtil: true,
+            factorInfraestructura: true,
+          },
+        }),
+        prisma.espacio.findMany({
+          where: { bloque: { edificacionId } },
+          select: {
+            id: true,
+            nombre: true,
+            bloqueId: true,
+            equipos: {
+              select: {
+                cantidad: true,
+                potenciaNominal: true,
+                horasUsoDia: true,
+                diasUsoMes: true,
+              },
+            },
+          },
+        }),
+        prisma.lineaBaseEnergia.findMany({
+          where: { bloque: { edificacionId } },
+          select: { bloqueId: true, tipo: true, coeficientes: true },
+        }),
+      ])
 
     if (facturas.length === 0) {
       return {
@@ -336,6 +373,93 @@ export async function ejecutarAnalisis(
       return { ok: false, error: error ?? 'El motor no devolvió resultados.' }
     }
 
+    // ── KPIs de gestión por nivel (issue #75) ──────────────────────────
+    // Edificación = exacto (facturas); bloques y espacios = el MISMO
+    // criterio de share que LBEn (models/shares.ts). Cada línea base
+    // guardada es de su bloque (el guardado oficial es por bloque), así
+    // que la LB de la edificación es la Σ de las de sus bloques y solo
+    // se habilita con cobertura completa (comparar una LB parcial contra
+    // el consumo total subestimaría el ahorro).
+    const mediaNormalizado =
+      facturas.reduce((suma, f) => suma + f.consumoNormalizado, 0) / facturas.length
+    const criterio = crearCriterioShares({ bloques, espacios, mediaNormalizado })
+
+    const filasPorBloque = new Map<string, { tipo: string; coeficientes: unknown }[]>()
+    for (const lb of lineasBase) {
+      const previas = filasPorBloque.get(lb.bloqueId) ?? []
+      previas.push({ tipo: lb.tipo, coeficientes: lb.coeficientes })
+      filasPorBloque.set(lb.bloqueId, previas)
+    }
+
+    const entradas: EntradaNivelGestion[] = []
+    const lbsBloques = bloques.map((b) =>
+      mejorLineaBaseGuardada(filasPorBloque.get(b.id) ?? [])
+    )
+    const conLb = lbsBloques.filter((lb) => lb !== null).length
+    const lbCompleta = bloques.length > 0 && conLb === bloques.length
+    const lbTotal = lbsBloques.reduce((suma, lb) => suma + (lb?.kwh ?? 0), 0)
+    const modelosUsados = Array.from(
+      new Set(lbsBloques.flatMap((lb) => (lb ? [lb.modelo] : [])))
+    )
+    entradas.push({
+      tipo: 'edificacion',
+      clave: 'edi',
+      nombre: edificacion.nombre,
+      precision: 'exacto',
+      share: null,
+      lb: {
+        kwh: lbCompleta ? lbTotal : null,
+        modelo:
+          lbCompleta && modelosUsados.length > 0
+            ? modelosUsados.length === 1
+              ? modelosUsados[0]
+              : 'Varios modelos'
+            : null,
+        cobertura:
+          bloques.length > 1 ? `${conLb} de ${bloques.length} bloques con línea base` : null,
+        nota: lbCompleta
+          ? null
+          : conLb === 0
+            ? notaSinLineaBase(lineasBase)
+            : `Cobertura parcial: solo ${conLb} de ${bloques.length} bloques tienen línea base utilizable; guarde las líneas base restantes para habilitar el ahorro de la edificación.`,
+      },
+    })
+
+    for (const b of bloques) {
+      const filas = filasPorBloque.get(b.id) ?? []
+      const lbBloque = mejorLineaBaseGuardada(filas)
+      entradas.push({
+        tipo: 'bloque',
+        clave: `b:${b.id}`,
+        nombre: `${b.codigo} — ${b.nombre}`,
+        precision: 'estimado',
+        share: criterio.shareDeBloque(b.id),
+        lb: {
+          kwh: lbBloque ? lbBloque.kwh : null,
+          modelo: lbBloque ? lbBloque.modelo : null,
+          cobertura: null,
+          nota: lbBloque ? null : notaSinLineaBase(filas),
+        },
+      })
+      for (const e of espacios) {
+        if (e.bloqueId !== b.id) continue
+        const shareEspacio = criterio.shareDeEspacio(b.id, e.id)
+        entradas.push({
+          tipo: 'espacio',
+          clave: `e:${e.id}`,
+          nombre: `${b.codigo} › ${e.nombre}`,
+          precision: 'estimado',
+          share: criterio.shareDeBloque(b.id) * shareEspacio,
+          lb: {
+            kwh: lbBloque ? lbBloque.kwh * shareEspacio : null,
+            modelo: lbBloque ? lbBloque.modelo : null,
+            cobertura: null,
+            nota: lbBloque ? null : notaSinLineaBase(filas),
+          },
+        })
+      }
+    }
+
     return {
       ok: true,
       analisis: {
@@ -344,6 +468,7 @@ export async function ejecutarAnalisis(
         hasta: periodos[periodos.length - 1],
         calculadoEn: new Date().toISOString(),
         salida,
+        gestion: construirGestion(entradas, salida),
       },
     }
   } catch (e) {

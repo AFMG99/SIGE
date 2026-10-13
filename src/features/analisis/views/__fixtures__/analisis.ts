@@ -9,7 +9,14 @@
  * poblacional 1.401,8837 kWh, ec. 5).
  */
 
-import type { AnalisisResultado, PeriodoAnalizado, SalidaAnalisis } from '../../models/analisis'
+import {
+  construirGestion,
+  notaSinLineaBase,
+  type AnalisisResultado,
+  type EntradaNivelGestion,
+  type PeriodoAnalizado,
+  type SalidaAnalisis,
+} from '../../models/analisis'
 
 const BASE_POR_MES: Record<number, number> = {
   1: 8500,
@@ -101,12 +108,57 @@ export const edificacionesAnalisisDemo = [
 
 export const edificacionUnicaDemo = [edificacionesAnalisisDemo[0]]
 
-export const analisisDemo: AnalisisResultado = {
-  nombreEdificacion: 'Campus Robledo',
-  desde: '2023-01',
-  hasta: '2025-12',
-  calculadoEn: '2026-10-12T15:00:00.000Z',
-  salida: {
+/**
+ * Niveles de gestión demo: edificación (exacta, LB completa de 2 bloques),
+ * bloque con share 0,6 (área×factor), un espacio al 50 % de su bloque y un
+ * segundo bloque cuya única LB es de regresión (nota honesta, sin kWh).
+ */
+const ENTRADAS_GESTION: EntradaNivelGestion[] = [
+  {
+    tipo: 'edificacion',
+    clave: 'edi',
+    nombre: 'Campus Robledo',
+    precision: 'exacto',
+    share: null,
+    lb: {
+      kwh: 11000,
+      modelo: 'Cociente',
+      cobertura: '2 de 2 bloques con línea base',
+      nota: null,
+    },
+  },
+  {
+    tipo: 'bloque',
+    clave: 'b:bloque-a',
+    nombre: 'BLO-A — Aulas mayores',
+    precision: 'estimado',
+    share: 0.6,
+    lb: { kwh: 6600, modelo: 'Cociente', cobertura: null, nota: null },
+  },
+  {
+    tipo: 'espacio',
+    clave: 'e:espacio-101',
+    nombre: 'BLO-A › Salón 101',
+    precision: 'estimado',
+    share: 0.3,
+    lb: { kwh: 3300, modelo: 'Cociente', cobertura: null, nota: null },
+  },
+  {
+    tipo: 'bloque',
+    clave: 'b:bloque-b',
+    nombre: 'BLO-B — Laboratorios',
+    precision: 'estimado',
+    share: 0.4,
+    lb: {
+      kwh: null,
+      modelo: null,
+      cobertura: null,
+      nota: notaSinLineaBase([{ tipo: 'REGRESSION_ESTADISTICA', coeficientes: {} }]),
+    },
+  },
+]
+
+const SALIDA_DEMO: SalidaAnalisis = {
     ok: true,
     originales: 36,
     depurados: 34,
@@ -150,14 +202,20 @@ export const analisisDemo: AnalisisResultado = {
       periodos_con_banda: 36,
       ajustes: 0,
     },
-  },
+}
+
+export const analisisDemo: AnalisisResultado = {
+  nombreEdificacion: 'Campus Robledo',
+  desde: '2023-01',
+  hasta: '2025-12',
+  calculadoEn: '2026-10-12T15:00:00.000Z',
+  salida: SALIDA_DEMO,
+  gestion: construirGestion(ENTRADAS_GESTION, SALIDA_DEMO),
 }
 
 /** Misma serie sin atípicos: ejercita el estado «Sin períodos inusuales». */
-export const analisisSinAtipicosDemo: AnalisisResultado = {
-  ...analisisDemo,
-  salida: {
-    ...analisisDemo.salida,
+const SALIDA_SIN_ATIPICOS: SalidaAnalisis = {
+  ...SALIDA_DEMO,
     depurados: 36,
     periodos: analisisDemo.salida.periodos.map((p) => ({
       ...p,
@@ -169,12 +227,17 @@ export const analisisSinAtipicosDemo: AnalisisResultado = {
       desviacion_pct: 0,
     })),
     resumen: {
-      ...analisisDemo.salida.resumen,
+      ...SALIDA_DEMO.resumen,
       atipicos: 0,
       atipicos_alza: 0,
       atipicos_caida: 0,
       en_lectivo: 0,
       en_vacaciones: 0,
     },
-  },
+}
+
+export const analisisSinAtipicosDemo: AnalisisResultado = {
+  ...analisisDemo,
+  salida: SALIDA_SIN_ATIPICOS,
+  gestion: construirGestion(ENTRADAS_GESTION, SALIDA_SIN_ATIPICOS),
 }

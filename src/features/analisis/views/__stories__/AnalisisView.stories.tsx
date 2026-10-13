@@ -106,6 +106,18 @@ export const ConResultados: Story = {
       name: /alza \(\+40,0 %\)/i,
     })
     expect(punto.length).toBeGreaterThan(0)
+
+    // Indicadores de gestión: nivel exacto por defecto (issue #75)
+    await canvas.findByText('Ahorro y consumo elevado')
+    await canvas.findByText('Ahorro vs línea base')
+    await canvas.findByText('+6,8 %') // media 10.250 vs LB 11.000 kWh/mes
+    await canvas.findByText('Exacto — facturas medidas')
+
+    // Cambiar a un nivel estimado reescala los KPIs por el share del bloque
+    const nivelSelector = await canvas.findByLabelText('Nivel de análisis')
+    await elegirListbox(nivelSelector, 'b:bloque-a', userEvent)
+    await canvas.findByText('Estimado — share del bloque')
+    await canvas.findByText(/share 60,0 %/)
   },
 }
 

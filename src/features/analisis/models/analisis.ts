@@ -9,6 +9,10 @@
 // cuando cae fuera de la banda de SU mes, no de una banda global.
 
 import { z } from 'zod'
+import {
+  LABEL_POR_TIPO_LBEN,
+  TIPO_LBEN_DB,
+} from '@/features/datos/models/lineasBase'
 
 // ── Solicitud ───────────────────────────────────────────────────────────
 
@@ -131,11 +135,90 @@ export type AnalisisResultado = {
   /** Fecha/hora (ISO) en que se ejecutó el análisis. */
   calculadoEn: string
   salida: SalidaAnalisis
+  /** KPIs de gestión desagregados por niveles (edificación/bloque/espacio). */
+  gestion: Gestion
 }
 
 export type RespuestaAnalisis =
   | { ok: true; analisis: AnalisisResultado }
   | { ok: false; error: string }
+
+// ── KPIs de gestión por nivel (HU-07 esc. 2 · issue #75) ───────────────
+//
+// El análisis se ejecuta sobre facturas de la EDIFICACIÓN (dato medido);
+// los KPIs de ahorro/consumo elevado se desagregan por niveles con la
+// etiqueta de precisión visible: edificación = exacto, bloque = share
+// estimado (models/shares.ts), espacio = inventario eléctrico estimado.
+
+export const precisionNivelSchema = z.enum(['exacto', 'estimado'])
+export type PrecisionNivel = z.infer<typeof precisionNivelSchema>
+
+export const tipoNivelGestionSchema = z.enum(['edificacion', 'bloque', 'espacio'])
+export type TipoNivelGestion = z.infer<typeof tipoNivelGestionSchema>
+
+/** Ahorro frente a la línea base guardada (kWh/mes, período 30 d). */
+export const ahorroKpiSchema = z.object({
+  /** Línea base del nivel en kWh/mes; null si no hay LB utilizable. */
+  lbKwh: z.number().nullable(),
+  /** Etiqueta del modelo del que salió la LB (p. ej. «Cociente»). */
+  lbModelo: z.string().nullable(),
+  /** Cobertura de la LB (solo nivel edificación: «2 de 3 bloques…»). */
+  lbCobertura: z.string().nullable(),
+  /** lb − consumo promedio; positivo = ahorro, negativo = sobre la LB. */
+  ahorroKwh: z.number().nullable(),
+  /** (lb − consumo)/lb × 100; null si no hay LB. */
+  ahorroPct: z.number().nullable(),
+  /** Razón legible de la ausencia de ahorro (null cuando hay LB). */
+  nota: z.string().nullable(),
+})
+export type AhorroKpi = z.infer<typeof ahorroKpiSchema>
+
+/** Consumo elevado: períodos por encima de la banda superior (ec. 3). */
+export const consumoElevadoKpiSchema = z.object({
+  /** Invariante a la escala (la detección es por mes calendario). */
+  meses: z.number().int(),
+  /** Período máximo del histórico del nivel ('YYYY-MM'). */
+  maximoPeriodo: z.string().nullable(),
+  /** kWh del máximo, ya escala al nivel (share aplicado). */
+  maximoKwh: z.number().nullable(),
+  /** Variación interanual (%); invariante a la escala. */
+  variacionPctAnual: z.number().nullable(),
+})
+export type ConsumoElevadoKpi = z.infer<typeof consumoElevadoKpiSchema>
+
+/** Períodos inusuales del nivel: conteo invariante + kWh ya escala. */
+export const inusualesKpiSchema = z.object({
+  cantidad: z.number().int(),
+  kwh: z.number(),
+})
+export type InusualesKpi = z.infer<typeof inusualesKpiSchema>
+
+export const nivelGestionSchema = z.object({
+  tipo: tipoNivelGestionSchema,
+  /** Clave estable para el selector: 'edi' | 'b:<id>' | 'e:<id>'. */
+  clave: z.string().min(1),
+  nombre: z.string(),
+  precision: precisionNivelSchema,
+  /** Share acumulado; null en nivel edificación (exacto). */
+  share: z.number().nullable(),
+  consumoPromedioKwh: z.number(),
+  ahorro: ahorroKpiSchema,
+  elevado: consumoElevadoKpiSchema,
+  inusuales: inusualesKpiSchema,
+})
+export type NivelGestion = z.infer<typeof nivelGestionSchema>
+
+export const gestionSchema = z.object({
+  niveles: z.array(nivelGestionSchema).min(1),
+})
+export type Gestion = z.infer<typeof gestionSchema>
+
+/** Etiqueta de precisión visible por tipo de nivel (UI + stories). */
+export const PRECISION_TEXTO: Record<TipoNivelGestion, string> = {
+  edificacion: 'Exacto — facturas medidas',
+  bloque: 'Estimado — share del bloque',
+  espacio: 'Estimado — inventario eléctrico',
+}
 
 // ── Constantes de UI (espejo de python/lben/analisis.py) ───────────────
 
@@ -196,4 +279,142 @@ export function formatoKwh(valor: number): string {
 export function formatoPct(valor: number, decimales = 1): string {
   const base = formatoNumero(Math.abs(valor), decimales)
   return `${valor < 0 ? '−' : '+'}${base} %`
+}
+
+// ── Helpers puros de gestión (unit-test en analisis.test.ts) ───────────
+
+/** Prioridad entre los modelos guardados de un bloque para el ahorro. */
+export const PRIORIDAD_LB = [
+  TIPO_LBEN_DB.cociente,
+  TIPO_LBEN_DB.valor_absoluto,
+  TIPO_LBEN_DB.confort,
+] as const
+
+type FilaLineaBase = { tipo: string; coeficientes: unknown }
+
+function numeroDe(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null
+}
+
+/**
+ * kWh/mes que persistió una línea base guardada. La regresión (ec. 4-5)
+ * no almacena kWh/mes: su resultado son coeficientes y requiere la serie
+ * (pred_reg), así que devuelve null de forma honesta.
+ */
+export function kwhDeLineaBaseGuardada(
+  tipo: string,
+  coeficientes: unknown
+): number | null {
+  if (!coeficientes || typeof coeficientes !== 'object') return null
+  const r = coeficientes as Record<string, unknown>
+  if (tipo === TIPO_LBEN_DB.valor_absoluto) return numeroDe(r.consumo_promedio_mensual)
+  if (tipo === TIPO_LBEN_DB.cociente) return numeroDe(r.consumo_promedio)
+  if (tipo === TIPO_LBEN_DB.confort) return numeroDe(r.consumo_base_kwh)
+  return null
+}
+
+export type LineaBaseUtil = { kwh: number; tipo: string; modelo: string }
+
+/** Mejor línea base utilizable de un bloque (prioridad `PRIORIDAD_LB`). */
+export function mejorLineaBaseGuardada(
+  filas: FilaLineaBase[]
+): LineaBaseUtil | null {
+  for (const tipo of PRIORIDAD_LB) {
+    const fila = filas.find((f) => f.tipo === tipo)
+    if (!fila) continue
+    const kwh = kwhDeLineaBaseGuardada(fila.tipo, fila.coeficientes)
+    if (kwh !== null && kwh > 0) {
+      return { kwh, tipo: fila.tipo, modelo: LABEL_POR_TIPO_LBEN[fila.tipo] ?? fila.tipo }
+    }
+  }
+  return null
+}
+
+/** Razón legible de la ausencia de línea base utilizable en un nivel. */
+export function notaSinLineaBase(filas: FilaLineaBase[]): string {
+  if (filas.length === 0) {
+    return 'No hay línea base guardada para este nivel. Calcule y guarde una en Datos › Líneas base.'
+  }
+  return 'La línea base guardada es de regresión, que no persiste kWh/mes (requiere la serie del modelo). Guarde Cociente, Valor absoluto o Confort para habilitar el ahorro.'
+}
+
+export type EntradaNivelGestion = {
+  tipo: TipoNivelGestion
+  clave: string
+  nombre: string
+  precision: PrecisionNivel
+  /** Share acumulado; null en edificación (exacto). */
+  share: number | null
+  /** Baseline del nivel en kWh/mes + trazabilidad de su procedencia. */
+  lb: {
+    kwh: number | null
+    modelo: string | null
+    cobertura: string | null
+    nota: string | null
+  }
+}
+
+/**
+ * KPIs de un nivel: promedio y máximos escalados por el share (los
+ * conteos de períodos son invariantes a la escala — la detección es por
+ * mes calendario — y se muestran igual en todos los niveles).
+ */
+export function construirNivelGestion(
+  entrada: EntradaNivelGestion,
+  salida: SalidaAnalisis
+): NivelGestion {
+  const factor = entrada.share ?? 1
+  const periodos = salida.periodos
+  const consumoPromedioKwh =
+    periodos.length > 0
+      ? (periodos.reduce((suma, p) => suma + p.consumo_kwh, 0) / periodos.length) * factor
+      : 0
+
+  const lbValida = entrada.lb.kwh !== null && entrada.lb.kwh > 0 ? entrada.lb.kwh : null
+  const ahorroKwh = lbValida !== null ? lbValida - consumoPromedioKwh : null
+  const ahorroPct =
+    lbValida !== null && ahorroKwh !== null ? (ahorroKwh / lbValida) * 100 : null
+
+  let maximo: PeriodoAnalizado | null = null
+  for (const p of periodos) {
+    if (!maximo || p.consumo_kwh > maximo.consumo_kwh) maximo = p
+  }
+
+  const inusualesKwh =
+    periodos
+      .filter((p) => p.es_atipico)
+      .reduce((suma, p) => suma + p.consumo_kwh, 0) * factor
+
+  return {
+    tipo: entrada.tipo,
+    clave: entrada.clave,
+    nombre: entrada.nombre,
+    precision: entrada.precision,
+    share: entrada.share,
+    consumoPromedioKwh,
+    ahorro: {
+      lbKwh: lbValida,
+      lbModelo: lbValida !== null ? entrada.lb.modelo : null,
+      lbCobertura: entrada.lb.cobertura,
+      ahorroKwh,
+      ahorroPct,
+      nota: lbValida !== null ? null : entrada.lb.nota,
+    },
+    elevado: {
+      meses: salida.resumen.atipicos_alza,
+      maximoPeriodo: maximo
+        ? `${String(maximo.ano).padStart(4, '0')}-${String(maximo.mes).padStart(2, '0')}`
+        : null,
+      maximoKwh: maximo ? maximo.consumo_kwh * factor : null,
+      variacionPctAnual: salida.tendencia.variacion_pct_anual,
+    },
+    inusuales: { cantidad: salida.resumen.atipicos, kwh: inusualesKwh },
+  }
+}
+
+export function construirGestion(
+  entradas: EntradaNivelGestion[],
+  salida: SalidaAnalisis
+): Gestion {
+  return { niveles: entradas.map((e) => construirNivelGestion(e, salida)) }
 }

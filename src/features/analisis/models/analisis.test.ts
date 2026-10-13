@@ -6,6 +6,10 @@ import {
   formatoKwh,
   formatoNumero,
   formatoPct,
+  gestionSchema,
+  kwhDeLineaBaseGuardada,
+  mejorLineaBaseGuardada,
+  notaSinLineaBase,
   salidaAnalisisSchema,
   solicitudAnalisisSchema,
 } from './analisis'
@@ -89,5 +93,82 @@ describe('solicitudAnalisisSchema', () => {
     expect(
       solicitudAnalisisSchema.safeParse({ edificacionId: 'edi-demo-campus' }).success
     ).toBe(true)
+  })
+})
+
+describe('KPIs de gestión por nivel', () => {
+  it('el espejo Zod acepta la gestión construida del fixture', () => {
+    expect(gestionSchema.safeParse(analisisDemo.gestion).success).toBe(true)
+    expect(analisisDemo.gestion.niveles).toHaveLength(4)
+    expect(gestionSchema.safeParse({ niveles: [] }).success).toBe(false)
+  })
+
+  it('kwhDeLineaBaseGuardada extrae kWh por modelo y la regresión da null', () => {
+    expect(kwhDeLineaBaseGuardada('VALOR_ABSOLUTO', { consumo_promedio_mensual: 500 })).toBe(500)
+    expect(kwhDeLineaBaseGuardada('COCIENTE', { consumo_promedio: 750 })).toBe(750)
+    expect(kwhDeLineaBaseGuardada('CONFORT_THERMAL', { consumo_base_kwh: 300 })).toBe(300)
+    expect(
+      kwhDeLineaBaseGuardada('REGRESSION_ESTADISTICA', { coeficientes: { x: 1 } })
+    ).toBeNull()
+    expect(kwhDeLineaBaseGuardada('COCIENTE', null)).toBeNull()
+  })
+
+  it('mejorLineaBaseGuardada prioriza Cociente sobre Valor absoluto', () => {
+    const lb = mejorLineaBaseGuardada([
+      { tipo: 'VALOR_ABSOLUTO', coeficientes: { consumo_promedio_mensual: 500 } },
+      { tipo: 'COCIENTE', coeficientes: { consumo_promedio: 750 } },
+    ])
+    expect(lb).toEqual({ kwh: 750, tipo: 'COCIENTE', modelo: 'Cociente' })
+    expect(
+      mejorLineaBaseGuardada([{ tipo: 'REGRESSION_ESTADISTICA', coeficientes: {} }])
+    ).toBeNull()
+    expect(mejorLineaBaseGuardada([])).toBeNull()
+  })
+
+  it('notaSinLineaBase distingue «sin LB» de «solo regresión»', () => {
+    expect(notaSinLineaBase([])).toMatch(/No hay línea base/)
+    expect(
+      notaSinLineaBase([{ tipo: 'REGRESSION_ESTADISTICA', coeficientes: {} }])
+    ).toMatch(/regresión/)
+  })
+
+  it('la edificación exacta calcula ahorro contra su LB (Σ de bloques)', () => {
+    const nivel = analisisDemo.gestion.niveles.find((n) => n.clave === 'edi')
+    expect(nivel?.precision).toBe('exacto')
+    expect(nivel?.share).toBeNull()
+    // media 10.250 kWh/mes vs LB 11.000 → ahorro 750 kWh (+6,8 %)
+    expect(nivel?.consumoPromedioKwh).toBeCloseTo(10250, 6)
+    expect(nivel?.ahorro.ahorroKwh).toBeCloseTo(750, 6)
+    expect(nivel?.ahorro.ahorroPct).toBeCloseTo((750 / 11000) * 100, 6)
+    expect(nivel?.ahorro.nota).toBeNull()
+    expect(nivel?.elevado.meses).toBe(1)
+    expect(nivel?.elevado.maximoPeriodo).toBe('2024-03')
+    expect(nivel?.elevado.maximoKwh).toBe(14000)
+    expect(nivel?.inusuales).toEqual({ cantidad: 2, kwh: 22000 })
+  })
+
+  it('los niveles con share escalan kWh pero no los conteos', () => {
+    const bloque = analisisDemo.gestion.niveles.find((n) => n.clave === 'b:bloque-a')
+    expect(bloque?.precision).toBe('estimado')
+    expect(bloque?.consumoPromedioKwh).toBeCloseTo(10250 * 0.6, 6)
+    expect(bloque?.ahorro.ahorroKwh).toBeCloseTo(6600 - 10250 * 0.6, 6)
+    expect(bloque?.elevado.meses).toBe(1) // invariante a la escala
+    expect(bloque?.elevado.maximoKwh).toBeCloseTo(14000 * 0.6, 6)
+    expect(bloque?.inusuales.cantidad).toBe(2) // invariante a la escala
+    expect(bloque?.inusuales.kwh).toBeCloseTo(22000 * 0.6, 6)
+  })
+
+  it('un nivel sin LB utilizable lleva la nota y nulls en el ahorro', () => {
+    const bloqueB = analisisDemo.gestion.niveles.find((n) => n.clave === 'b:bloque-b')
+    expect(bloqueB?.ahorro.lbKwh).toBeNull()
+    expect(bloqueB?.ahorro.ahorroKwh).toBeNull()
+    expect(bloqueB?.ahorro.ahorroPct).toBeNull()
+    expect(bloqueB?.ahorro.nota).toMatch(/regresión/)
+  })
+
+  it('la variante sin atípicos refleja cero en sus KPIs', () => {
+    const nivel = analisisSinAtipicosDemo.gestion.niveles.find((n) => n.clave === 'edi')
+    expect(nivel?.elevado.meses).toBe(0)
+    expect(nivel?.inusuales).toEqual({ cantidad: 0, kwh: 0 })
   })
 })
