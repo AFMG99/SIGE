@@ -12,10 +12,14 @@
  */
 
 import type { RespuestaAnalisis, SolicitudAnalisis } from '../../models/analisis'
+import type { RespuestaContextoXm, RespuestaSerieXm } from '../../models/xm'
 import {
   analisisDemo,
   analisisSinAtipicosDemo,
+  contextoDemo,
   edificacionesAnalisisDemo,
+  serieMercadoDemo,
+  serieSistemaDemo,
 } from '../__fixtures__/analisis'
 
 export async function ejecutarAnalisis(
@@ -33,4 +37,34 @@ export async function ejecutarAnalisis(
       nombreEdificacion: edificacion?.nombre ?? base.nombreEdificacion,
     },
   }
+}
+
+// ── Benchmark XM (alias `@/features/analisis/controllers/xm`) ──
+
+const MENSAJE_FALLO_XM =
+  'La API de XM no está disponible en este momento. Intente de nuevo más tarde; el análisis no se ve afectado.'
+
+let falloXm: 'ninguno' | 'xm' = 'ninguno'
+
+/**
+ * Interruptor para que las stories ejerciten la degradación de XM
+ * (el callout de error sin romper el análisis). Siempre restablecer.
+ */
+export function __setearFalloXm(fallo: 'ninguno' | 'xm'): void {
+  falloXm = fallo
+}
+
+export async function cargarSerieSistemaXm(): Promise<RespuestaSerieXm> {
+  if (falloXm === 'xm') return { estado: 'error', mensaje: MENSAJE_FALLO_XM }
+  return serieSistemaDemo
+}
+
+export async function cargarSerieMercadoXm(): Promise<RespuestaSerieXm> {
+  if (falloXm === 'xm') return { estado: 'error', mensaje: MENSAJE_FALLO_XM }
+  return serieMercadoDemo
+}
+
+export async function cargarContextoXm(): Promise<RespuestaContextoXm> {
+  // El contexto (interna SIGE + catálogo) no depende de la API de XM.
+  return contextoDemo
 }

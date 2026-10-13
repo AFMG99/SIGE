@@ -4,6 +4,11 @@ import React from 'react'
 import { ListboxSelect, type ListboxOption } from '@/shared/views/ui/ListboxSelect'
 import { ejecutarAnalisis } from '@/features/analisis/controllers/analisis'
 import {
+  cargarContextoXm,
+  cargarSerieMercadoXm,
+  cargarSerieSistemaXm,
+} from '@/features/analisis/controllers/xm'
+import {
   etiquetaPeriodo,
   formatoKwh,
   formatoNumero,
@@ -14,6 +19,13 @@ import {
   type AnalisisResultado,
   type PeriodoAnalizado,
 } from '../models/analisis'
+import {
+  trazarSparkline,
+  URLS_XM,
+  type RespuestaContextoXm,
+  type RespuestaSerieXm,
+  type SerieXm,
+} from '../models/xm'
 import { AnalisisChart } from './AnalisisChart'
 
 /**
@@ -76,6 +88,90 @@ const ATRIBUTOS_ICONO = {
   strokeLinejoin: 'round',
 } as const
 
+/** ISO de la consulta → 'dd/mm/aaaa' en la zona local del navegador. */
+function fechaCorta(iso: string): string {
+  const fecha = new Date(iso)
+  const dia = String(fecha.getDate()).padStart(2, '0')
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0')
+  return `${dia}/${mes}/${fecha.getFullYear()}`
+}
+
+function periodoDe(periodo: string): { mes: number; anio: number } {
+  return { anio: Number(periodo.slice(0, 4)), mes: Number(periodo.slice(5, 7)) }
+}
+
+/**
+ * Tarjeta de una serie XM: demanda mensual, índice base 100,
+ * variación interanual y sparkline de 13 meses.
+ */
+function TarjetaSerieXm({
+  serie,
+  advertencias,
+}: {
+  serie: SerieXm
+  advertencias: string[]
+}) {
+  const primero = serie.puntos[0]
+  const ultimo = serie.puntos[serie.puntos.length - 1]
+  if (!primero || !ultimo) return null
+  const base = periodoDe(primero.periodo)
+  const tope = periodoDe(ultimo.periodo)
+  const colorVariacion =
+    serie.variacionInteranual === null
+      ? 'text-gray-500 dark:text-gray-400'
+      : serie.variacionInteranual > 0
+        ? 'text-amber-700 dark:text-amber-300'
+        : 'text-emerald-700 dark:text-emerald-300'
+  return (
+    <div className="ui-card-stat">
+      <p className="ui-muted text-xs">{serie.nombre}</p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums">
+        {formatoNumero(ultimo.kwh / 1_000_000, 1)}{' '}
+        <span className="text-sm font-normal text-gray-500 dark:text-gray-400">GWh/mes</span>
+      </p>
+      <p className="ui-muted mt-1 text-xs">
+        {etiquetaPeriodo(tope.mes, tope.anio)} · base 100 ={' '}
+        {etiquetaPeriodo(base.mes, base.anio)}
+      </p>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium tabular-nums">
+            Índice {formatoNumero(ultimo.indice, 1)}
+          </p>
+          <p className={`text-sm font-medium tabular-nums ${colorVariacion}`}>
+            Interanual{' '}
+            {serie.variacionInteranual === null
+              ? '—'
+              : formatoPct(serie.variacionInteranual)}
+          </p>
+        </div>
+        <svg
+          width={132}
+          height={40}
+          viewBox="0 0 132 40"
+          role="img"
+          aria-label={`Índice de ${serie.nombre}: base 100 en ${etiquetaPeriodo(base.mes, base.anio)} y ${formatoNumero(ultimo.indice, 1)} en ${etiquetaPeriodo(tope.mes, tope.anio)}`}
+          className="shrink-0 text-uv-forest"
+        >
+          <polyline
+            points={trazarSparkline(serie.puntos)}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+      {advertencias.map((advertencia) => (
+        <p key={advertencia} className="ui-callout ui-callout-info mt-3">
+          {advertencia}
+        </p>
+      ))}
+    </div>
+  )
+}
+
 export interface AnalisisViewProps {
   edificaciones: { id: string; nombre: string }[]
   /** false = puede consultar la página pero no ejecutar el análisis. */
@@ -91,6 +187,12 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
   const [error, setError] = React.useState<string | null>(null)
   /** Nivel de los KPIs de gestión: 'edi' (exacto) | 'b:<id>' | 'e:<id>'. */
   const [nivelId, setNivelId] = React.useState('edi')
+  /** Resultado del benchmark XM: se carga una sola vez por análisis. */
+  const [serieSistema, setSerieSistema] = React.useState<RespuestaSerieXm | null>(null)
+  const [serieMercado, setSerieMercado] = React.useState<RespuestaSerieXm | null>(null)
+  const [contexto, setContexto] = React.useState<RespuestaContextoXm | null>(null)
+  const [benchmarkCargando, setBenchmarkCargando] = React.useState(false)
+  const benchmarkSolicitado = React.useRef(false)
 
   const opciones: ListboxOption[] = edificaciones.map((e) => ({
     value: e.id,
@@ -130,6 +232,54 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
     value: n.clave,
     label: n.precision === 'estimado' ? `${n.nombre} · estimado` : n.nombre,
   }))
+
+  // Benchmark XM: tres acciones en paralelo, una sola vez por análisis.
+  React.useEffect(() => {
+    if (!resultado || benchmarkSolicitado.current) return
+    benchmarkSolicitado.current = true
+    let vivo = true
+    setBenchmarkCargando(true)
+    void Promise.allSettled([
+      cargarSerieSistemaXm(),
+      cargarSerieMercadoXm(),
+      cargarContextoXm(),
+    ]).then(([sistema, mercado, ctx]) => {
+      if (!vivo) return
+      const falloSerie =
+        'No se pudo contactar la API de XM. El análisis no se ve afectado.'
+      setSerieSistema(
+        sistema.status === 'fulfilled' ? sistema.value : { estado: 'error', mensaje: falloSerie }
+      )
+      setSerieMercado(
+        mercado.status === 'fulfilled' ? mercado.value : { estado: 'error', mensaje: falloSerie }
+      )
+      setContexto(
+        ctx.status === 'fulfilled'
+          ? ctx.value
+          : {
+              estado: 'error',
+              mensaje: 'No se pudo cargar la comparación interna y el catálogo de XM.',
+            }
+      )
+      setBenchmarkCargando(false)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [resultado])
+
+  const respuestasSerie: (RespuestaSerieXm | null)[] = [serieSistema, serieMercado]
+  const seriesOk = respuestasSerie.filter(
+    (r): r is Extract<RespuestaSerieXm, { estado: 'ok' }> => r?.estado === 'ok'
+  )
+  const erroresSerie = respuestasSerie.filter(
+    (r): r is Extract<RespuestaSerieXm, { estado: 'error' }> => r?.estado === 'error'
+  )
+  const comparacion =
+    contexto?.estado === 'ok' ? contexto.contexto.comparacionInterna : null
+  const catalogo = contexto?.estado === 'ok' ? contexto.contexto.catalogo : []
+  const fechaConsulta =
+    contexto?.estado === 'ok' ? fechaCorta(contexto.contexto.fechaConsulta) : null
 
   return (
     <div className="space-y-6">
@@ -571,6 +721,229 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
                 </table>
               </div>
             )}
+          </div>
+
+          {/* Benchmark XM: series nacionales, comparación interna y catálogo */}
+          <div className="space-y-6">
+            <section
+              aria-labelledby="titulo-benchmark-xm"
+              className="ui-card space-y-4 p-5 sm:p-6"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 id="titulo-benchmark-xm" className="ui-title text-sm">
+                  Comparación respecto al sistema (datos XM)
+                </h3>
+                <p className="ui-muted text-xs tabular-nums">
+                  {fechaConsulta ? `Consulta: ${fechaConsulta}` : 'Consultando…'}
+                </p>
+              </div>
+
+              {benchmarkCargando ? (
+                <div aria-busy="true" aria-live="polite" className="space-y-3">
+                  <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-slate-800" />
+                  <p className="ui-muted text-xs">Consultando las series de XM…</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {erroresSerie.length > 0 && (
+                    <p className="ui-callout ui-callout-warn">{erroresSerie[0].mensaje}</p>
+                  )}
+                  {seriesOk.length > 0 && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {seriesOk.map(({ serie, advertencias }) => (
+                        <TarjetaSerieXm
+                          key={serie.clave}
+                          serie={serie}
+                          advertencias={advertencias}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <p className="ui-callout ui-callout-info">
+                    XM no publica consumo por edificación: estas series describen el
+                    comportamiento del sistema (tendencia y estacionalidad), no la magnitud
+                    de la edificación. El detalle por sector CIIU solo existe en forma
+                    horaria sin filtros, por lo que la comparación se hace con las series
+                    nacionales del SIN.
+                  </p>
+                </div>
+              )}
+            </section>
+
+            <section
+              aria-labelledby="titulo-comparacion-interna"
+              className="ui-card space-y-4 p-5 sm:p-6"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 id="titulo-comparacion-interna" className="ui-title text-sm">
+                  Tendencia interna entre edificaciones SIGE
+                </h3>
+                {comparacion && (
+                  <p className="ui-muted text-xs tabular-nums">
+                    {comparacion.ventanaReciente} vs {comparacion.ventanaPrevia}
+                  </p>
+                )}
+              </div>
+
+              {contexto?.estado === 'error' ? (
+                <p className="ui-callout ui-callout-warn">{contexto.mensaje}</p>
+              ) : comparacion === null ? (
+                !benchmarkCargando && (
+                  <div className="ui-empty py-8">
+                    <p className="max-w-md text-xs">
+                      Sin datos disponibles para la comparación interna.
+                    </p>
+                  </div>
+                )
+              ) : comparacion.filas.length === 0 ? (
+                <div className="ui-empty py-8">
+                  <p className="ui-title text-sm">Sin facturas registradas</p>
+                  <p className="max-w-md text-xs">
+                    Aún no hay facturas en los últimos 24 meses para comparar las
+                    edificaciones entre sí.
+                  </p>
+                </div>
+              ) : (
+                <div className="ui-table-shell">
+                  <table className="ui-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Edificación</th>
+                        <th scope="col">Promedio últimos 12 meses</th>
+                        <th scope="col">Interanual</th>
+                        <th scope="col">Datos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparacion.filas.map((fila) => {
+                        const esActual = fila.edificacionId === edificacionId
+                        return (
+                          <tr
+                            key={fila.edificacionId}
+                            className={
+                              esActual
+                                ? 'bg-emerald-50/70 dark:bg-emerald-950/25'
+                                : undefined
+                            }
+                          >
+                            <td className="whitespace-nowrap font-medium">
+                              {fila.nombre}
+                              {esActual && (
+                                <span
+                                  className={`${CLASE_BADGE} ml-2 border-emerald-600/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300`}
+                                >
+                                  Tu edificación
+                                </span>
+                              )}
+                            </td>
+                            <td className="whitespace-nowrap text-right tabular-nums">
+                              {fila.promedioKwh !== null ? formatoKwh(fila.promedioKwh) : '—'}
+                            </td>
+                            <td
+                              className={`whitespace-nowrap text-right font-medium tabular-nums ${
+                                fila.variacionPct === null
+                                  ? 'text-gray-500 dark:text-gray-400'
+                                  : fila.variacionPct > 0
+                                    ? 'text-amber-700 dark:text-amber-300'
+                                    : 'text-emerald-700 dark:text-emerald-300'
+                              }`}
+                            >
+                              {fila.variacionPct !== null
+                                ? formatoPct(fila.variacionPct)
+                                : 'datos insuficientes'}
+                            </td>
+                            <td className="whitespace-nowrap text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                              {fila.mesesConDatos}/24 meses
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section
+              aria-labelledby="titulo-documentos-xm"
+              className="ui-card space-y-4 p-5 sm:p-6"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 id="titulo-documentos-xm" className="ui-title text-sm">
+                  Datos y documentos XM
+                </h3>
+                {fechaConsulta && (
+                  <p className="ui-muted text-xs tabular-nums">
+                    Última consulta: {fechaConsulta}
+                  </p>
+                )}
+              </div>
+              <p className="ui-muted text-xs">
+                Catálogo oficial de las métricas usadas en el benchmark, tal como las
+                publica la API de XM: fuente citable para el informe técnico.
+              </p>
+              <div className="ui-table-shell">
+                <table className="ui-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Métrica</th>
+                      <th scope="col">Descripción oficial</th>
+                      <th scope="col">Unidades</th>
+                      <th scope="col">Cruce</th>
+                      <th scope="col">Endpoint</th>
+                      <th scope="col">Límite</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {catalogo.map((metrica) => (
+                      <tr key={metrica.metricId}>
+                        <td className="font-medium">
+                          {metrica.nombre}
+                          <br />
+                          <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                            {metrica.metricId}
+                          </span>
+                        </td>
+                        <td className="min-w-80 text-xs font-normal">
+                          {metrica.descripcion}
+                        </td>
+                        <td className="whitespace-nowrap">{metrica.unidades}</td>
+                        <td className="whitespace-nowrap">{metrica.cruce}</td>
+                        <td className="whitespace-nowrap text-xs">
+                          POST{' '}
+                          {metrica.endpoint.replace('https://servapibi.xm.com.co', '')}
+                        </td>
+                        <td className="whitespace-nowrap text-right tabular-nums">
+                          {metrica.maxDias} días
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ul className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
+                <li>
+                  <a
+                    href={URLS_XM.documentacion}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded font-medium text-uv-forest underline underline-offset-2 focus-ring"
+                  >
+                    Documentación oficial de la API XM
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href={URLS_XM.portal}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded font-medium text-uv-forest underline underline-offset-2 focus-ring"
+                  >
+                    Portal de XM (datos y operación)
+                  </a>
+                </li>
+              </ul>
+            </section>
           </div>
         </>
       )}

@@ -6,6 +6,7 @@ import {
   edificacionesAnalisisDemo,
   edificacionUnicaDemo,
 } from '../__fixtures__/analisis'
+import { __setearFalloXm } from '../__mocks__/serverActions'
 
 /**
  * El panel de la story no tiene wrapper de página: los espaciados
@@ -65,6 +66,7 @@ export const SinAnalisis: Story = {
 export const ConResultados: Story = {
   name: 'Con resultados · tarjetas, gráfica y períodos inusuales',
   play: async ({ canvas, userEvent }) => {
+    __setearFalloXm('ninguno')
     await canvas.findByText(/Sin análisis ejecutado/i)
     await userEvent.click(canvas.getByRole('button', { name: /ejecutar análisis/i }))
 
@@ -118,6 +120,26 @@ export const ConResultados: Story = {
     await elegirListbox(nivelSelector, 'b:bloque-a', userEvent)
     await canvas.findByText('Estimado — share del bloque')
     await canvas.findByText(/share 60,0 %/)
+
+    // Benchmark XM (issue #76): series nacionales con índice base 100
+    await canvas.findByRole('heading', {
+      name: 'Comparación respecto al sistema (datos XM)',
+    })
+    await canvas.findByText('Demanda del SIN (sistema interconectado)')
+    await canvas.findByText('Índice 105,1') // 7.460 GWh vs base 7.100 GWh
+    await canvas.findByText('Interanual +5,1 %')
+    await canvas.findByRole('img', { name: /Índice de Demanda del SIN/ })
+
+    // Comparación interna SIGE: la edificación actual resaltada
+    await canvas.findByRole('heading', {
+      name: 'Tendencia interna entre edificaciones SIGE',
+    })
+    await canvas.findByText('Tu edificación')
+
+    // Catálogo oficial citable con enlaces
+    await canvas.findByRole('heading', { name: 'Datos y documentos XM' })
+    await canvas.findByText('Demanda Energia SIN por Sistema')
+    await canvas.findByText('Documentación oficial de la API XM')
   },
 }
 
@@ -127,6 +149,7 @@ export const SinAtipicos: Story = {
     edificaciones: edificacionesAnalisisDemo,
   },
   play: async ({ canvas, userEvent }) => {
+    __setearFalloXm('ninguno')
     // Con dos edificaciones empieza sin selección: el botón está bloqueado
     const boton = await canvas.findByRole('button', { name: /ejecutar análisis/i })
     await waitFor(() => expect(boton).toBeDisabled())
@@ -140,8 +163,9 @@ export const SinAtipicos: Story = {
     await canvas.findByText(/Sin períodos inusuales/i)
     await canvas.findByText(/quedaron dentro del rango esperado/i)
 
-    // Sin atípicos no existe la tabla
-    expect(canvas.queryByRole('table')).toBeNull()
+    // Sin atípicos no existe la tabla de períodos inusuales: su columna
+    // «Explicación» es exclusiva de esa tabla (las del benchmark XM no la traen).
+    expect(canvas.queryByText('Explicación')).toBeNull()
   },
 }
 
@@ -160,5 +184,39 @@ export const SinPermisoDeAnalisis: Story = {
     // Se localiza por su <label for>: su nombre accesible es «Edificación».
     const selector = await canvas.findByLabelText(/^edificación$/i)
     await waitFor(() => expect(selector).toBeDisabled())
+  },
+}
+
+export const XmNoDisponible: Story = {
+  name: 'API XM caída · degradación con callout sin romper el análisis',
+  args: {
+    edificaciones: edificacionesAnalisisDemo,
+  },
+  play: async ({ canvas, userEvent }) => {
+    __setearFalloXm('xm')
+    try {
+      const boton = await canvas.findByRole('button', { name: /ejecutar análisis/i })
+      const selector = canvas.getByLabelText(/^edificación$/i)
+      await elegirListbox(selector, 'edi-demo-campus', userEvent)
+      await waitFor(() => expect(boton).toBeEnabled())
+      await userEvent.click(boton)
+
+      await canvas.findByRole('heading', { level: 2, name: 'Campus Robledo' })
+
+      // El benchmark degrada con callout de advertencia…
+      await canvas.findByText(/La API de XM no está disponible en este momento/i)
+      // …pero la nota honesta, la comparación interna y el catálogo siguen.
+      await canvas.findByText(/XM no publica consumo por edificación/i)
+      await canvas.findByText('Demanda Energia SIN por Sistema')
+
+      // Y el análisis queda intacto.
+      await canvas.findByRole('heading', {
+        level: 3,
+        name: 'Ahorro y consumo elevado',
+      })
+      await canvas.findByText('+6,8 %')
+    } finally {
+      __setearFalloXm('ninguno')
+    }
   },
 }

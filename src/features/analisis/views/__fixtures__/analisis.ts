@@ -17,6 +17,12 @@ import {
   type PeriodoAnalizado,
   type SalidaAnalisis,
 } from '../../models/analisis'
+import {
+  CATALOGO_XM,
+  construirSerie,
+  type RespuestaContextoXm,
+  type RespuestaSerieXm,
+} from '../../models/xm'
 
 const BASE_POR_MES: Record<number, number> = {
   1: 8500,
@@ -240,4 +246,97 @@ export const analisisSinAtipicosDemo: AnalisisResultado = {
   ...analisisDemo,
   salida: SALIDA_SIN_ATIPICOS,
   gestion: construirGestion(ENTRADAS_GESTION, SALIDA_SIN_ATIPICOS),
+}
+
+// ───────────────────────────────────────────────── Benchmark XM demo ──
+
+/** 13 meses completos de referencia: septiembre 2025 → septiembre 2026. */
+const MESES_BENCHMARK_DEMO: string[] = (() => {
+  const periodos: string[] = []
+  let anio = 2025
+  let mes = 9
+  for (let i = 0; i < 13; i += 1) {
+    periodos.push(`${anio}-${String(mes).padStart(2, '0')}`)
+    mes += 1
+    if (mes === 13) {
+      mes = 1
+      anio += 1
+    }
+  }
+  return periodos
+})()
+
+/** Demanda mensual del SIN en kWh (orden sep-2025 → sep-2026). */
+const KWH_SISTEMA_DEMO = [
+  7_100_000_000, 7_350_000_000, 7_420_000_000, 7_610_000_000, 7_480_000_000,
+  7_300_000_000, 7_550_000_000, 7_700_000_000, 7_640_000_000, 7_500_000_000,
+  7_390_000_000, 7_250_000_000, 7_460_000_000,
+]
+
+/** Demanda mensual del mercado no regulado en kWh (mismo orden). */
+const KWH_MERCADO_DEMO = [
+  1_720_000_000, 1_780_000_000, 1_810_000_000, 1_860_000_000, 1_830_000_000,
+  1_790_000_000, 1_840_000_000, 1_900_000_000, 1_880_000_000, 1_850_000_000,
+  1_820_000_000, 1_760_000_000, 1_805_000_000,
+]
+
+function mapaMensual(kwh: number[]): Map<string, number> {
+  return new Map(MESES_BENCHMARK_DEMO.map((periodo, i) => [periodo, kwh[i]]))
+}
+
+export const serieSistemaDemo: RespuestaSerieXm = {
+  estado: 'ok',
+  serie: construirSerie(
+    'sistema',
+    'Demanda del SIN (sistema interconectado)',
+    MESES_BENCHMARK_DEMO,
+    mapaMensual(KWH_SISTEMA_DEMO)
+  ).serie,
+  advertencias: [],
+}
+
+export const serieMercadoDemo: RespuestaSerieXm = {
+  estado: 'ok',
+  serie: construirSerie(
+    'mercado',
+    'Demanda comercial — mercado no regulado',
+    MESES_BENCHMARK_DEMO,
+    mapaMensual(KWH_MERCADO_DEMO)
+  ).serie,
+  advertencias: [],
+}
+
+export const contextoDemo: RespuestaContextoXm = {
+  estado: 'ok',
+  contexto: {
+    fechaConsulta: '2026-10-13T12:00:00.000Z',
+    comparacionInterna: {
+      ventanaReciente: '2025-10 → 2026-09',
+      ventanaPrevia: '2024-10 → 2025-09',
+      filas: [
+        {
+          edificacionId: 'edi-demo-campus',
+          nombre: 'Campus Robledo',
+          mesesConDatos: 24,
+          variacionPct: -3.4,
+          promedioKwh: 10100,
+        },
+        {
+          edificacionId: 'edi-demo-sede',
+          nombre: 'Sede Administrativa',
+          mesesConDatos: 18,
+          variacionPct: 2.1,
+          promedioKwh: 6420,
+        },
+        {
+          edificacionId: 'edi-demo-lab',
+          nombre: 'Laboratorio Central',
+          mesesConDatos: 9,
+          variacionPct: null,
+          promedioKwh: null,
+        },
+      ],
+    },
+    catalogo: CATALOGO_XM,
+  },
 }

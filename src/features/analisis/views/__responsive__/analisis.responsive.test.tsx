@@ -20,6 +20,7 @@ import '@/app/globals.css'
 vi.mock('@/features/analisis/controllers/analisis', () =>
   import('../__mocks__/serverActions')
 )
+vi.mock('@/features/analisis/controllers/xm', () => import('../__mocks__/serverActions'))
 
 import { AnalisisView } from '../AnalisisView'
 import { edificacionUnicaDemo } from '../__fixtures__/analisis'

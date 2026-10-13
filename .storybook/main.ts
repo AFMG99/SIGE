@@ -47,6 +47,7 @@ const config: StorybookConfig = {
       { find: '@/features/datos/controllers/lineasBase', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/ajustes', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/analisis/controllers/analisis', replacement: ANALISIS_MOCK },
+      { find: '@/features/analisis/controllers/xm', replacement: ANALISIS_MOCK },
       { find: '@', replacement: path.resolve(dirname, '../src') },
       ...base,
     ];
