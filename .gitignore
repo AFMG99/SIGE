@@ -75,3 +75,6 @@ id_ed25519*
 
 # Figure pipeline (fuentes, renders, respaldos) — no versionado
 /docs/figuras/
+
+# Codegraph local index (herramienta de agente, no del proyecto)
+.codegraph/
