@@ -113,6 +113,9 @@ const NAV_ITEMS: NavItem[] = [
     fullLabel: 'Análisis estadístico',
     shortLabel: 'Análisis',
     href: '/dashboard/analisis',
+    // El módulo analiza facturas/variables de consumo: se muestra solo a
+    // quien ve «Datos» (evita un link muerto para Comunidad Universitaria).
+    moduleId: 'consumption',
     icon: ICONS['chart-bar'],
   },
   {
