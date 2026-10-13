@@ -35,6 +35,16 @@ async function elegirListbox(
   await userEvent.click(opcion as HTMLElement)
 }
 
+/** Cambia de submódulo haciendo click en su pestaña (role="tab"). */
+async function navegarA(
+  canvas: { findByRole: (role: string, options: { name: string }) => Promise<HTMLElement> },
+  userEvent: UserEventClic,
+  nombre: string
+): Promise<void> {
+  const tab = await canvas.findByRole('tab', { name: nombre })
+  await userEvent.click(tab)
+}
+
 const meta = {
   component: AnalisisView,
   tags: ['ai-generated'],
@@ -57,6 +67,9 @@ export const SinAnalisis: Story = {
     await canvas.findByText(/Sin análisis ejecutado/i)
     await canvas.findByText(/No se guarda información/i)
 
+    // Sin resultado no existen las pestañas de submódulo
+    expect(canvas.queryByRole('tablist')).toBeNull()
+
     // Con una sola edificación el selector viene elegido: solo falta ejecutar
     const boton = await canvas.findByRole('button', { name: /ejecutar análisis/i })
     await waitFor(() => expect(boton).toBeEnabled())
@@ -64,7 +77,7 @@ export const SinAnalisis: Story = {
 }
 
 export const ConResultados: Story = {
-  name: 'Con resultados · tarjetas, gráfica y períodos inusuales',
+  name: 'Con resultados · submódulos, tarjetas y períodos inusuales',
   play: async ({ canvas, userEvent }) => {
     __setearFalloXm('ninguno')
     await canvas.findByText(/Sin análisis ejecutado/i)
@@ -74,7 +87,8 @@ export const ConResultados: Story = {
     await canvas.findByRole('heading', { level: 2, name: 'Campus Robledo' })
     await canvas.findByText(/2023-01 → 2025-12/)
 
-    // Tarjetas de resumen
+    // Submódulo Resumen (activo por defecto): tarjetas de resumen
+    await canvas.findByRole('tab', { name: 'Resumen' })
     await canvas.findByText('Períodos analizados')
     await canvas.findByText('Períodos inusuales', { selector: 'p' })
     await canvas.findByText('Evaluados con banda')
@@ -91,7 +105,19 @@ export const ConResultados: Story = {
     await canvas.findByText(/Período inusual/i)
     await canvas.findByText(/Vacaciones \(calendario académico\)/i)
 
-    // Tabla de períodos inusuales con su explicación estadística
+    // Los atípicos son focalizables en el teclado y anuncian su señal
+    const punto = await canvas.findAllByRole('img', {
+      name: /alza \(\+40,0 %\)/i,
+    })
+    expect(punto.length).toBeGreaterThan(0)
+
+    // Contrato de submódulos: sólo el panel activo está en el DOM
+    expect(
+      canvas.queryByRole('heading', { level: 3, name: 'Períodos inusuales' })
+    ).toBeNull()
+
+    // Submódulo Patrones de consumo: gestión por nivel + tabla de inusuales
+    await navegarA(canvas, userEvent, 'Patrones de consumo')
     await canvas.findByRole('heading', { level: 3, name: 'Períodos inusuales' })
     await canvas.findByText(/1 en alza · 1 en caída · 2 en período lectivo/)
     await canvas.findByText('marzo de 2024')
@@ -102,39 +128,6 @@ export const ConResultados: Story = {
     // Ambos atípicos caen en meses lectivos de 21 días: dos badges idénticos
     const badges = await canvas.findAllByText(/Período lectivo · 21 d/)
     expect(badges).toHaveLength(2)
-
-    // Los atípicos son focalizables en el teclado y anuncian su señal
-    const punto = await canvas.findAllByRole('img', {
-      name: /alza \(\+40,0 %\)/i,
-    })
-    expect(punto.length).toBeGreaterThan(0)
-
-    // Línea base del análisis: modelo automático §7.4 + ahorros §8.1
-    await canvas.findByRole('heading', {
-      level: 3,
-      name: 'Línea base del análisis',
-    })
-    // Default = valor absoluto sobre la serie plana: 10.250 kWh/mes de LBEn,
-    // ahorro en cero y la regresión exponiendo su gate de 36 meses.
-    await canvas.findByText('10.250 kWh/mes')
-    await canvas.findByText('0,0 kWh/mes')
-    await canvas.findByText(/Hay 34 < 36 datos depurados/)
-    await canvas.findByText('enero')
-
-    // Periodicidad anual: la tabla §8.1 colapsa a una fila Σ del año y
-    // la serie de la gráfica agrega a 3 puntos (misma unidad kWh/mes).
-    const periodicidad = await canvas.findByLabelText('Periodicidad')
-    await elegirListbox(periodicidad, 'ano', userEvent)
-    await canvas.findByText(/Total anual \(12 meses\)/)
-    await canvas.findByRole('img', { name: /serie anual de consumo de 3 años/i })
-    await elegirListbox(periodicidad, 'mes', userEvent)
-
-    // Confort (ASHRAE 55): §8.1 no define potencial → estado vacío con nota
-    const modeloSelector = await canvas.findByLabelText('Modelo de línea base')
-    await elegirListbox(modeloSelector, 'confort', userEvent)
-    await canvas.findByText('§8.1 no define potencial')
-    await canvas.findByText('No aplica')
-    await canvas.findByText(/sin desglose mensual/)
 
     // Indicadores de gestión: nivel exacto por defecto (issue #75)
     await canvas.findByText('Ahorro y consumo elevado')
@@ -148,7 +141,39 @@ export const ConResultados: Story = {
     await canvas.findByText('Estimado — share del bloque')
     await canvas.findByText(/share 60,0 %/)
 
-    // Benchmark XM (issue #76): series nacionales con índice base 100
+    // Submódulo Ahorros: modelo automático §7.4 + ahorros §8.1
+    await navegarA(canvas, userEvent, 'Ahorros')
+    await canvas.findByRole('heading', {
+      level: 3,
+      name: 'Línea base del análisis',
+    })
+    // Default = valor absoluto sobre la serie plana: 10.250 kWh/mes de LBEn,
+    // ahorro en cero y la regresión exponiendo su gate de 36 meses.
+    await canvas.findByText('10.250 kWh/mes')
+    await canvas.findByText('0,0 kWh/mes')
+    await canvas.findByText(/Hay 34 < 36 datos depurados/)
+    await canvas.findByText('enero')
+
+    // Periodicidad anual: la tabla §8.1 colapsa a una fila Σ del año…
+    const periodicidad = await canvas.findByLabelText('Periodicidad')
+    await elegirListbox(periodicidad, 'ano', userEvent)
+    await canvas.findByText(/Total anual \(12 meses\)/)
+
+    // …y la gráfica del submódulo Resumen agrega a 3 puntos (kWh/mes):
+    // el modo anual elegido en Ahorros gobierna también la serie.
+    await navegarA(canvas, userEvent, 'Resumen')
+    await canvas.findByRole('img', { name: /serie anual de consumo de 3 años/i })
+
+    // Confort (ASHRAE 55) en Ahorros: §8.1 no define potencial → vacío
+    await navegarA(canvas, userEvent, 'Ahorros')
+    const modeloSelector = await canvas.findByLabelText('Modelo de línea base')
+    await elegirListbox(modeloSelector, 'confort', userEvent)
+    await canvas.findByText('§8.1 no define potencial')
+    await canvas.findByText('No aplica')
+    await canvas.findByText(/sin desglose mensual/)
+
+    // Submódulo Comparativo: benchmark XM (issue #76) con índice base 100
+    await navegarA(canvas, userEvent, 'Comparativo')
     await canvas.findByRole('heading', {
       name: 'Comparación respecto al sistema (datos XM)',
     })
@@ -187,6 +212,9 @@ export const SinAtipicos: Story = {
 
     await userEvent.click(boton)
     await canvas.findByRole('heading', { level: 2, name: 'Sede Administrativa' })
+
+    // El estado vacío de inusuales vive en el submódulo Patrones
+    await navegarA(canvas, userEvent, 'Patrones de consumo')
     await canvas.findByText(/Sin períodos inusuales/i)
     await canvas.findByText(/quedaron dentro del rango esperado/i)
 
@@ -231,12 +259,14 @@ export const XmNoDisponible: Story = {
       await canvas.findByRole('heading', { level: 2, name: 'Campus Robledo' })
 
       // El benchmark degrada con callout de advertencia…
+      await navegarA(canvas, userEvent, 'Comparativo')
       await canvas.findByText(/La API de XM no está disponible en este momento/i)
       // …pero la nota honesta, la comparación interna y el catálogo siguen.
       await canvas.findByText(/XM no publica consumo por edificación/i)
       await canvas.findByText('Demanda Energia SIN por Sistema')
 
-      // Y el análisis queda intacto.
+      // Y el análisis queda intacto en Patrones de consumo.
+      await navegarA(canvas, userEvent, 'Patrones de consumo')
       await canvas.findByRole('heading', {
         level: 3,
         name: 'Ahorro y consumo elevado',
@@ -263,7 +293,9 @@ export const ConVariacionAhorro: Story = {
 
     await canvas.findByRole('heading', { level: 2, name: 'Auditorio Mayor' })
 
-    // Golden del Anexo 1: «Promedio x Año» 468 kWh ≈ 467,6 kWh/mes (4,1 %)
+    // El golden del Anexo 1 vive en el submódulo Ahorros:
+    // «Promedio x Año» 468 kWh ≈ 467,6 kWh/mes (4,1 %)
+    await navegarA(canvas, userEvent, 'Ahorros')
     await canvas.findByText('467,6 kWh/mes')
     await canvas.findByText('4,1 %')
     await canvas.findByText(/LBEn_m = promedio simple/)
@@ -279,6 +311,9 @@ export const ConVariacionAhorro: Story = {
     await elegirListbox(periodicidad, 'ano', userEvent)
     await canvas.findByText(/Total anual \(12 meses\)/)
     await canvas.findByText('5.611,3')
+
+    // La serie anual se renderiza en la gráfica del submódulo Resumen
+    await navegarA(canvas, userEvent, 'Resumen')
     await canvas.findByRole('img', { name: /serie anual de consumo de 3 años/i })
   },
 }
@@ -298,12 +333,16 @@ export const SinModelos: Story = {
 
     await canvas.findByRole('heading', { level: 2, name: 'Biblioteca Central' })
 
-    // Callout honesto donde iría la sección de modelos…
+    // La serie del Resumen sigue intacta…
+    await canvas.findByRole('img', { name: /serie mensual de consumo de 36 períodos/i })
+
+    // …callout honesto donde iría la sección de modelos en Ahorros…
+    await navegarA(canvas, userEvent, 'Ahorros')
     await canvas.findByText(/El motor no devolvió la sección de modelos/)
     expect(canvas.queryByText('Línea base del análisis')).toBeNull()
 
-    // …sin tocar el análisis de períodos inusuales ni la serie.
-    await canvas.findByRole('img', { name: /serie mensual de consumo de 36 períodos/i })
+    // …sin tocar los indicadores de gestión de Patrones de consumo.
+    await navegarA(canvas, userEvent, 'Patrones de consumo')
     await canvas.findByRole('heading', {
       level: 3,
       name: 'Ahorro y consumo elevado',

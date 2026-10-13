@@ -84,7 +84,7 @@ describe('AnalisisView — desborde horizontal', () => {
       expect(desbordeDocumento()).toBeLessThanOrEqual(1)
     })
 
-    it('con resultados: la tabla scrollea en su shell y nada desborda', async () => {
+    it('con resultados: la tira de submódulos y la tabla scrollean sin desbordar', async () => {
       render(<AnalisisView edificaciones={edificacionUnicaDemo} puedeAnalizar />)
 
       const boton = await vi.waitFor(() => {
@@ -104,14 +104,35 @@ describe('AnalisisView — desborde horizontal', () => {
       )
       expect(heading.textContent).toBe('Campus Robledo')
 
-      // La gráfica SVG cabe en su contenedor
+      // La tira de pestañas existe, cabe en el documento y sus targets
+      // miden ≥ 40px por debajo de lg (objetivo táctil).
+      const tira = await vi.waitFor(() => {
+        const el = document.querySelector<HTMLElement>('[data-subvista-strip]')
+        expect(el).not.toBeNull()
+        return el as HTMLElement
+      })
+      expect(getComputedStyle(tira).overflowX).toContain('auto')
+      const pestanas = tira.querySelectorAll<HTMLElement>('[role="tab"]')
+      expect(pestanas.length).toBe(4)
+      if (width < 1024) {
+        pestanas.forEach((p) => {
+          expect(p.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+        })
+      }
+
+      // La gráfica SVG (Resumen) cabe en su contenedor
       const svg = document.querySelector<SVGSVGElement>('figure svg')
       expect(svg).not.toBeNull()
       expect(svg!.getBoundingClientRect().right).toBeLessThanOrEqual(
         window.innerWidth + 1
       )
 
-      // La tabla de períodos inusuales vive en un shell scrolleable
+      // La tabla de períodos inusuales vive en el submódulo Patrones: se
+      // navega a su pestaña y verifica su shell scrolleable.
+      const tabPatrones = tira.querySelector<HTMLElement>('#analisis-tab-patrones')
+      expect(tabPatrones).not.toBeNull()
+      tabPatrones!.click()
+
       const tabla = await vi.waitFor(() => {
         const el = document.querySelector<HTMLElement>('.ui-table-shell table')
         expect(el).not.toBeNull()
