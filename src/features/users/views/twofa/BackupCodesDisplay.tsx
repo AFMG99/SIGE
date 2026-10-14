@@ -55,7 +55,7 @@ export function BackupCodesDisplay({ codes, onComplete }: BackupCodesDisplayProp
 
   return (
     <div className="space-y-4">
-      <div className="ui-callout ui-callout-warning">
+      <div className="ui-callout ui-callout-warn">
         <p className="ui-title text-sm">Guarda estos códigos ahora</p>
         <p className="ui-muted mt-1 text-sm">
           Se muestran una sola vez. Cada código sirve una sola vez si pierdes acceso a tu app de
@@ -91,7 +91,7 @@ export function BackupCodesDisplay({ codes, onComplete }: BackupCodesDisplayProp
         <button
           type="button"
           onClick={handleCopy}
-          className="ui-btn flex-1 cursor-pointer gap-2 border-2 border-emerald-500 py-3 text-sm font-semibold text-emerald-600 transition-all hover:bg-emerald-50 hover:shadow-md dark:border-emerald-400 dark:text-emerald-400 dark:hover:bg-emerald-950/20"
+          className="ui-btn ui-btn-accent flex-1 py-3 font-semibold"
         >
           {copied ? (
             <>

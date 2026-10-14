@@ -110,7 +110,7 @@ export function UserTable({
                   type="checkbox"
                   checked={selectedIds.length === users.length && users.length > 0}
                   onChange={(e) => onSelectAll(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus-ring cursor-pointer"
                   aria-label="Seleccionar todos los usuarios de esta página"
                 />
               </th>
@@ -130,7 +130,7 @@ export function UserTable({
                     type="checkbox"
                     checked={selectedIds.includes(user.id)}
                     onChange={(e) => onSelect(user.id, e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus-ring cursor-pointer"
                     aria-label={`Seleccionar ${user.name || user.email}`}
                   />
                 </td>
@@ -248,7 +248,7 @@ export function UserCardList({
               type="checkbox"
               checked={selectedIds.includes(user.id)}
               onChange={(e) => onSelect(user.id, e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-emerald-600 focus-ring cursor-pointer"
               aria-label={`Seleccionar ${user.name || user.email}`}
             />
             <Avatar name={user.name} email={user.email} size="md" />

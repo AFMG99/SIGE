@@ -283,7 +283,7 @@ export function UserDrawer({
                   checked={form.sendInvitation === true}
                   onChange={(e) => update({ sendInvitation: e.target.checked }, 'sendInvitation')}
                   disabled={submitting}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus-ring cursor-pointer"
                 />
                 <span>
                   <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Enviar invitación por correo</span>

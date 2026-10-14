@@ -228,7 +228,7 @@ export function SecurityTab({
               <button
                 type="button"
                 onClick={() => setShowDisableForm(true)}
-                className="ui-btn cursor-pointer border border-red-300 bg-white text-red-700 hover:bg-red-50 dark:border-red-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                className="ui-btn ui-btn-danger-outline"
               >
                 Desactivar 2FA
               </button>
@@ -248,7 +248,7 @@ export function SecurityTab({
                   type="button"
                   onClick={() => setConfirmReset2FA(true)}
                   disabled={resetting2FA}
-                  className="ui-btn cursor-pointer border border-red-300 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                  className="ui-btn ui-btn-danger-outline"
                 >
                   {resetting2FA ? 'Reseteando...' : 'Resetear 2FA completo'}
                 </button>
