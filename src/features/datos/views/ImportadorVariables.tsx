@@ -1375,7 +1375,7 @@ export function ImportadorVariables({
                     )
                   )
                 }}
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700"
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus-ring dark:border-slate-700"
               />
               <span>
                 La primera fila contiene los encabezados{' '}
