@@ -78,3 +78,9 @@ id_ed25519*
 
 # Codegraph local index (herramienta de agente, no del proyecto)
 .codegraph/
+
+# Artefactos de agentes / ODD — nunca se versionan (decisiones locales, no del proyecto)
+.atl/
+odd/
+audit_report.md
+report_t4_analysis.md
