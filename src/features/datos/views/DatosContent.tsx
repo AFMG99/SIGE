@@ -84,7 +84,13 @@ export function DatosContent({
   lineasBaseFilas,
 }: DatosContentProps) {
   const pos = useHeaderPos()
-  const { activeId, setActiveId } = useSubNav()
+  const { activeId: activeIdCrudo, setActiveId } = useSubNav()
+  // El SubNavContext es compartido con el módulo de análisis: si el id activo
+  // viene de allí (p. ej. 'comparativo'), este módulo cae a Resumen en vez de
+  // renderizar vacío.
+  const activeId = DATOS_SECTIONS.some((s) => s.id === activeIdCrudo)
+    ? activeIdCrudo
+    : 'resumen'
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
   const [vista, setVista] = React.useState<Modo>(puedeCargar ? 'carga' : 'datos')
   const modo: Modo = puedeCargar ? vista : 'datos'

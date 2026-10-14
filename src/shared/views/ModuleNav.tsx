@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { visibleModules, type ModuleId, type Role } from '@/shared/models/permissions'
-import { Chevron, SidebarTree, SIDEBAR_INDENT } from './sidebar/SidebarNav'
+import { Chevron, SidebarTree, SIDEBAR_INDENT, type SidebarItem } from './sidebar/SidebarNav'
 import { useSubNav } from './nav/NavContext'
 import { DATOS_SECTIONS } from '@/features/datos/views/nav'
+import { ANALISIS_SECTIONS } from '@/features/analisis/views/nav'
 
 export type NavVariant = 'bar' | 'sidebar' | 'rail'
 
@@ -158,6 +159,28 @@ function isItemVisible(role: string | null, item: NavItem, extraModules: string[
   return visible.includes(item.moduleId) || extraModules.includes(item.moduleId)
 }
 
+/**
+ * Módulos con navegación interna por secciones: en la variante `sidebar` su
+ * árbol se embebe bajo el link (equivalente al SidebarNav propio del módulo,
+ * que sólo existe con la cabecera arriba). `onNavigate` en el select cierra
+ * el cajón móvil al elegir sección (la sección no toca la URL).
+ */
+const MODULE_TREES: Record<
+  string,
+  { ruta: string; secciones: SidebarItem[]; etiqueta: string }
+> = {
+  consumption: {
+    ruta: '/dashboard/datos',
+    secciones: DATOS_SECTIONS,
+    etiqueta: 'Mostrar u ocultar las secciones del módulo de datos',
+  },
+  analisis: {
+    ruta: '/dashboard/analisis',
+    secciones: ANALISIS_SECTIONS,
+    etiqueta: 'Mostrar u ocultar las secciones del módulo de análisis',
+  },
+}
+
 export function ModuleNav({
   role,
   variant,
@@ -175,12 +198,15 @@ export function ModuleNav({
   const { activeId, setActiveId } = useSubNav()
   const [treeOpen, setTreeOpen] = useState(true)
 
-  const onDatosRoute =
-    pathname === '/dashboard/datos' || pathname.startsWith('/dashboard/datos/')
+  const enRutaDe = (href: string) =>
+    pathname === href || pathname.startsWith(href + '/')
+  const enRutaConArbol = Object.values(MODULE_TREES).some((t) =>
+    enRutaDe(t.ruta)
+  )
 
   useEffect(() => {
-    if (onDatosRoute) setTreeOpen(true)
-  }, [onDatosRoute])
+    if (enRutaConArbol) setTreeOpen(true)
+  }, [enRutaConArbol])
 
   const visibleItems = NAV_ITEMS.filter((item) => isItemVisible(role, item, extraModules))
 
@@ -227,8 +253,9 @@ export function ModuleNav({
       )
     }
 
-    // sidebar variant
-    if (item.id !== 'consumption') {
+    // sidebar variant: los módulos con árbol de secciones embeben su tree.
+    const tree = MODULE_TREES[item.id]
+    if (!tree) {
       return (
         <Link
           key={item.id}
@@ -243,7 +270,8 @@ export function ModuleNav({
       )
     }
 
-    const showTree = onDatosRoute && treeOpen
+    const onModuleRoute = enRutaDe(tree.ruta)
+    const showTree = onModuleRoute && treeOpen
 
     return (
       <div key={item.id} className="relative">
@@ -258,12 +286,12 @@ export function ModuleNav({
             {item.fullLabel}
           </span>
 
-          {onDatosRoute && (
+          {onModuleRoute && (
             <span
               role="button"
               tabIndex={0}
               aria-expanded={treeOpen}
-              aria-label="Mostrar u ocultar las secciones del módulo de datos"
+              aria-label={tree.etiqueta}
               title={treeOpen ? 'Contraer secciones' : 'Expandir secciones'}
               onClick={(e) => {
                 e.preventDefault()
@@ -292,7 +320,7 @@ export function ModuleNav({
               style={{ left: SIDEBAR_INDENT - 4 }}
             />
             <SidebarTree
-              items={DATOS_SECTIONS}
+              items={tree.secciones}
               activeId={activeId}
               onSelect={(subItem) => {
                 setActiveId(subItem.id)

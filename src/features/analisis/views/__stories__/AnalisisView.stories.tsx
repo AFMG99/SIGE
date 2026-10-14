@@ -35,14 +35,14 @@ async function elegirListbox(
   await userEvent.click(opcion as HTMLElement)
 }
 
-/** Cambia de submódulo haciendo click en su pestaña (role="tab"). */
+/** Cambia de submódulo eligiendo su sección en el sidebar del módulo. */
 async function navegarA(
   canvas: { findByRole: (role: string, options: { name: string }) => Promise<HTMLElement> },
   userEvent: UserEventClic,
   nombre: string
 ): Promise<void> {
-  const tab = await canvas.findByRole('tab', { name: nombre })
-  await userEvent.click(tab)
+  const item = await canvas.findByRole('button', { name: nombre })
+  await userEvent.click(item)
 }
 
 const meta = {
@@ -67,8 +67,12 @@ export const SinAnalisis: Story = {
     await canvas.findByText(/Sin análisis ejecutado/i)
     await canvas.findByText(/No se guarda información/i)
 
-    // Sin resultado no existen las pestañas de submódulo
-    expect(canvas.queryByRole('tablist')).toBeNull()
+    // La navegación entre submódulos es el sidebar del módulo (4 secciones),
+    // presente incluso sin resultado — igual que el módulo de datos.
+    await canvas.findByRole('button', { name: 'Resumen' })
+    await canvas.findByRole('button', { name: 'Comparativo' })
+    await canvas.findByRole('button', { name: 'Patrones de consumo' })
+    await canvas.findByRole('button', { name: 'Ahorros' })
 
     // Con una sola edificación el selector viene elegido: solo falta ejecutar
     const boton = await canvas.findByRole('button', { name: /ejecutar análisis/i })
@@ -88,7 +92,7 @@ export const ConResultados: Story = {
     await canvas.findByText(/2023-01 → 2025-12/)
 
     // Submódulo Resumen (activo por defecto): tarjetas de resumen
-    await canvas.findByRole('tab', { name: 'Resumen' })
+    await canvas.findByRole('button', { name: 'Resumen' })
     await canvas.findByText('Períodos analizados')
     await canvas.findByText('Períodos inusuales', { selector: 'p' })
     await canvas.findByText('Evaluados con banda')

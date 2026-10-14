@@ -197,16 +197,19 @@ export default function SidebarNav({
   onSelect,
   open,
   onToggle,
+  label = 'Menú lateral del módulo de datos',
 }: {
   items: SidebarItem[]
   activeId?: string
   onSelect?: (item: SidebarItem) => void
   open: boolean
   onToggle: () => void
+  /** Nombre accesible del landmark: cada módulo se etiqueta a sí mismo. */
+  label?: string
 }) {
   return (
     <aside
-      aria-label="Menú lateral del módulo de datos"
+      aria-label={label}
       className="fixed left-0 top-16 z-30 hidden flex-col overflow-hidden chrome-forest border-r border-emerald-950/70 transition-[width] duration-300 lg:flex"
       style={{
         width: open ? SIDEBAR_W_EXPANDED : SIDEBAR_W_COLLAPSED,

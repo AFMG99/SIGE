@@ -281,29 +281,6 @@
     @apply h-full rounded-full bg-emerald-600 transition-all duration-200;
   }
 
-  /* -- Tabs: `.ui-tabs` (tablist strip) + `.ui-tab` (each tab) --
-        Semántica ARIA: el contenedor lleva role="tablist" y cada botón
-        role="tab" + aria-selected. El estado activo se estila con el
-        atributo, así el markup JSX no necesita clases condicionales.
-        Por debajo de `lg` la tira hace scroll horizontal y cada tab
-        crece a 40px (target táctil); el pill activo se alinea a la
-        izquierda vía JS para no quedar oculto tras el recorte. */
-  .ui-tabs {
-    @apply inline-flex max-w-full snap-x snap-mandatory gap-1 overflow-x-auto rounded-xl border border-gray-200 bg-gray-100 p-1.5 dark:border-slate-800 dark:bg-slate-900;
-    scrollbar-width: none;
-  }
-  .ui-tabs::-webkit-scrollbar {
-    display: none;
-  }
-  .ui-tab {
-    @apply relative flex min-h-10 shrink-0 snap-start items-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2 text-xs font-semibold text-gray-500 transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime focus-visible:ring-offset-2 dark:text-gray-400 dark:focus-visible:ring-offset-slate-950 lg:min-h-0;
-  }  .ui-tab:hover:not([aria-selected='true']) {
-    @apply text-gray-700 dark:text-gray-200;
-  }
-  .ui-tab[aria-selected='true'] {
-    @apply bg-uv-forest text-white shadow-sm dark:bg-emerald-700;
-  }
-
   /* -- Modal surface -- */
   .ui-modal {
     /* El diálogo nunca supera su overlay (que llena la ventana): el contenido
