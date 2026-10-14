@@ -302,6 +302,21 @@
       radial-gradient(140% 90% at 0% 0%, rgba(146, 189, 36, 0.18), transparent 55%),
       linear-gradient(158deg, #005226 0%, #003f1e 48%, #00170b 100%);
   }
+
+  /* -- Controles sobre superficie `.chrome-forest` (encabezado, cajón móvil,
+        barra lateral de datos): una sola receta para border/bg/hover/active y
+        foco visible. El tamaño vive en JSX; el radio es md (control pequeño,
+        escala de radios). Como la superficie es oscura, el ring uv-lime va SIN
+        offset (ver convenciones de `.focus-ring`). -- */
+  .chrome-btn {
+    @apply cursor-pointer rounded-md border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white active:border-white/30 active:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime;
+  }
+
+  /* -- Sólo foco visible, para enlaces de la superficie chrome que conservan
+        su propio background/hover (items de la navegación de módulos). -- */
+  .chrome-focus {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime;
+  }
 }
 @keyframes datos-fade-up {
   from { opacity: 0; transform: translateY(4px); }
@@ -319,5 +334,22 @@
 
 .settings-panel {
   animation: settings-fade-up 0.3s ease-out backwards;
+}
+
+/* Transiciones breves sí — pero nunca a costa de `prefers-reduced-motion`.
+   Regla global con `!important` para colapsar también los `transition` en
+   línea del encabezado y del shell (un `!important` de hoja autor gana al
+   estilo en línea sin `!important`). La animación por JS (framer-motion) del
+   cajón móvil respeta la preferencia vía `useReducedMotion()`. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
 }
 

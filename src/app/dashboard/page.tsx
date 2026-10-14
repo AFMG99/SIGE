@@ -40,7 +40,7 @@ export default async function DashboardPage() {
             </svg>
           </div>
           <div>
-            <h2 className="ui-title text-2xl">{user.name || 'Usuario'}</h2>
+            <h1 className="ui-title text-2xl">{user.name || 'Usuario'}</h1>
             <p className="ui-muted">{user.email}</p>
           </div>
         </div>

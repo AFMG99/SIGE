@@ -1191,3 +1191,134 @@ describe('Configuración — hero y pestañas', () => {
     })
   })
 })
+
+// ---------------------------------------------------------------------------
+// Fase 2a — chrome de navegación (shell / header / ModuleNav).
+//
+// Contratos nuevos del rediseño:
+//   · 320px es un viewport real: ni documento ni encabezado desbordan.
+//   · El contenido arranca debajo del encabezado fijo (no queda tapado).
+//   · El módulo activo se anuncia con `aria-current` y se marca con uv-lime.
+//   · El control de secciones del cajón mide ≥ 40px por debajo de `lg` y va
+//     FUERA del enlace (HTML válido + orden de foco lógico).
+// Una aserción que falla NO se arregla bajando el umbral.
+// ---------------------------------------------------------------------------
+describe('Chrome de navegación — Fase 2a', () => {
+  beforeEach(() => cleanup())
+  afterEach(() => cleanup())
+
+  /** Abre el cajón móvil y devuelve su `nav` (sólo por debajo de `lg`). */
+  async function abrirCajon(): Promise<HTMLElement> {
+    const burger = await vi.waitFor(() => {
+      const el = document.querySelector<HTMLButtonElement>(
+        'button[aria-controls="nav-movil"]'
+      )
+      expect(el, 'burger de navegación móvil').not.toBeNull()
+      return el as HTMLButtonElement
+    })
+    burger.click()
+    const dialog = await vi.waitFor(() => {
+      const el = document.querySelector<HTMLElement>('[role="dialog"]')
+      expect(el, 'el cajón se abre').not.toBeNull()
+      return el as HTMLElement
+    })
+    const nav = dialog.querySelector<HTMLElement>(
+      'nav[aria-label="Navegación principal"]'
+    )
+    expect(nav, 'nav dentro del cajón').not.toBeNull()
+    return nav as HTMLElement
+  }
+
+  it('borde 320: ni el documento ni el encabezado desbordan', async () => {
+    await ajustarViewport(320, 568)
+    render(shell)
+    const header = await vi.waitFor(() => {
+      const el = document.querySelector<HTMLElement>('header')
+      expect(el).not.toBeNull()
+      return el as HTMLElement
+    })
+    expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+    expect(desborde(header)).toBeLessThanOrEqual(1)
+  })
+
+  describe.each([
+    { nombre: 'móvil 375', width: 375, height: 812 },
+    { nombre: 'desktop 1280', width: 1280, height: 800 },
+  ])('$nombre', ({ width, height }) => {
+    beforeEach(async () => {
+      await ajustarViewport(width, height)
+    })
+
+    it('el contenido arranca debajo del encabezado fijo', async () => {
+      render(shell)
+      const header = await vi.waitFor(() => {
+        const el = document.querySelector<HTMLElement>('header')
+        expect(el).not.toBeNull()
+        return el as HTMLElement
+      })
+      const raiz = header.parentElement
+      expect(raiz, 'el encabezado cuelga del shell').not.toBeNull()
+      const paddingTop = parseFloat(getComputedStyle(raiz as Element).paddingTop)
+      expect(paddingTop).toBeGreaterThanOrEqual(
+        header.getBoundingClientRect().height
+      )
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+    })
+
+    it('el módulo activo lleva aria-current y marcador uv-lime', async () => {
+      render(shell)
+      let nav: HTMLElement
+      if (width >= 1024) {
+        nav = await vi.waitFor(() => {
+          const el = document.querySelector<HTMLElement>(
+            'header nav[aria-label="Navegación principal"]'
+          )
+          expect(el).not.toBeNull()
+          expect(el!.getBoundingClientRect().width).toBeGreaterThan(0)
+          return el as HTMLElement
+        })
+      } else {
+        nav = await abrirCajon()
+      }
+
+      const activo = nav.querySelector<HTMLAnchorElement>('a[aria-current="page"]')
+      expect(activo, 'el módulo activo se anuncia con aria-current').not.toBeNull()
+      // la barra muestra el label corto («Datos») y el cajón el largo
+      // («Gestión de datos»): el contrato es el módulo, no la variante.
+      expect(activo!.textContent).toMatch(/datos/i)
+      // el marcador uv-lime vive dentro del propio enlace (patrón de SidebarTree)
+      expect(activo!.querySelector('[class*="bg-uv-lime"]')).not.toBeNull()
+
+      // inactivo: «Representación espacial» (visible para ADMIN_TI; Reportes no).
+      // Se localiza por href porque la barra riel es sólo icono, sin texto.
+      const inactivo = nav.querySelector<HTMLAnchorElement>(
+        'a[href="/dashboard/espacial"]'
+      )
+      expect(inactivo, 'enlace inactivo presente').not.toBeNull()
+      expect(inactivo!.getAttribute('aria-current')).toBeNull()
+      expect(inactivo!.querySelector('[class*="bg-uv-lime"]')).toBeNull()
+    })
+  })
+
+  it('cajón (375): el control de secciones mide ≥ 40px y va fuera del enlace', async () => {
+    await ajustarViewport(375, 812)
+    render(shell)
+    const nav = await abrirCajon()
+
+    const toggle = nav.querySelector<HTMLElement>(
+      'button[aria-label*="secciones del módulo"]'
+    )
+    expect(toggle, 'el toggle de secciones es un botón real').not.toBeNull()
+    expect(toggle!.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+
+    // Ningún enlace contiene controles anidados (HTML válido + foco lógico).
+    const enlaces = Array.from(nav.querySelectorAll('a'))
+    expect(enlaces.length).toBeGreaterThan(0)
+    for (const enlace of enlaces) {
+      expect(
+        enlace.querySelector('button, [role="button"]'),
+        `enlace sin controles anidados: ${enlace.textContent?.trim()}`
+      ).toBeNull()
+    }
+  })
+})

@@ -215,24 +215,39 @@ export function ModuleNav({
     return pathname === href || pathname.startsWith(href + '/')
   }
 
-  const baseClasses = 'rounded-lg transition-colors data-no-drag'
+  const baseClasses = 'relative rounded-lg transition-colors data-no-drag'
+
+  /**
+   * Marcador del módulo activo: el mismo tick uv-lime que usa `SidebarTree`
+   * para la sección activa, para que el estado activo se reconozca igual en
+   * barra, riel y cajón (además del `aria-current` para lectores de pantalla).
+   */
+  const activoMarker = (
+    <span
+      aria-hidden
+      className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-uv-lime"
+    />
+  )
 
   const renderItem = (item: NavItem, index: number) => {
     const active = isActive(item.href)
     const inactiveClass = 'text-emerald-100/85 hover:text-white hover:bg-white/10'
     const activeClass = 'bg-white/15 text-white font-medium'
     const commonClass = `${baseClasses} ${active ? activeClass : inactiveClass}`
+    const current = active ? 'page' : undefined
 
     if (variant === 'rail') {
       return (
         <Link
           key={item.id}
           href={item.href}
-          className={`flex h-8 w-8 items-center justify-center rounded-lg ${commonClass}`}
+          className={`chrome-focus flex h-8 w-8 items-center justify-center ${commonClass}`}
           title={item.fullLabel}
           aria-label={item.fullLabel}
+          aria-current={current}
           data-no-drag
         >
+          {active && activoMarker}
           {item.icon}
         </Link>
       )
@@ -243,10 +258,12 @@ export function ModuleNav({
         <Link
           key={item.id}
           href={item.href}
-          className={`flex items-center gap-1 whitespace-nowrap px-2 py-1.5 ${commonClass}`}
+          className={`chrome-focus flex items-center gap-1 whitespace-nowrap px-2 py-1.5 ${commonClass}`}
           title={item.fullLabel}
+          aria-current={current}
           data-no-drag
         >
+          {active && activoMarker}
           <span className="shrink-0">{item.icon}</span>
           <span className="text-[13px]">{item.shortLabel}</span>
         </Link>
@@ -261,9 +278,11 @@ export function ModuleNav({
           key={item.id}
           href={item.href}
           onClick={onNavigate}
-          className={`flex min-h-10 w-full items-center gap-2 px-3 py-2 lg:min-h-0 ${commonClass}`}
+          className={`chrome-focus flex min-h-10 w-full items-center gap-2 px-3 py-2 lg:min-h-0 ${commonClass}`}
+          aria-current={current}
           data-no-drag
         >
+          {active && activoMarker}
           <span className="shrink-0">{item.icon}</span>
           <span className="text-[13px] truncate">{item.fullLabel}</span>
         </Link>
@@ -275,42 +294,38 @@ export function ModuleNav({
 
     return (
       <div key={item.id} className="relative">
-        <Link
-          href={item.href}
-          onClick={onNavigate}
-          className={`flex min-h-10 w-full items-center gap-2 px-3 py-2 lg:min-h-0 ${commonClass}`}
-          data-no-drag
-        >
-          <span className="shrink-0">{item.icon}</span>
-          <span className="min-w-0 flex-1 truncate text-[13px]">
-            {item.fullLabel}
-          </span>
+        {/* Fila: el enlace navega al módulo y el botón alterna sus secciones.
+            Controles hermanos, nunca anidados — HTML válido y orden de foco
+            lógico (el enlace entra antes que su conmutador). */}
+        <div className={`flex items-center gap-1 ${commonClass}`}>
+          <Link
+            href={item.href}
+            onClick={onNavigate}
+            className="chrome-focus relative flex min-h-10 flex-1 items-center gap-2 px-3 py-2 lg:min-h-0"
+            aria-current={current}
+            data-no-drag
+          >
+            {active && activoMarker}
+            <span className="shrink-0">{item.icon}</span>
+            <span className="min-w-0 flex-1 truncate text-[13px]">
+              {item.fullLabel}
+            </span>
+          </Link>
 
           {onModuleRoute && (
-            <span
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
+              data-no-drag
               aria-expanded={treeOpen}
               aria-label={tree.etiqueta}
               title={treeOpen ? 'Contraer secciones' : 'Expandir secciones'}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                setTreeOpen((v) => !v)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setTreeOpen((v) => !v)
-                }
-              }}
-              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded text-emerald-200/70 transition-colors hover:text-uv-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime lg:h-5 lg:w-5"
+              onClick={() => setTreeOpen((v) => !v)}
+              className="chrome-focus mr-1 grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-md text-emerald-200/70 transition-colors hover:text-uv-lime lg:h-5 lg:w-5"
             >
               <Chevron open={treeOpen} />
-            </span>
+            </button>
           )}
-        </Link>
+        </div>
 
         {showTree && (
           <div className="relative mb-1 mt-1 max-h-64 overflow-y-auto">
