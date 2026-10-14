@@ -351,5 +351,16 @@
     transition-duration: 0.01ms !important;
     transition-delay: 0ms !important;
   }
+
+  /* Excepción: el giro de `animate-spin` es feedback de «trabajo en curso»,
+     no movimiento decorativo — congelarlo dejaría un indicador de carga muerto.
+     Restaura el `spin` 1s infinito de Tailwind; gana a `*` por especificidad
+     (misma capa e importancia), así que el resto de animaciones y transiciones
+     sigue colapsándose aquí arriba. */
+  .animate-spin {
+    animation-duration: 1s !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: infinite !important;
+  }
 }
 

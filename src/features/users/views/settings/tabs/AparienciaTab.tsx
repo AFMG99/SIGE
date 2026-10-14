@@ -88,7 +88,7 @@ export function AparienciaTab({
 
       {/* ---- Tema ---- */}
       <section>
-        <h3 className="ui-title text-base">Tema</h3>
+        <h2 className="ui-title text-base">Tema</h2>
         <p className="ui-muted mt-1 text-sm">
           Elige entre tema claro u oscuro. Se aplica de inmediato en todo el sistema.
         </p>
@@ -130,7 +130,7 @@ export function AparienciaTab({
 
       {/* ---- Zona horaria ---- */}
       <section className="border-t border-gray-100 pt-6 dark:border-slate-800">
-        <h3 className="ui-title text-base">Zona horaria</h3>
+        <h2 className="ui-title text-base">Zona horaria</h2>
         <p className="ui-muted mt-1 text-sm">
           Las fechas y horas de tu cuenta se muestran en esta zona horaria.
         </p>

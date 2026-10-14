@@ -103,7 +103,7 @@ function SectionCard({
           {icon}
         </span>
         <div className="min-w-0">
-          <h3 className="ui-title text-base">{title}</h3>
+          <h2 className="ui-title text-base">{title}</h2>
           <p className="ui-muted mt-0.5 text-sm">{description}</p>
         </div>
       </div>
@@ -284,7 +284,7 @@ export function SeguridadTab({
 
           {user.twoFactorEnabled && !twoFactorMandatory && showDisableForm && (
             <div className="ui-panel space-y-4">
-              <h4 className="ui-title text-sm">Desactivar 2FA</h4>
+              <h3 className="ui-title text-sm">Desactivar 2FA</h3>
               <p className="ui-muted text-sm">
                 Introduce tu contraseña y un código de verificación para desactivar 2FA.
               </p>

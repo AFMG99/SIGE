@@ -48,16 +48,18 @@ export function ModulePlaceholder({
             <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{title.charAt(0)}</span>
           </div>
           <div>
-            <h2 className="ui-title text-2xl">{title}</h2>
+            {/* El encabezado compartido ya no es `h1` (la marca es un `span`):
+                esta vista es la única dueña del nivel 1 de sus rutas. */}
+            <h1 className="ui-title text-2xl">{title}</h1>
             <p className="ui-muted mt-1 text-sm">Módulo en construcción</p>
           </div>
         </div>
 
         {moduleId && role && (
           <div className="mt-6 p-4 bg-gray-50 rounded-xl dark:bg-slate-800/60">
-            <h3 className="ui-label mb-3">
+            <h2 className="ui-label mb-3">
               Acciones disponibles para tu rol ({role}):
-            </h3>
+            </h2>
             {temporalActions.length > 0 && (
               <p className="-mt-2 mb-3 text-xs font-medium text-amber-700 dark:text-amber-400">
                 Incluye permisos temporales activos

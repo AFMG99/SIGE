@@ -297,7 +297,7 @@ export function ModuleNav({
         {/* Fila: el enlace navega al módulo y el botón alterna sus secciones.
             Controles hermanos, nunca anidados — HTML válido y orden de foco
             lógico (el enlace entra antes que su conmutador). */}
-        <div className={`flex items-center gap-1 ${commonClass}`}>
+        <div className={`flex items-center gap-1 ${commonClass}`} data-no-drag>
           <Link
             href={item.href}
             onClick={onNavigate}
