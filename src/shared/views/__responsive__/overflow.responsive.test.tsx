@@ -890,12 +890,17 @@ async function irASecionDatos(nombre: string, textoEsperado: string): Promise<vo
   }
 
   const esperado = textoEsperado.toLowerCase()
-  await vi.waitFor(() => {
-    expect(
-      document.body.innerText.replace(/\s+/g, ' ').toLowerCase(),
-      `"${textoEsperado}" visible tras ir a ${nombre}`
-    ).toContain(esperado)
-  })
+  // Some sections (Ajustes, Líneas Base) are code-split with React.lazy (T7),
+  // so their first render can take longer than the default 1s wait.
+  await vi.waitFor(
+    () => {
+      expect(
+        document.body.innerText.replace(/\s+/g, ' ').toLowerCase(),
+        `"${textoEsperado}" visible tras ir a ${nombre}`
+      ).toContain(esperado)
+    },
+    { timeout: 5000 }
+  )
 }
 
 function comprobarTiras(): void {

@@ -3,6 +3,12 @@ import { expect } from 'storybook/test'
 
 import { HeaderPosProvider } from '@/shared/views/nav/NavContext'
 import { DatosContent } from '../DatosContent'
+
+/**
+ * Sections split out with React.lazy (T7) load their chunk on demand, so the
+ * first query for their content needs more than the default 1s wait.
+ */
+const LAZY_SECTION_TIMEOUT = 5000
 import { bloquesDemo, edificacionesDemo, espaciosDemo } from '../__fixtures__/catalogo'
 import {
   ajustesExistentesDemo,
@@ -61,7 +67,11 @@ export const NavegaDesdeTarjetas: Story = {
     ).toBeVisible()
     // Por defecto la sección abre en modo carga: el asistente está montado.
     await expect(
-      await canvas.findByRole('button', { name: /descargar plantilla/i })
+      await canvas.findByRole(
+        'button',
+        { name: /descargar plantilla/i },
+        { timeout: LAZY_SECTION_TIMEOUT }
+      )
     ).toBeVisible()
   },
 }
@@ -75,7 +85,11 @@ export const SeparaCargaDeVisualizacion: Story = {
 
     // Modo carga: solo el asistente, sin datos de la BD.
     await expect(
-      await canvas.findByRole('button', { name: /descargar plantilla/i })
+      await canvas.findByRole(
+        'button',
+        { name: /descargar plantilla/i },
+        { timeout: LAZY_SECTION_TIMEOUT }
+      )
     ).toBeVisible()
     await expect(canvas.queryByLabelText(/buscar en datos guardados/i)).toBeNull()
 
@@ -121,7 +135,11 @@ export const VariablesOperativas: Story = {
     ).toBeVisible()
     // Modo carga: el asistente de importación segmentado por edificación.
     await expect(
-      await canvas.findByRole('button', { name: /descargar plantilla/i })
+      await canvas.findByRole(
+        'button',
+        { name: /descargar plantilla/i },
+        { timeout: LAZY_SECTION_TIMEOUT }
+      )
     ).toBeVisible()
 
     // Visualización: el panel con tono sky.
@@ -149,12 +167,20 @@ export const AjustesSinCarga: Story = {
     await userEvent.click(canvas.getByRole('button', { name: /^ajustes$/i }))
 
     await expect(
-      await canvas.findByRole('heading', { name: /ajustes energéticos/i })
+      await canvas.findByRole(
+        'heading',
+        { name: /ajustes energéticos/i },
+        { timeout: LAZY_SECTION_TIMEOUT }
+      )
     ).toBeVisible()
 
     // Toggle de tres modos (Anexo 4); arranca en Carga.
     await expect(
-      await canvas.findByRole('group', { name: 'Modo de la sección Ajustes' })
+      await canvas.findByRole(
+        'group',
+        { name: 'Modo de la sección Ajustes' },
+        { timeout: LAZY_SECTION_TIMEOUT }
+      )
     ).toBeVisible()
     await expect(canvas.getByRole('button', { name: /^carga$/i })).toBeVisible()
     await expect(canvas.getByRole('button', { name: /^datos$/i })).toBeVisible()
