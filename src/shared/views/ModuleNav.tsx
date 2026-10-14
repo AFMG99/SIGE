@@ -11,7 +11,7 @@ import { ANALISIS_SECTIONS } from '@/features/analisis/views/nav'
 
 export type NavVariant = 'bar' | 'sidebar' | 'rail'
 
-interface NavItem {
+export interface NavItem {
   id: string
   fullLabel: string
   shortLabel: string
@@ -85,7 +85,9 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
 }
 
-const NAV_ITEMS: NavItem[] = [
+/** Single source of truth for module links (header, drawer and the home
+ *  view's cards). Exported read-only: rendering/filtering happens outside. */
+export const NAV_ITEMS: NavItem[] = [
   {
     id: 'users',
     fullLabel: 'Usuarios y acceso',
@@ -152,7 +154,9 @@ const NAV_ITEMS: NavItem[] = [
   },
 ]
 
-function isItemVisible(role: string | null, item: NavItem, extraModules: string[] = []): boolean {
+/** Shared visibility rule (static matrix + temporary overrides). Exported so
+ *  the home cards gate exactly like the nav — never a parallel implementation. */
+export function isItemVisible(role: string | null, item: NavItem, extraModules: string[] = []): boolean {
   if (!item.moduleId) return true
   if (!role) return false
   const visible = visibleModules(role as Role)
