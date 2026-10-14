@@ -247,7 +247,7 @@ export function VistaDatos({
                   setPagina(0)
                 }}
                 placeholder="Buscar por cualquier columna…"
-                className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100"
+                className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm placeholder:text-gray-400 focus-ring dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100"
               />
             </div>
             <p className="ui-muted text-xs">

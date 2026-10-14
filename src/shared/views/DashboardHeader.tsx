@@ -48,7 +48,8 @@ export interface HeaderAccount {
 
 export const SIDEBAR_W = 220
 export const RAIL_W = 64
-const BAR_H = 64
+/** Bar height — DashboardShell reserves exactly this much content padding. */
+export const BAR_H = 64
 const STORAGE_KEY = 'uv-header-pos'
 const PIN_KEY = 'uv-sidebar-pinned'
 /** Pointer must be held this long before a drag arms. */
@@ -422,9 +423,11 @@ export function DashboardHeader({
         >
           {/* title / brand — the pin control lives here, never in center */}
           {isBar ? (
-            <h1 className="whitespace-nowrap text-xl font-semibold text-white">
+            // The brand is NOT a document heading: every module page owns its
+            // own <h1>, and the docked variants already render it as a span.
+            <span className="whitespace-nowrap text-xl font-semibold text-white">
               SIGE-TdeA
-            </h1>
+            </span>
           ) : (
             <div className="flex items-center gap-3">
               {rail ? (
@@ -436,7 +439,7 @@ export function DashboardHeader({
                   onClick={togglePin}
                   aria-label="Anclar y expandir la barra lateral"
                   title="Anclar barra"
-                  className="group grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border border-transparent bg-uv-lime text-[13px] font-bold text-emerald-950 shadow-[0_0_12px_rgba(146,189,36,0.35)] transition-colors hover:border-uv-lime/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime"
+                  className="group chrome-focus grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border border-transparent bg-uv-lime text-[13px] font-bold text-emerald-950 shadow-[0_0_12px_rgba(146,189,36,0.35)] transition-colors hover:border-uv-lime/60"
                 >
                   <span aria-hidden className="group-hover:hidden">
                     SIGE
@@ -480,7 +483,7 @@ export function DashboardHeader({
                   onClick={togglePin}
                   aria-label="Desanclar y contraer la barra lateral"
                   title="Contraer barra"
-                  className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime"
+                  className="chrome-btn grid h-8 w-8 shrink-0 place-items-center"
                 >
                   <svg
                     width="14"
@@ -523,7 +526,7 @@ export function DashboardHeader({
               aria-expanded={menuOpen}
               aria-controls="nav-movil"
               title="Menú"
-              className="grid h-10 w-10 cursor-pointer place-items-center rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime lg:hidden"
+              className="chrome-btn grid h-10 w-10 place-items-center lg:hidden"
             >
               <svg
                 width="15"
@@ -545,7 +548,7 @@ export function DashboardHeader({
               onClick={handleThemeToggle}
               aria-label={dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
               title={dark ? 'Tema claro' : 'Tema oscuro'}
-              className={`cursor-pointer items-center justify-center gap-2 rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime ${
+              className={`chrome-btn items-center justify-center gap-2 ${
                 isBar
                   ? 'grid h-10 w-10 lg:h-8 lg:w-8'
                   : rail
@@ -596,7 +599,7 @@ export function DashboardHeader({
                     data-no-expand
                     aria-label="Menú de cuenta"
                     title="Menú de cuenta"
-                    className={`cursor-pointer items-center gap-1.5 border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime ${
+                    className={`chrome-btn items-center gap-1.5 ${
                       isBar
                         ? 'flex h-10 pr-2 lg:h-8'
                         : rail
@@ -689,7 +692,7 @@ export function DashboardHeader({
               onClick={cycle}
               aria-label="Cambiar la posición del encabezado (izquierda, centro, derecha)"
               title="Cambiar posición"
-              className={`cursor-pointer items-center justify-center gap-2 rounded-none border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime ${
+              className={`chrome-btn items-center justify-center gap-2 ${
                 isBar
                   ? 'hidden lg:grid h-8 w-8'
                   : rail

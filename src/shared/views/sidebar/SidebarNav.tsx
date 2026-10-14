@@ -227,7 +227,7 @@ export default function SidebarNav({
           aria-expanded={open}
           aria-label={open ? 'Contraer menú lateral' : 'Expandir menú lateral'}
           title={open ? 'Contraer menú' : 'Expandir menú'}
-          className="grid h-8 w-8 cursor-pointer place-items-center rounded-md border border-white/15 bg-white/10 text-emerald-50 transition-colors hover:border-white/30 hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime"
+          className="chrome-btn grid h-8 w-8 place-items-center"
         >
           <PanelToggleIcon expanded={open} />
         </button>

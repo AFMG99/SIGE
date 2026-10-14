@@ -20,7 +20,7 @@ export default async function DatosPage() {
     facturasAgg,
     facturasRecientes,
     equiposAgg,
-    potenciasEquipos,
+    potenciaAgg,
     equiposRecientes,
     bloquesConInventario,
     variablesAgg,
@@ -52,9 +52,10 @@ export default async function DatosPage() {
       },
     }),
     prisma.equipoElectrico.aggregate({ _count: true }),
-    prisma.equipoElectrico.findMany({
-      select: { potenciaNominal: true, cantidad: true },
-    }),
+    prisma.$queryRaw<{ total: number }[]>`
+      SELECT COALESCE(SUM("potenciaNominal" * cantidad), 0) AS total
+      FROM equipos_electricos
+    `,
     prisma.equipoElectrico.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -161,10 +162,7 @@ export default async function DatosPage() {
 
   const equiposExistentes: EquiposExistentes = {
     total: equiposAgg._count,
-    potenciaTotalKw: potenciasEquipos.reduce(
-      (suma, e) => suma + e.potenciaNominal * e.cantidad,
-      0
-    ),
+    potenciaTotalKw: potenciaAgg[0]?.total ?? 0,
     edificacionesConInventario: edificacionesConInventario.size,
     bloquesConInventario: bloquesConIds.size,
     filas: equiposRecientes.map((r) => ({

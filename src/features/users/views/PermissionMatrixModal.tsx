@@ -133,7 +133,7 @@ export function PermissionMatrixModal({ isOpen, onClose }: PermissionMatrixModal
 
         {/* Body */}
         <div className="flex-1 overflow-auto p-6">
-          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-800">
+          <div className="ui-table-shell">
             <table className="w-full border-collapse text-left text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-slate-800/70">

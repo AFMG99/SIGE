@@ -374,7 +374,7 @@ export function CountryPhoneInput({
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar país o código…"
               aria-label="Buscar país"
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm focus-ring dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
             />
           </div>
           <ul className="min-h-0 flex-1 overflow-y-auto py-1" role="listbox" aria-label="Países">

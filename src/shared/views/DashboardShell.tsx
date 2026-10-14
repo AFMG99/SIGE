@@ -1,7 +1,12 @@
 'use client'
 
 import { useCallback, useState, type CSSProperties, type ReactNode } from 'react'
-import { DashboardHeader, type HeaderAccount, type HeaderPos } from './DashboardHeader'
+import {
+  DashboardHeader,
+  BAR_H,
+  type HeaderAccount,
+  type HeaderPos,
+} from './DashboardHeader'
 import { HeaderPosProvider, SubNavProvider } from './nav/NavContext'
 
 const TRANS = 'padding 0.3s cubic-bezier(0.22,1,0.36,1)'
@@ -32,7 +37,7 @@ export function DashboardShell({
 
   const style: CSSProperties =
     pos === 'center'
-      ? { paddingTop: 64, transition: TRANS }
+      ? { paddingTop: BAR_H, transition: TRANS }
       : {
           paddingTop: 0,
           paddingLeft: pos === 'left' ? railW : 0,

@@ -19,20 +19,15 @@ import {
   IconVariable,
   IconVistaPrevia,
 } from './icons'
-import { ImportadorFacturas } from './ImportadorFacturas'
-import { ImportadorEquipos } from './ImportadorEquipos'
-import { ImportadorVariables } from './ImportadorVariables'
 import { EdificacionesPanel } from './EdificacionesPanel'
 import { useCatalogoEdificaciones } from './useCatalogoEdificaciones'
 import type { BloqueInfo, EdificacionInfo, EspacioInfo } from './useCatalogoEdificaciones'
 import { ComoFunciona } from './ComoFunciona'
-import { LineasBase } from './LineasBase'
 import { VistaDatos } from './VistaDatos'
 import { GestionFacturas } from './GestionFacturas'
 import { GestionEquipos } from './GestionEquipos'
 import { GestionVariables } from './GestionVariables'
-import { GestionAjustes } from './GestionAjustes'
-import { AjustesSection } from './AjustesSection'
+import { SectionSkeleton } from './SectionSkeleton'
 import { EASE, revealBlur, revealUp, staggerContainer } from './motion'
 import type {
   AjustesExistentes,
@@ -47,6 +42,33 @@ import {
   construirPanelFacturas,
   construirPanelVariables,
 } from './existencias'
+
+// T7 (Phase 4b) — justified code splitting: these five sections never take
+// part in the first paint (the route always boots on "Resumen": title, stat
+// cards and `ComoFunciona` stay eager) and only mount behind an explicit
+// section/mode switch. Splitting them out keeps their chunks — above all
+// SheetJS (`xlsx`, ~110 kB gzip) used by the three import wizards — out of
+// this route's First Load JS. Each usage site wraps its lazy component in a
+// `<React.Suspense>` whose `SectionSkeleton` covers the download gap with a
+// stable-height placeholder; props, behaviour and SSR output are unchanged.
+// Plain `React.lazy` on purpose: `next/dynamic` is a bare package import the
+// Vitest browser optimizer only discovers at runtime, which reloads the test
+// page mid-run (dual React copies → invalid hook calls across the suite).
+const ImportadorFacturas = React.lazy(() =>
+  import('./ImportadorFacturas').then((m) => ({ default: m.ImportadorFacturas }))
+)
+const ImportadorEquipos = React.lazy(() =>
+  import('./ImportadorEquipos').then((m) => ({ default: m.ImportadorEquipos }))
+)
+const ImportadorVariables = React.lazy(() =>
+  import('./ImportadorVariables').then((m) => ({ default: m.ImportadorVariables }))
+)
+const LineasBase = React.lazy(() =>
+  import('./LineasBase').then((m) => ({ default: m.LineasBase }))
+)
+const AjustesSection = React.lazy(() =>
+  import('./AjustesSection').then((m) => ({ default: m.AjustesSection }))
+)
 
 type DatosContentProps = {
   role: Role
@@ -342,11 +364,13 @@ export function DatosContent({
               )}
 
               {modoFacturas === 'carga' ? (
-                <ImportadorFacturas
-                  edificaciones={edificacionesCat}
-                  onIrAlCatalogo={irAlCatalogo}
-                  puedeCargar={puedeCargar}
-                />
+                <React.Suspense fallback={<SectionSkeleton />}>
+                  <ImportadorFacturas
+                    edificaciones={edificacionesCat}
+                    onIrAlCatalogo={irAlCatalogo}
+                    puedeCargar={puedeCargar}
+                  />
+                </React.Suspense>
               ) : modoFacturas === 'gestion' ? (
                 <GestionFacturas
                   facturas={facturasExistentes}
@@ -394,15 +418,17 @@ export function DatosContent({
               )}
 
               {modoEquipos === 'carga' ? (
-                <ImportadorEquipos
-                  edificaciones={edificacionesCat}
-                  bloques={bloquesCat}
-                  espacios={espacios}
-                  crearBloque={crearBloque}
-                  eliminarBloque={eliminarBloque}
-                  onIrAlCatalogo={irAlCatalogo}
-                  puedeCargar={puedeCargar}
-                />
+                <React.Suspense fallback={<SectionSkeleton />}>
+                  <ImportadorEquipos
+                    edificaciones={edificacionesCat}
+                    bloques={bloquesCat}
+                    espacios={espacios}
+                    crearBloque={crearBloque}
+                    eliminarBloque={eliminarBloque}
+                    onIrAlCatalogo={irAlCatalogo}
+                    puedeCargar={puedeCargar}
+                  />
+                </React.Suspense>
               ) : modoEquipos === 'gestion' ? (
                 <GestionEquipos equipos={equiposExistentes} />
               ) : (
@@ -436,14 +462,16 @@ export function DatosContent({
               )}
 
               {modoVariables === 'carga' ? (
-                <ImportadorVariables
-                  edificaciones={edificacionesCat}
-                  bloques={bloquesCat}
-                  crearBloque={crearBloque}
-                  eliminarBloque={eliminarBloque}
-                  onIrAlCatalogo={irAlCatalogo}
-                  puedeCargar={puedeCargar}
-                />
+                <React.Suspense fallback={<SectionSkeleton />}>
+                  <ImportadorVariables
+                    edificaciones={edificacionesCat}
+                    bloques={bloquesCat}
+                    crearBloque={crearBloque}
+                    eliminarBloque={eliminarBloque}
+                    onIrAlCatalogo={irAlCatalogo}
+                    puedeCargar={puedeCargar}
+                  />
+                </React.Suspense>
               ) : modoVariables === 'gestion' ? (
                 <GestionVariables variables={variablesExistentes} />
               ) : (
@@ -454,25 +482,29 @@ export function DatosContent({
 
           {/* Sección: Líneas Base — 4 modelos LBEn con cálculo real */}
           {activeId === 'lineas-base' && (
-            <LineasBase
-              total={stats.lineasBase}
-              edificaciones={edificacionesCat}
-              bloques={bloquesCat}
-              espacios={espacios}
-              puedeCalcular={puedeCalcular}
-              puedeGuardar={puedeCargar}
-            />
+            <React.Suspense fallback={<SectionSkeleton />}>
+              <LineasBase
+                total={stats.lineasBase}
+                edificaciones={edificacionesCat}
+                bloques={bloquesCat}
+                espacios={espacios}
+                puedeCalcular={puedeCalcular}
+                puedeGuardar={puedeCargar}
+              />
+            </React.Suspense>
           )}
 
           {/* Sección: Ajustes — carga, visualización y gestión con referencia Anexo 4 */}
           {activeId === 'ajustes' && (
-            <AjustesSection
-              ajustes={ajustesExistentes}
-              ajustesAplicados={[]}
-              modo={modoAjustes}
-              puedeCargar={puedeCargar}
-              onModoChange={setVista}
-            />
+            <React.Suspense fallback={<SectionSkeleton />}>
+              <AjustesSection
+                ajustes={ajustesExistentes}
+                ajustesAplicados={[]}
+                modo={modoAjustes}
+                puedeCargar={puedeCargar}
+                onModoChange={setVista}
+              />
+            </React.Suspense>
           )}
         </section>
       </div>
