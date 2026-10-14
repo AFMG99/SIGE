@@ -213,6 +213,37 @@ describe('AnalisisView — desborde horizontal', () => {
       )
       expect(heading.textContent).toBe('Campus Robledo')
 
+      // Los controles nuevos (Configuración del análisis + Simulador de
+      // umbral) son interactivos: ≥ 40px por debajo de lg, como todo lo demás.
+      const controlesNuevos = [
+        '#analisis-periodicidad',
+        '#analisis-modelo',
+        '#analisis-nivel',
+        '#sim-pct',
+        '#sim-k',
+      ]
+      for (const sel of controlesNuevos) {
+        const el = document.querySelector<HTMLElement>(sel)
+        expect(el, `control ${sel} presente tras ejecutar`).not.toBeNull()
+        if (width < 1024) {
+          expect(
+            el!.getBoundingClientRect().height,
+            `target táctil de ${sel}`
+          ).toBeGreaterThanOrEqual(39.5)
+        }
+      }
+      const casilla = document.querySelector<HTMLInputElement>('#sim-activo')
+      expect(casilla, 'toggle del simulador').not.toBeNull()
+      if (width < 1024) {
+        // El target real es la etiqueta envolvente (el input es size-4).
+        const etiqueta = casilla!.closest('label')
+        expect(etiqueta, 'etiqueta del toggle').not.toBeNull()
+        expect(
+          etiqueta!.getBoundingClientRect().height,
+          'target táctil del toggle del simulador'
+        ).toBeGreaterThanOrEqual(39.5)
+      }
+
       // El sidebar del módulo existe desde lg con sus 4 secciones; por
       // debajo la navegación vive en el cajón (irASecionAnalisis).
       const aside = document.querySelector<HTMLElement>(

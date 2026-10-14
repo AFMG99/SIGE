@@ -21,8 +21,12 @@ import {
   PERIODICIDAD,
   salidaAnalisisSchema,
   solicitudAnalisisSchema,
+  simularUmbral,
   TEXTO_MODELO,
   textoCriterio,
+  UMBRAL_K_DEFECTO,
+  UMBRAL_PCT_DEFECTO,
+  type SalidaAnalisis,
 } from './analisis'
 import {
   analisisDemo,
@@ -356,5 +360,87 @@ describe('textoCriterio', () => {
     expect(textoCriterio('banda_10_pct')).toMatch(/±10/)
     expect(textoCriterio(null)).toBeNull()
     expect(textoCriterio('criterio_desconocido')).toBe('criterio_desconocido')
+  })
+})
+
+describe('simularUmbral (exploratorio sobre la serie depurada)', () => {
+  /**
+   * Febrero pasa a ec. 4-5 (n = 10, σ = 500 ⇒ banda 9.000..11.000) y sus
+   * tres períodos se sitúan a 10.900 kWh: normativamente dentro de banda
+   * (11.000 es el límite superior con k = 2) pero fuera con k = 1.
+   */
+  function salidaConMesSigma(): SalidaAnalisis {
+    const salida = structuredClone(analisisDemo.salida)
+    const bandaFeb = salida.bandas.find((b) => b.mes === 2)
+    if (bandaFeb) {
+      bandaFeb.n = 10
+      bandaFeb.media = 10000
+      bandaFeb.limite_inferior = 9000
+      bandaFeb.limite_superior = 11000
+    }
+    for (const p of salida.periodos) {
+      if (p.mes !== 2) continue
+      p.consumo_kwh = 10900
+      p.es_atipico = false
+      p.direccion = null
+      p.desviacion_pct = 9
+      p.explicacion = null
+    }
+    return salida
+  }
+
+  it('con los umbrales normativos reproduce el resultado del motor', () => {
+    const sim = simularUmbral(analisisDemo.salida, {
+      pct: UMBRAL_PCT_DEFECTO,
+      k: UMBRAL_K_DEFECTO,
+    })
+    expect(sim.evaluados).toBe(36)
+    expect(sim.atipicosSim).toBe(analisisDemo.salida.resumen.atipicos)
+    expect(sim.entrarian).toHaveLength(0)
+    expect(sim.saldrian).toHaveLength(0)
+  })
+
+  it('el porcentaje solo gobierna los meses de ec. 3 (n < 10)', () => {
+    const sim = simularUmbral(salidaConMesSigma(), { pct: 5, k: UMBRAL_K_DEFECTO })
+    // Febrero obedece a k·σ, no al porcentaje: ±2·500 intacto.
+    expect(sim.bandasSim[1]).toEqual({ inf: 9000, sup: 11000 })
+    // Los meses n=3 se estrechan a ±5 %, pero la serie plana no cambia.
+    expect(sim.atipicosSim).toBe(2)
+    expect(sim.entrarian).toHaveLength(0)
+    expect(sim.saldrian).toHaveLength(0)
+  })
+
+  it('bajar el múltiplo k hace entrar los períodos de un mes ec. 4-5', () => {
+    const sim = simularUmbral(salidaConMesSigma(), {
+      pct: UMBRAL_PCT_DEFECTO,
+      k: 1,
+    })
+    // k=1 → media ± 1·σ = 9.500..10.500; los tres febreros a 10.900 entran.
+    expect(sim.bandasSim[1]).toEqual({ inf: 9500, sup: 10500 })
+    expect(sim.entrarian).toHaveLength(3)
+    expect(sim.entrarian.every((p) => p.mes === 2)).toBe(true)
+    expect(sim.atipicosSim).toBe(5) // 2 normativos + 3 febreros
+  })
+
+  it('ampliar el porcentaje hace salir el atípico de agosto (−33,3 %)', () => {
+    const sim = simularUmbral(analisisDemo.salida, { pct: 35, k: UMBRAL_K_DEFECTO })
+    // ±35 % → 6.500..13.500: agosto (8.000) entra en banda; marzo (14.000) sigue fuera.
+    expect(sim.atipicosSim).toBe(1)
+    expect(sim.saldrian.map((p) => `${p.ano}-${p.mes}`)).toEqual(['2023-8'])
+  })
+
+  it('los meses sin media quedan fuera de la simulación', () => {
+    const salida = structuredClone(analisisDemo.salida)
+    const bandaEne = salida.bandas.find((b) => b.mes === 1)
+    if (bandaEne) {
+      bandaEne.media = null
+      bandaEne.limite_inferior = null
+      bandaEne.limite_superior = null
+      bandaEne.estimado = true
+    }
+    const sim = simularUmbral(salida, { pct: UMBRAL_PCT_DEFECTO, k: UMBRAL_K_DEFECTO })
+    expect(sim.bandasSim[0]).toBeNull()
+    expect(sim.evaluados).toBe(33) // los 3 eneros sin banda no se evalúan
+    expect(sim.atipicosSim).toBe(2) // los inusuales plantados no son de enero
   })
 })

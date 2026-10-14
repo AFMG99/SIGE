@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { expect, waitFor } from 'storybook/test'
+import { expect, fireEvent, waitFor } from 'storybook/test'
 
 import { AnalisisView } from '../AnalisisView'
 import {
@@ -87,9 +87,10 @@ export const ConResultados: Story = {
     await canvas.findByText(/Sin análisis ejecutado/i)
     await userEvent.click(canvas.getByRole('button', { name: /ejecutar análisis/i }))
 
-    // Cabecera del análisis: edificación + rango
+    // Cabecera del análisis: edificación + rango (barra y cabecera)
     await canvas.findByRole('heading', { level: 2, name: 'Campus Robledo' })
-    await canvas.findByText(/2023-01 → 2025-12/)
+    await canvas.findByText('2023-01 → 2025-12')
+    await canvas.findByText(/2023-01 → 2025-12 · calculado el/)
 
     // Submódulo Resumen (activo por defecto): tarjetas de resumen
     await canvas.findByRole('button', { name: 'Resumen' })
@@ -115,6 +116,11 @@ export const ConResultados: Story = {
     })
     expect(punto.length).toBeGreaterThan(0)
 
+    // Simulador de umbral (issue #79): por defecto = normativo (±10 % / 2σ)
+    await canvas.findByRole('heading', { level: 3, name: 'Simulador de umbral' })
+    await canvas.findByText('Normativo: 2 · 36 períodos evaluados con banda')
+    await canvas.findByText(/Sin cambios frente al análisis normativo/)
+
     // Contrato de submódulos: sólo el panel activo está en el DOM
     expect(
       canvas.queryByRole('heading', { level: 3, name: 'Períodos inusuales' })
@@ -125,10 +131,20 @@ export const ConResultados: Story = {
     await canvas.findByRole('heading', { level: 3, name: 'Períodos inusuales' })
     await canvas.findByText(/1 en alza · 1 en caída · 2 en período lectivo/)
     await canvas.findByText('marzo de 2024')
-    await canvas.findByText(/El consumo de marzo de 2024 \(14\.000,0 kWh\)/)
-    await canvas.findByText(/agosto de 2023 \(8\.000,0 kWh\)/)
     await canvas.findByText('↑ Alza')
     await canvas.findByText('↓ Caída')
+    // La explicación estadística vive en una fila expandible por período
+    const verMarzo = await canvas.findByRole('button', {
+      name: 'Ver explicación de marzo de 2024',
+    })
+    await userEvent.click(verMarzo)
+    await canvas.findByText(/El consumo de marzo de 2024 \(14\.000,0 kWh\)/)
+    await expect(verMarzo).toHaveAttribute('aria-expanded', 'true')
+    const verAgosto = await canvas.findByRole('button', {
+      name: 'Ver explicación de agosto de 2023',
+    })
+    await userEvent.click(verAgosto)
+    await canvas.findByText(/agosto de 2023 \(8\.000,0 kWh\)/)
     // Ambos atípicos caen en meses lectivos de 21 días: dos badges idénticos
     const badges = await canvas.findAllByText(/Período lectivo · 21 d/)
     expect(badges).toHaveLength(2)
@@ -176,10 +192,11 @@ export const ConResultados: Story = {
     await canvas.findByText('No aplica')
     await canvas.findByText(/sin desglose mensual/)
 
-    // Submódulo Comparativo: benchmark XM (issue #76) con índice base 100
+    // Submódulo Comparativo: primero la referencia externa XM (issue #76)
+    // con índice base 100…
     await navegarA(canvas, userEvent, 'Comparativo')
     await canvas.findByRole('heading', {
-      name: 'Comparación respecto al sistema (datos XM)',
+      name: 'Referencia externa — datos nacionales XM',
     })
     await canvas.findByText('Demanda del SIN (sistema interconectado)')
     await canvas.findByText('Índice 105,1') // 7.460 GWh vs base 7.100 GWh
@@ -192,10 +209,12 @@ export const ConResultados: Story = {
     })
     await canvas.findByText('Tu edificación')
 
-    // Catálogo oficial citable con enlaces
+    // Catálogo oficial citable: enlaces visibles siempre y tabla colapsada
     await canvas.findByRole('heading', { name: 'Datos y documentos XM' })
-    await canvas.findByText('Demanda Energia SIN por Sistema')
     await canvas.findByText('Documentación oficial de la API XM')
+    const desplegar = await canvas.findByText('Catálogo de métricas (fuente citable)')
+    await userEvent.click(desplegar)
+    await canvas.findByText('Demanda Energia SIN por Sistema')
   },
 }
 
@@ -267,6 +286,8 @@ export const XmNoDisponible: Story = {
       await canvas.findByText(/La API de XM no está disponible en este momento/i)
       // …pero la nota honesta, la comparación interna y el catálogo siguen.
       await canvas.findByText(/XM no publica consumo por edificación/i)
+      const desplegar = await canvas.findByText('Catálogo de métricas (fuente citable)')
+      await userEvent.click(desplegar)
       await canvas.findByText('Demanda Energia SIN por Sistema')
 
       // Y el análisis queda intacto en Patrones de consumo.
@@ -352,5 +373,45 @@ export const SinModelos: Story = {
       name: 'Ahorro y consumo elevado',
     })
     await canvas.findByText('+6,8 %')
+  },
+}
+
+export const SimuladorDeUmbral: Story = {
+  name: 'Simulador de umbral · explora ±5 % sin tocar la detección normativa',
+  args: {
+    edificaciones: edificacionesAnalisisDemo,
+  },
+  play: async ({ canvas, userEvent }) => {
+    __setearFalloXm('ninguno')
+    const boton = await canvas.findByRole('button', { name: /ejecutar análisis/i })
+    const selector = canvas.getByLabelText(/^edificación$/i)
+    await elegirListbox(selector, 'edi-demo-variacion', userEvent)
+    await waitFor(() => expect(boton).toBeEnabled())
+    await userEvent.click(boton)
+    await canvas.findByRole('heading', { level: 2, name: 'Auditorio Mayor' })
+
+    // Estado por defecto: ±10 % (ec. 3) = análisis normativo → 0 inusuales
+    await canvas.findByRole('heading', { level: 3, name: 'Simulador de umbral' })
+    await canvas.findByText('Normativo: 0 · 36 períodos evaluados con banda')
+    await canvas.findByText(/Sin cambios frente al análisis normativo/)
+
+    // Estrechar el porcentaje a ±5 % (meses con n < 10): entran 5 períodos.
+    // Los sliders son inputs controlados: se cambian con fireEvent.change.
+    const pct = await canvas.findByLabelText(/Umbral porcentual/)
+    await fireEvent.change(pct, { target: { value: '5' } })
+    await canvas.findByText('Entrarían como inusuales (+5)')
+    await canvas.findByText(/septiembre de 2023/)
+    // La cifra NORMATIVA jamás se reemplaza: sigue visible e intacta.
+    await canvas.findByText('Normativo: 0 · 36 períodos evaluados con banda')
+
+    // Superponer la simulación a la gráfica: banda y anillo en violeta
+    const casilla = await canvas.findByLabelText(
+      'Superponer la banda simulada a la gráfica'
+    )
+    await userEvent.click(casilla)
+    await canvas.findByText(/Banda simulada \(exploratoria\)/)
+    await canvas.findByRole('img', {
+      name: /banda simulada \(exploratoria\) se superpone en violeta/i,
+    })
   },
 }

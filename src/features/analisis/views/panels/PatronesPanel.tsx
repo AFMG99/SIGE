@@ -1,5 +1,4 @@
 import React from 'react'
-import { ListboxSelect, type ListboxOption } from '@/shared/views/ui/ListboxSelect'
 import {
   etiquetaPeriodo,
   formatoKwh,
@@ -15,24 +14,24 @@ import { ATRIBUTOS_ICONO, BadgeCalendario, ChipIcon, CLASE_BADGE, SeccionTitulo 
 
 /**
  * Submódulo Patrones de consumo: indicadores de gestión por nivel
- * (selector edificación/bloque/espacio con sus 3 KPIs) y la tabla de
- * períodos inusuales con su contexto de calendario y estados vacíos.
+ * (KPIs ahorro/elevado/inusuales del nivel elegido en «Configuración
+ * del análisis») y la tabla de períodos inusuales organizada para la
+ * interpretación (issue #79): fecha, consumo, banda, desviación,
+ * señal y contexto académico, con resaltado discreto —el ámbar se
+ * concentra en la señal y la desviación, no en la fila entera— y la
+ * explicación normativa en una fila expandible por período.
  */
 export interface PatronesPanelProps {
   resumen: ResumenAnalisis
   salida: SalidaAnalisis
   nivel: NivelGestion | null
-  opcionesNivel: ListboxOption[]
-  onNivelChange: (clave: string) => void
 }
 
-export function PatronesPanel({
-  resumen,
-  salida,
-  nivel,
-  opcionesNivel,
-  onNivelChange,
-}: PatronesPanelProps) {
+export function PatronesPanel({ resumen, salida, nivel }: PatronesPanelProps) {
+  // Período con la explicación expandida (null = ninguna).
+  const [explicacionDe, setExplicacionDe] = React.useState<string | null>(null)
+  const inusuales = salida.periodos.filter((p) => p.es_atipico)
+
   return (
     <div className="space-y-6">
       {/* Indicadores de gestión por nivel (KPIs ahorro/elevado/inusuales) */}
@@ -41,31 +40,22 @@ export function PatronesPanel({
           <SeccionTitulo
             titulo="Ahorro y consumo elevado"
             meta={
-              <span
-                className={
-                  nivel.precision === 'exacto'
-                    ? `${CLASE_BADGE} border-emerald-600/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300`
-                    : `${CLASE_BADGE} border-sky-600/40 bg-sky-50 text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-300`
-                }
-              >
-                {PRECISION_TEXTO[nivel.tipo]}
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  {nivel.nombre}
+                </span>
+                <span
+                  className={
+                    nivel.precision === 'exacto'
+                      ? `${CLASE_BADGE} border-emerald-600/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300`
+                      : `${CLASE_BADGE} border-sky-600/40 bg-sky-50 text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-300`
+                  }
+                >
+                  {PRECISION_TEXTO[nivel.tipo]}
+                </span>
               </span>
             }
           />
-
-          <div className="ui-field">
-            <label htmlFor="analisis-nivel" className="ui-label">
-              Nivel de análisis
-            </label>
-            <ListboxSelect
-              id="analisis-nivel"
-              value={nivel.clave}
-              onChange={onNivelChange}
-              options={opcionesNivel}
-              placeholder="— Seleccione un nivel —"
-              className="ui-input min-h-10 w-full sm:max-w-md"
-            />
-          </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             {/* Ahorro frente a la línea base guardada */}
@@ -213,50 +203,74 @@ export function PatronesPanel({
                   <th scope="col">Banda del mes</th>
                   <th scope="col">Desviación</th>
                   <th scope="col">Señal</th>
-                  <th scope="col">Calendario</th>
+                  <th scope="col">Contexto académico</th>
                   <th scope="col">Explicación</th>
                 </tr>
               </thead>
               <tbody>
-                {salida.periodos
-                  .filter((p) => p.es_atipico)
-                  .map((p) => (
-                    <tr
-                      key={`${p.ano}-${p.mes}`}
-                      className="bg-amber-50/70 dark:bg-amber-950/25"
-                    >
-                      <td className="whitespace-nowrap font-medium">
-                        {etiquetaPeriodo(p.mes, p.ano)}
-                      </td>
-                      <td className="whitespace-nowrap text-right tabular-nums">
-                        {formatoKwh(p.consumo_kwh)}
-                      </td>
-                      <td className="whitespace-nowrap text-right tabular-nums">
-                        {p.banda_inf !== null && p.banda_sup !== null
-                          ? `${formatoNumero(p.banda_inf, 0)} – ${formatoNumero(p.banda_sup, 0)} kWh`
-                          : '—'}
-                      </td>
-                      <td className="whitespace-nowrap text-right font-medium tabular-nums text-amber-700 dark:text-amber-300">
-                        {typeof p.desviacion_pct === 'number'
-                          ? formatoPct(p.desviacion_pct)
-                          : '—'}
-                      </td>
-                      <td className="whitespace-nowrap">
-                        <span
-                          className={`${CLASE_BADGE} border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300`}
+                {inusuales.map((p) => {
+                  const clave = `${p.ano}-${p.mes}`
+                  const etiqueta = etiquetaPeriodo(p.mes, p.ano)
+                  const abierta = explicacionDe === clave
+                  return (
+                    <React.Fragment key={clave}>
+                      {/* Resaltado discreto: el acento vive en la celda
+                          inicial y en la señal, no en la fila entera. */}
+                      <tr>
+                        <td className="whitespace-nowrap border-l-4 border-amber-500/70 pl-3 font-medium dark:border-amber-400/70">
+                          {etiqueta}
+                        </td>
+                        <td className="whitespace-nowrap text-right tabular-nums">
+                          {formatoKwh(p.consumo_kwh)}
+                        </td>
+                        <td className="whitespace-nowrap text-right tabular-nums">
+                          {p.banda_inf !== null && p.banda_sup !== null
+                            ? `${formatoNumero(p.banda_inf, 0)} – ${formatoNumero(p.banda_sup, 0)} kWh`
+                            : '—'}
+                        </td>
+                        <td className="whitespace-nowrap text-right font-medium tabular-nums text-amber-700 dark:text-amber-300">
+                          {typeof p.desviacion_pct === 'number'
+                            ? formatoPct(p.desviacion_pct)
+                            : '—'}
+                        </td>
+                        <td className="whitespace-nowrap">
+                          <span
+                            className={`${CLASE_BADGE} border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300`}
+                          >
+                            {p.direccion === 'alza' ? '↑' : '↓'}{' '}
+                            {p.direccion ? TEXTO_DIRECCION[p.direccion] : ''}
+                          </span>
+                        </td>
+                        <td>
+                          <BadgeCalendario periodo={p} />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            aria-expanded={abierta}
+                            aria-controls={`explicacion-${clave}`}
+                            aria-label={`${abierta ? 'Ocultar' : 'Ver'} explicación de ${etiqueta}`}
+                            onClick={() => setExplicacionDe(abierta ? null : clave)}
+                            className="ui-btn ui-btn-ghost ui-btn-sm focus-ring whitespace-nowrap"
+                          >
+                            {abierta ? 'Ocultar' : 'Ver explicación'}
+                          </button>
+                        </td>
+                      </tr>
+                      {abierta && p.explicacion && (
+                        <tr
+                          id={`explicacion-${clave}`}
+                          className="bg-gray-50 dark:bg-slate-900/40"
                         >
-                          {p.direccion === 'alza' ? '↑' : '↓'}{' '}
-                          {p.direccion ? TEXTO_DIRECCION[p.direccion] : ''}
-                        </span>
-                      </td>
-                      <td>
-                        <BadgeCalendario periodo={p} />
-                      </td>
-                      <td className="min-w-72 text-xs font-normal">
-                        {p.explicacion}
-                      </td>
-                    </tr>
-                  ))}
+                          <td colSpan={7} className="text-xs leading-relaxed">
+                            <span className="font-medium">Explicación estadística:</span>{' '}
+                            {p.explicacion}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>

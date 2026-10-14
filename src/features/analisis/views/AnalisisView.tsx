@@ -16,8 +16,11 @@ import {
 import {
   modeloPorDefecto,
   opcionesModelo,
+  PERIODICIDAD,
+  SIMULADOR_POR_DEFECTO,
   TEXTO_MODELO,
   type AnalisisResultado,
+  type EstadoSimulador,
   type ModeloClave,
   type Periodicidad,
 } from '../models/analisis'
@@ -30,6 +33,7 @@ import { AhorrosPanel } from './panels/AhorrosPanel'
 import { ComparativoPanel } from './panels/ComparativoPanel'
 import { PatronesPanel } from './panels/PatronesPanel'
 import { ResumenPanel } from './panels/ResumenPanel'
+import { CLASE_BADGE } from './panels/comunes'
 
 /**
  * Módulo 3 — Análisis estadístico y detección de patrones (HU-07 esc. 2,
@@ -73,6 +77,8 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
   const [modeloId, setModeloId] = React.useState('')
   /** Granularidad de la serie y de la tabla de ahorros §8.1. */
   const [periodicidad, setPeriodicidad] = React.useState<Periodicidad>('mes')
+  /** Simulador de umbral exploratorio (issue #79): dueño el shell. */
+  const [sim, setSim] = React.useState<EstadoSimulador>(SIMULADOR_POR_DEFECTO)
   /** Resultado del benchmark XM: se carga una sola vez por análisis. */
   const [serieSistema, setSerieSistema] = React.useState<RespuestaSerieXm | null>(null)
   const [serieMercado, setSerieMercado] = React.useState<RespuestaSerieXm | null>(null)
@@ -102,10 +108,12 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
       if (respuesta.ok) {
         setResultado(respuesta.analisis)
         // Un análisis nuevo vuelve al nivel exacto (edificación), al modelo
-        // automático del selector, a la serie mensual y al Resumen.
+        // automático del selector, a la serie mensual, al Resumen y con el
+        // simulador de umbral en sus valores normativos.
         setNivelId('edi')
         setModeloId('')
         setPeriodicidad('mes')
+        setSim(SIMULADOR_POR_DEFECTO)
         setActiveId('resumen')
       } else {
         setResultado(null)
@@ -212,8 +220,8 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
         }}
       >
         <div className="space-y-6">
-          <div className="space-y-1.5">
-            <h1 className="ui-title text-2xl">Análisis estadístico y patrones</h1>
+          <div className="space-y-2">
+            <h1 className="ui-title text-3xl">Análisis estadístico y patrones</h1>
             <p className="ui-muted max-w-3xl text-sm leading-relaxed">
               Señala las épocas de consumo inusual del histórico completo de facturas y las
               relaciona con el calendario académico. Cada período se evalúa contra la banda de
@@ -222,22 +230,35 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
             </p>
           </div>
 
-          {/* Controles: gobiernan los cuatro submódulos */}
+          {/* Barra compacta: edificación · período · ejecutar */}
           <div className="ui-card space-y-4 p-5 sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
-              <div className="ui-field min-w-0 flex-1">
-                <label htmlFor="analisis-edificacion" className="ui-label">
-                  Edificación
-                </label>
-                <ListboxSelect
-                  id="analisis-edificacion"
-                  value={edificacionId}
-                  onChange={setEdificacionId}
-                  options={opciones}
-                  placeholder="— Seleccione una edificación —"
-                  disabled={!puedeAnalizar || cargando}
-                  className="ui-input min-h-10 w-full"
-                />
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-5">
+                <div className="ui-field min-w-0 flex-1">
+                  <label htmlFor="analisis-edificacion" className="ui-label">
+                    Edificación
+                  </label>
+                  <ListboxSelect
+                    id="analisis-edificacion"
+                    value={edificacionId}
+                    onChange={setEdificacionId}
+                    options={opciones}
+                    placeholder="— Seleccione una edificación —"
+                    disabled={!puedeAnalizar || cargando}
+                    className="ui-input min-h-10 w-full"
+                  />
+                </div>
+                <div className="ui-field sm:w-56">
+                  <span id="analisis-periodo-label" className="ui-label">
+                    Período analizado
+                  </span>
+                  <p
+                    aria-labelledby="analisis-periodo-label"
+                    className="ui-input min-h-10 flex items-center text-sm tabular-nums text-gray-600 dark:text-gray-300"
+                  >
+                    {resultado ? `${resultado.desde} → ${resultado.hasta}` : '— sin ejecutar —'}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -290,11 +311,24 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
             </div>
           )}
 
-          {/* Resultado: cabecera + sección activa del sidebar */}
+          {/* Resultado: cabecera + configuración + sección activa del sidebar */}
           {salida && resumen && resultado && (
             <>
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 className="ui-title text-base">{resultado.nombreEdificacion}</h2>
+              {/* Nombre de la edificación + estado del análisis */}
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <h2 className="ui-title text-2xl">{resultado.nombreEdificacion}</h2>
+                  <span
+                    aria-live="polite"
+                    className={`${CLASE_BADGE} ${
+                      cargando
+                        ? 'border-sky-600/40 bg-sky-50 text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-300'
+                        : 'border-emerald-600/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
+                    }`}
+                  >
+                    {cargando ? 'Analizando…' : 'Análisis ejecutado'}
+                  </span>
+                </div>
                 <p className="ui-muted text-xs tabular-nums">
                   {resultado.desde} → {resultado.hasta} · calculado el{' '}
                   {new Date(resultado.calculadoEn).toLocaleString('es-CO', {
@@ -305,12 +339,76 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
                 </p>
               </div>
 
+              {/* Configuración del análisis: controles avanzados agrupados
+                  (issue #79) — gobiernan los cuatro submódulos. */}
+              <section
+                aria-labelledby="titulo-config-analisis"
+                className="ui-card space-y-4 p-5 sm:p-6"
+              >
+                <h3 id="titulo-config-analisis" className="ui-title text-sm">
+                  Configuración del análisis
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="ui-field">
+                    <label htmlFor="analisis-periodicidad" className="ui-label">
+                      Periodicidad
+                    </label>
+                    <ListboxSelect
+                      id="analisis-periodicidad"
+                      value={periodicidad}
+                      onChange={(valor) => setPeriodicidad(valor as Periodicidad)}
+                      options={PERIODICIDAD.map((p) => ({
+                        value: p.valor,
+                        label: p.habilitado ? p.etiqueta : `${p.etiqueta} — ${p.motivo}`,
+                        disabled: !p.habilitado,
+                      }))}
+                      className="ui-input min-h-10 w-full"
+                    />
+                  </div>
+                  <div className="ui-field">
+                    <label htmlFor="analisis-modelo" className="ui-label">
+                      Modelo de línea base
+                    </label>
+                    <ListboxSelect
+                      id="analisis-modelo"
+                      value={modeloClave ?? ''}
+                      onChange={setModeloId}
+                      options={opcionesSelectorModelo.map((o) => ({
+                        value: o.clave,
+                        label: o.etiqueta,
+                        disabled: !o.habilitado,
+                      }))}
+                      placeholder="— Ningún modelo disponible —"
+                      className="ui-input min-h-10 w-full"
+                    />
+                  </div>
+                  <div className="ui-field">
+                    <label htmlFor="analisis-nivel" className="ui-label">
+                      Nivel de análisis
+                    </label>
+                    <ListboxSelect
+                      id="analisis-nivel"
+                      value={nivelId}
+                      onChange={setNivelId}
+                      options={opcionesNivel}
+                      className="ui-input min-h-10 w-full"
+                    />
+                  </div>
+                </div>
+                <p className="ui-muted text-xs">
+                  La periodicidad y el modelo también gobiernan la gráfica y la tabla de
+                  ahorros; el nivel define los KPIs de gestión del submódulo Patrones.
+                </p>
+              </section>
+
               {seccion === 'resumen' && (
                 <ResumenPanel
                   resumen={resumen}
                   salida={salida}
                   modeloActual={modeloActual}
                   periodicidad={periodicidad}
+                  sim={sim}
+                  onSimChange={(parcial) => setSim((prev) => ({ ...prev, ...parcial }))}
                 />
               )}
               {seccion === 'comparativo' && (
@@ -323,13 +421,7 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
                 />
               )}
               {seccion === 'patrones' && (
-                <PatronesPanel
-                  resumen={resumen}
-                  salida={salida}
-                  nivel={nivel}
-                  opcionesNivel={opcionesNivel}
-                  onNivelChange={setNivelId}
-                />
+                <PatronesPanel resumen={resumen} salida={salida} nivel={nivel} />
               )}
               {seccion === 'ahorros' && (
                 <AhorrosPanel
@@ -339,8 +431,6 @@ export function AnalisisView({ edificaciones, puedeAnalizar }: AnalisisViewProps
                   modeloActual={modeloActual}
                   descripcionModelo={descripcionModelo}
                   periodicidad={periodicidad}
-                  onModeloChange={setModeloId}
-                  onPeriodicidadChange={setPeriodicidad}
                 />
               )}
             </>

@@ -1,12 +1,10 @@
 import React from 'react'
-import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
 import {
   ahorroAnual,
   formatoNumero,
   FORMULA_AHORRO,
   lbenPromedio,
   MESES_ES,
-  PERIODICIDAD,
   textoCriterio,
   type AhorroModelo,
   type ModeloClave,
@@ -18,12 +16,14 @@ import {
 import { ATRIBUTOS_ICONO, ChipIcon, SeccionTitulo } from './comunes'
 
 /**
- * Submódulo Ahorros: «Línea base del análisis» — selector de modelo §7.4
- * con sus motivos de indisponibilidad, periodicidad mes/año, identidad y
- * validación del modelo, 3 KPIs y la tabla §8.1 (o estados vacío/degradado).
+ * Submódulo Ahorros: «Línea base del análisis» — identidad y validación
+ * del modelo §7.4, 3 KPIs y la tabla §8.1 (o estados vacío/degradado).
  *
- * El selector vive aquí pero su estado gobierna también el overlay LBEn y
- * el modo de la gráfica del submódulo Resumen (el shell es el dueño).
+ * Los selectores de modelo y periodicidad viven ahora en la sección
+ * «Configuración del análisis» del shell (issue #79): su estado sigue
+ * gobernando el overlay LBEn y el modo de la gráfica del submódulo
+ * Resumen (el shell es el dueño), y este panel solo consume el modelo
+ * ya elegido.
  */
 export interface AhorrosPanelProps {
   modelos: ModelosLBEn | null
@@ -32,8 +32,6 @@ export interface AhorrosPanelProps {
   modeloActual: ModeloLBEn | null
   descripcionModelo: string | null
   periodicidad: Periodicidad
-  onModeloChange: (clave: string) => void
-  onPeriodicidadChange: (p: Periodicidad) => void
 }
 
 export function AhorrosPanel({
@@ -43,8 +41,6 @@ export function AhorrosPanel({
   modeloActual,
   descripcionModelo,
   periodicidad,
-  onModeloChange,
-  onPeriodicidadChange,
 }: AhorrosPanelProps) {
   const ahorro: AhorroModelo | null = modeloActual?.ahorro ?? null
   // Modo anual de la tabla §8.1: Σ de las 12 filas mensuales.
@@ -111,43 +107,6 @@ export function AhorrosPanel({
         titulo="Línea base del análisis"
         meta="Recálculo al vuelo · Resolución UPME 0016 de 2024 §7.4-7.5 y §8.1"
       />
-
-      {/* Selectores: modelo (§7.4) y periodicidad de la serie */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="ui-field">
-          <label htmlFor="analisis-modelo" className="ui-label">
-            Modelo de línea base
-          </label>
-          <ListboxSelect
-            id="analisis-modelo"
-            value={modeloClave ?? ''}
-            onChange={onModeloChange}
-            options={opcionesSelectorModelo.map((o) => ({
-              value: o.clave,
-              label: o.etiqueta,
-              disabled: !o.habilitado,
-            }))}
-            placeholder="— Ningún modelo disponible —"
-            className="ui-input min-h-10 w-full"
-          />
-        </div>
-        <div className="ui-field">
-          <label htmlFor="analisis-periodicidad" className="ui-label">
-            Periodicidad
-          </label>
-          <ListboxSelect
-            id="analisis-periodicidad"
-            value={periodicidad}
-            onChange={(valor) => onPeriodicidadChange(valor as Periodicidad)}
-            options={PERIODICIDAD.map((p) => ({
-              value: p.valor,
-              label: p.habilitado ? p.etiqueta : `${p.etiqueta} — ${p.motivo}`,
-              disabled: !p.habilitado,
-            }))}
-            className="ui-input min-h-10 w-full"
-          />
-        </div>
-      </div>
 
       {!modeloClave || !modeloActual || !descripcionModelo ? (
         <p className="ui-callout ui-callout-warn">

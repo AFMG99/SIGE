@@ -566,6 +566,112 @@ export function ahorroAnual(ahorro: AhorroModelo): ResumenAhorroAnual {
   }
 }
 
+// ── Simulador de umbral (exploratorio, solo cliente) ────────────────────
+//
+// §7.5.1: la detección NORMATIVA usa ±10 % (ec. 3) cuando el mes tiene
+// n < 10, y media ± k·DesvEst (ec. 4-5, k = 2, DesvEst poblacional ÷N)
+// cuando n ≥ 10. El simulador deja mover ambos umbrales para proyectar
+// cuántos períodos quedarían señalados SIN invocar el motor ni alterar
+// `es_atipico`: la salida normativa sigue siendo la del análisis.
+//
+// La σ mensual no viaja en la respuesta, pero se recupera de los
+// límites que SÍ trae el motor (son simétricos: inf = media − 2σ,
+// sup = media + 2σ ⇒ σ = (sup − inf) ÷ (2 · K_INTERVALO_MOTOR)).
+
+export const UMBRAL_PCT_DEFECTO = 10
+export const UMBRAL_PCT_MIN = 5
+export const UMBRAL_PCT_MAX = 30
+export const UMBRAL_K_DEFECTO = 2
+export const UMBRAL_K_MIN = 1
+export const UMBRAL_K_MAX = 3
+export const UMBRAL_K_PASO = 0.5
+
+/** K de la ec. 4 del motor (`python/lben/constants.py: K_INTERVALO = 2`). */
+export const K_INTERVALO_MOTOR = 2
+
+export type ConfigUmbral = { pct: number; k: number }
+
+/** Estado del simulador en el shell (sobrevive al cambio de submódulo). */
+export type EstadoSimulador = ConfigUmbral & { activo: boolean }
+
+export const SIMULADOR_POR_DEFECTO: EstadoSimulador = {
+  activo: false,
+  pct: UMBRAL_PCT_DEFECTO,
+  k: UMBRAL_K_DEFECTO,
+}
+
+/** Banda simulada de un mes calendario (kWh). */
+export type BandaSimulada = { inf: number; sup: number }
+
+export type SimulacionUmbral = {
+  /** Banda simulada por mes (índice mes−1); null = mes sin media. */
+  bandasSim: (BandaSimulada | null)[]
+  /** Períodos que quedarían señalados con el umbral simulado. */
+  atipicosSim: number
+  /** Períodos evaluables con banda simulada (los demás son «sin banda»). */
+  evaluados: number
+  /** Normativamente dentro de banda que entrarían como inusuales. */
+  entrarian: PeriodoAnalizado[]
+  /** Normativamente inusuales que dejarían de estarlo. */
+  saldrian: PeriodoAnalizado[]
+}
+
+/**
+ * Reclasa cada período contra la banda del SU mes con el umbral elegido
+ * (pct para meses con n < `min_datos_ic`, k·σ para el resto). Opera
+ * sobre la serie YA depurada: no repite la depuración de la §7.5.1, la
+ * proyección es exploratoria y así se declara en la UI.
+ */
+export function simularUmbral(
+  salida: SalidaAnalisis,
+  config: ConfigUmbral
+): SimulacionUmbral {
+  const bandasSim: (BandaSimulada | null)[] = Array.from({ length: 12 }, () => null)
+  for (const banda of salida.bandas) {
+    if (banda.media === null) {
+      bandasSim[banda.mes - 1] = null
+      continue
+    }
+    const media = banda.media
+    const conSigma =
+      banda.n >= salida.min_datos_ic &&
+      banda.limite_inferior !== null &&
+      banda.limite_superior !== null
+    if (conSigma) {
+      // ec. 4-5: límites simétricos alrededor de la media final.
+      const sigma =
+        ((banda.limite_superior as number) - (banda.limite_inferior as number)) /
+        (2 * K_INTERVALO_MOTOR)
+      bandasSim[banda.mes - 1] = {
+        inf: media - config.k * sigma,
+        sup: media + config.k * sigma,
+      }
+    } else {
+      // ec. 3: porcentaje de la media del mes.
+      bandasSim[banda.mes - 1] = {
+        inf: media * (1 - config.pct / 100),
+        sup: media * (1 + config.pct / 100),
+      }
+    }
+  }
+
+  let atipicosSim = 0
+  let evaluados = 0
+  const entrarian: PeriodoAnalizado[] = []
+  const saldrian: PeriodoAnalizado[] = []
+  for (const p of salida.periodos) {
+    const banda = bandasSim[p.mes - 1]
+    if (!banda) continue
+    evaluados += 1
+    const atipico = p.consumo_kwh < banda.inf || p.consumo_kwh > banda.sup
+    if (atipico) atipicosSim += 1
+    if (atipico && p.es_atipico === false) entrarian.push(p)
+    else if (!atipico && p.es_atipico === true) saldrian.push(p)
+  }
+
+  return { bandasSim, atipicosSim, evaluados, entrarian, saldrian }
+}
+
 // ── Helpers puros de gestión (unit-test en analisis.test.ts) ───────────
 
 /** Prioridad entre los modelos guardados de un bloque para el ahorro. */

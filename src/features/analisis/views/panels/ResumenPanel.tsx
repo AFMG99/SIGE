@@ -3,29 +3,50 @@ import {
   formatoKwh,
   formatoNumero,
   formatoPct,
+  simularUmbral,
+  type EstadoSimulador,
   type ModeloLBEn,
   type Periodicidad,
   type ResumenAnalisis,
   type SalidaAnalisis,
 } from '../../models/analisis'
 import { AnalisisChart } from '../AnalisisChart'
+import { SimuladorUmbral } from './SimuladorUmbral'
 import { ATRIBUTOS_ICONO, ChipIcon, SeccionTitulo } from './comunes'
 
 /**
  * Submódulo Resumen: 4 tarjetas KPI globales, avisos de cobertura de la
- * serie y la gráfica de la serie histórica (con el overlay LBEn del modelo
- * elegido en el submódulo Ahorros y el modo anual de la misma periodicidad).
+ * serie, la gráfica de la serie histórica (con el overlay LBEn del modelo
+ * elegido en el submódulo Ahorros, el modo anual de la misma
+ * periodicidad y la banda normativa por mes) y el simulador de umbral
+ * exploratorio (issue #79), cuya activación superpone la banda simulada
+ * a la gráfica sin tocar la detección normativa.
  */
 export interface ResumenPanelProps {
   resumen: ResumenAnalisis
   salida: SalidaAnalisis
   /** Modelo de LBEn seleccionado en Ahorros (overlay punteado de la gráfica). */
   modeloActual: ModeloLBEn | null
-  /** Periodicidad elegida en Ahorros: la gráfica la hereda. */
+  /** Periodicidad elegida en la configuración: la gráfica la hereda. */
   periodicidad: Periodicidad
+  /** Estado del simulador de umbral (dueño: el shell). */
+  sim: EstadoSimulador
+  onSimChange: (parcial: Partial<EstadoSimulador>) => void
 }
 
-export function ResumenPanel({ resumen, salida, modeloActual, periodicidad }: ResumenPanelProps) {
+export function ResumenPanel({
+  resumen,
+  salida,
+  modeloActual,
+  periodicidad,
+  sim,
+  onSimChange,
+}: ResumenPanelProps) {
+  // Simulación puramente local: reclasifica los períodos del cliente.
+  const simulacion = React.useMemo(
+    () => simularUmbral(salida, { pct: sim.pct, k: sim.k }),
+    [salida, sim.pct, sim.k]
+  )
   return (
     <div className="space-y-6">
       {/* Tarjetas de resumen */}
@@ -156,9 +177,19 @@ export function ResumenPanel({ resumen, salida, modeloActual, periodicidad }: Re
             media={salida.estadisticos.media}
             lben={modeloActual?.estado === 'disponible' ? modeloActual.lben_mensual : null}
             periodicidad={periodicidad === 'ano' ? 'ano' : 'mes'}
+            bandasSim={sim.activo ? simulacion.bandasSim : null}
           />
         </div>
       </div>
+
+      {/* Simulador de umbral (exploratorio, issue #79) */}
+      <SimuladorUmbral
+        simulacion={simulacion}
+        atipicosNormativos={resumen.atipicos}
+        minDatosIc={salida.min_datos_ic}
+        sim={sim}
+        onSimChange={onSimChange}
+      />
     </div>
   )
 }
