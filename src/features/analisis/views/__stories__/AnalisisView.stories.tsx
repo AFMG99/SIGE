@@ -130,7 +130,8 @@ export const ConResultados: Story = {
     await navegarA(canvas, userEvent, 'Patrones de consumo')
     await canvas.findByRole('heading', { level: 3, name: 'Períodos inusuales' })
     await canvas.findByText(/1 en alza · 1 en caída · 2 en período lectivo/)
-    await canvas.findByText('marzo de 2024')
+    // También aparece en las barras de desviación: basta con que exista.
+    await canvas.findAllByText('marzo de 2024')
     await canvas.findByText('↑ Alza')
     await canvas.findByText('↓ Caída')
     // La explicación estadística vive en una fila expandible por período
@@ -198,7 +199,8 @@ export const ConResultados: Story = {
     await canvas.findByRole('heading', {
       name: 'Referencia externa — datos nacionales XM',
     })
-    await canvas.findByText('Demanda del SIN (sistema interconectado)')
+    // El nombre aparece en la tarjeta XM y en la leyenda de la gráfica nueva.
+    await canvas.findAllByText('Demanda del SIN (sistema interconectado)')
     await canvas.findByText('Índice 105,1') // 7.460 GWh vs base 7.100 GWh
     await canvas.findByText('Interanual +5,1 %')
     await canvas.findByRole('img', { name: /Índice de Demanda del SIN/ })

@@ -74,6 +74,17 @@ Usar estas clases directamente en JSX — **no** recrear botones/paneles/inputs 
 
 `ConfirmDialog` (portal + focus trap + ESC, variant `destructive|primary`), `ToastProvider` (`useToast()`, variants `success|error|info`, auto-dismiss 4s), `ListboxSelect`, `DropdownMenu`, `Avatar`, `Skeleton`. **No hay Radix/shadcn** — son implementaciones propias sobre `ui-*`. Para la mayoría de superficies, usar las clases CSS directamente, no un componente wrapper.
 
+### Gráficos compartidos (`src/shared/views/charts/`)
+
+**SVG propio, sin librería de charts** (decisión explícita del proyecto; recharts/chart.js no). Exportados desde `@/shared/views/charts`:
+
+- `SeriesChart` — área/línea con 2+ series, curvas monotonas (Fritsch–Carlson), gradiente, crosshair + tooltip, leyenda toggle (`aria-pressed`), teclado ←/→/Esc, `useReducedMotion`, huecos por `null` (nunca interpola), estado vacío `.ui-empty`.
+- `BarList` — barras horizontales valor + delta (`role="meter"`). Semántica: `deltaPositivoEsBueno` (default `true`; consumo/costo → `false`, un alza se pinta rose).
+- `Sparkline` — miniárea decorativa (`aria-hidden` por defecto).
+- `curvas.ts` — puro, con tests unit (`curvas.test.ts`).
+
+Fixtures, stories con play tests y `__responsive__/charts.responsive.test.tsx` viven junto a los componentes. Para dashboards/paneles nuevos, usar estos en vez de SVG ad-hoc.
+
 ---
 
 ## 🏗️ Arquitectura

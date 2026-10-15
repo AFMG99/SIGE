@@ -2,7 +2,13 @@ import { getSession } from '@/shared/models/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/shared/models/prisma'
 import { canWithOverrides, getEffectiveExtraModules } from '@/shared/models/authz'
-import { DashboardHome, type EnergySummary } from '@/shared/views/DashboardHome'
+import { DashboardHome } from '@/shared/views/DashboardHome'
+import {
+  FACTURAS_MAX,
+  SERIE_MAX,
+  type CoeficientesLben,
+  type EnergySummary,
+} from '@/shared/views/dashboardModel'
 
 export default async function DashboardPage() {
   const session = await getSession()
@@ -39,7 +45,16 @@ export default async function DashboardPage() {
   // query, so a role without access neither fetches nor sees a single number.
   let energy: EnergySummary | null = null
   if (await canWithOverrides(user, 'consumption')) {
-    const [facturas, ultimaFactura, edificaciones, bloques] = await Promise.all([
+    const [
+      facturas,
+      ultimaFactura,
+      edificaciones,
+      bloques,
+      serieBruta,
+      ultimasFacturas,
+      lineasBase,
+      nombresEdificaciones,
+    ] = await Promise.all([
       prisma.facturaEnergia.count(),
       prisma.facturaEnergia.findFirst({
         orderBy: { periodo: 'desc' },
@@ -47,13 +62,93 @@ export default async function DashboardPage() {
       }),
       prisma.edificacion.count(),
       prisma.bloque.count(),
+      prisma.facturaEnergia.groupBy({
+        by: ['periodo'],
+        _sum: { consumoNormalizado: true, costoCop: true },
+        orderBy: { periodo: 'desc' },
+        take: SERIE_MAX,
+      }),
+      prisma.facturaEnergia.findMany({
+        orderBy: [{ periodo: 'desc' }, { creadoAt: 'desc' }],
+        take: FACTURAS_MAX,
+        select: {
+          id: true,
+          periodo: true,
+          consumoKwh: true,
+          consumoNormalizado: true,
+          costoCop: true,
+          diasFacturados: true,
+          edificacion: { select: { id: true, nombre: true } },
+        },
+      }),
+      prisma.lineaBaseEnergia.findMany({
+        select: {
+          r2: true,
+          tipo: true,
+          coeficientes: true,
+          bloque: { select: { id: true, edificacionId: true } },
+        },
+      }),
+      prisma.edificacion.findMany({ select: { id: true, nombre: true } }),
     ])
+
+    const nombrePorId = new Map(nombresEdificaciones.map((e) => [e.id, e.nombre]))
+
+    // Consumo/costo por edificación de un período (para distribución, deltas
+    // y ranking); null cuando el período no existe.
+    const porEdificacion = async (
+      periodo: string | undefined
+    ): Promise<EnergySummary['periodoActual']> => {
+      if (!periodo) return null
+      const filas = await prisma.facturaEnergia.groupBy({
+        by: ['edificacionId'],
+        where: { periodo },
+        _sum: { consumoNormalizado: true, costoCop: true },
+      })
+      return filas.map((f) => ({
+        edificacionId: f.edificacionId,
+        nombre: nombrePorId.get(f.edificacionId) ?? 'Edificación',
+        consumoNormalizado: f._sum.consumoNormalizado ?? 0,
+        costoCop: f._sum.costoCop ?? 0,
+      }))
+    }
+
+    const periodoActual = await porEdificacion(serieBruta[0]?.periodo)
+    const periodoPrevio = await porEdificacion(serieBruta[1]?.periodo)
 
     energy = {
       facturas,
       ultimoPeriodo: ultimaFactura?.periodo ?? null,
       edificaciones,
       bloques,
+      serie: serieBruta.map((p) => ({
+        periodo: p.periodo,
+        consumoNormalizado: p._sum.consumoNormalizado ?? 0,
+        costoCop: p._sum.costoCop ?? 0,
+      })),
+      ultimasFacturas: ultimasFacturas.map((f) => ({
+        id: f.id,
+        periodo: f.periodo,
+        edificacionId: f.edificacion.id,
+        edificacionNombre: f.edificacion.nombre,
+        consumoKwh: f.consumoKwh,
+        consumoNormalizado: f.consumoNormalizado,
+        costoCop: f.costoCop,
+        diasFacturados: f.diasFacturados,
+      })),
+      lineasBase: lineasBase.map((lb) => ({
+        bloqueId: lb.bloque.id,
+        edificacionId: lb.bloque.edificacionId,
+        modelos: [
+          {
+            tipo: lb.tipo,
+            r2: lb.r2,
+            coeficientes: (lb.coeficientes ?? {}) as CoeficientesLben,
+          },
+        ],
+      })),
+      periodoActual,
+      periodoPrevio,
     }
   }
 

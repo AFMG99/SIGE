@@ -1,10 +1,11 @@
 import React from 'react'
-import { formatoKwh, formatoPct } from '../../models/analisis'
+import { etiquetaEje, formatoKwh, formatoNumero, formatoPct } from '../../models/analisis'
 import {
   URLS_XM,
   type RespuestaContextoXm,
   type RespuestaSerieXm,
 } from '../../models/xm'
+import { SeriesChart } from '@/shared/views/charts'
 import { CLASE_BADGE, fechaCorta, SeccionTitulo, TarjetaSerieXm } from './comunes'
 
 /**
@@ -42,6 +43,23 @@ export function ComparativoPanel({
   const comparacion = contexto?.estado === 'ok' ? contexto.contexto.comparacionInterna : null
   const catalogo = contexto?.estado === 'ok' ? contexto.contexto.catalogo : []
   const fechaConsulta = contexto?.estado === 'ok' ? fechaCorta(contexto.contexto.fechaConsulta) : null
+
+  // Gráfica comparada (layout de referencia: 2 series). Eje Y = índice con
+  // primer mes con datos = 100: única escala honesta para cruzar series de
+  // magnitudes distintas (SIN vs mercado no regulado). Huecos = meses donde
+  // una serie no tiene datos (null, nunca interpolados).
+  const periodosUnion = Array.from(
+    new Set(seriesOk.flatMap((r) => r.serie.puntos.map((p) => p.periodo)))
+  ).sort()
+  const seriesGrafica = seriesOk.map((r) => ({
+    clave: r.serie.clave,
+    nombre: r.serie.nombre,
+    valores: periodosUnion.map(
+      (per) => r.serie.puntos.find((p) => p.periodo === per)?.indice ?? null
+    ),
+    tipo: r.serie.clave === 'sistema' ? ('area' as const) : ('linea' as const),
+    color: r.serie.clave === 'sistema' ? ('deep' as const) : ('purple' as const),
+  }))
 
   return (
     <div className="space-y-6">
@@ -157,6 +175,27 @@ export function ComparativoPanel({
           Contexto de mercado para ubicar la tendencia de la edificación: describe el
           comportamiento del sistema, NO la magnitud del consumo propio.
         </p>
+
+        {seriesOk.length > 0 && periodosUnion.length > 1 && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-uv-ink dark:text-slate-100">
+              Serie mensual comparada
+            </h4>
+            <p className="ui-muted text-xs">
+              Índice con el primer mes con datos = 100: comparable entre series de
+              magnitudes distintas.
+            </p>
+            <SeriesChart
+              titulo="Serie mensual comparada del sistema y del mercado (índice base 100)"
+              etiquetas={periodosUnion.map((per) =>
+                etiquetaEje(Number(per.slice(5, 7)), Number(per.slice(0, 4)))
+              )}
+              series={seriesGrafica}
+              formatoValor={(v) => formatoNumero(v, 1)}
+              sinDatos="Aún no hay puntos suficientes para graficar la serie."
+            />
+          </div>
+        )}
 
         {benchmarkCargando ? (
           <div aria-busy="true" aria-live="polite" className="space-y-3">

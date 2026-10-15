@@ -47,6 +47,9 @@ export function ResumenPanel({
     () => simularUmbral(salida, { pct: sim.pct, k: sim.k }),
     [salida, sim.pct, sim.k]
   )
+  // Tendencia = delta del consumo vs el año anterior: subir es malo (rose),
+  // bajar es bueno (forest) — misma semántica que en el dashboard.
+  const tendencia = salida.tendencia.variacion_pct_anual
   return (
     <div className="space-y-6">
       {/* Tarjetas de resumen */}
@@ -100,6 +103,10 @@ export function ResumenPanel({
               ? `${formatoNumero((resumen.periodos_con_banda / resumen.periodos) * 100, 0)} %`
               : '—'}
           </p>
+          <p className="mt-1 text-xs ui-muted tabular-nums">
+            {formatoNumero(resumen.periodos_con_banda, 0)} de{' '}
+            {formatoNumero(resumen.periodos, 0)} períodos
+          </p>
         </div>
         <div className="ui-card-stat h-full">
           <div className="flex items-center gap-2">
@@ -111,11 +118,23 @@ export function ResumenPanel({
             </ChipIcon>
             <p className="ui-muted text-xs">Tendencia anual</p>
           </div>
-          <p className="ui-title mt-2 text-2xl tabular-nums">
-            {typeof salida.tendencia.variacion_pct_anual === 'number'
-              ? formatoPct(salida.tendencia.variacion_pct_anual)
-              : '—'}
+          <p
+            className={`mt-2 text-2xl font-semibold tabular-nums ${
+              typeof tendencia !== 'number'
+                ? 'text-uv-ink dark:text-slate-100'
+                : tendencia > 0
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : tendencia < 0
+                    ? 'text-uv-forest dark:text-uv-soft'
+                    : 'text-uv-ink dark:text-slate-100'
+            }`}
+          >
+            {typeof tendencia === 'number' && (
+              <span aria-hidden>{tendencia < 0 ? '▼' : '▲'}</span>
+            )}{' '}
+            {typeof tendencia === 'number' ? formatoPct(tendencia) : '—'}
           </p>
+          <p className="mt-1 text-xs ui-muted">Consumo vs el año anterior</p>
         </div>
       </div>
 
