@@ -9,10 +9,12 @@
  *     `canWithOverrides`). A role without access sees NO energy number.
  *     The gate lives in the real Server Component (`page.tsx`) with Prisma
  *     and the session mocked: that is where the authorization check runs.
- *  2. Module cards: same visibility and same order as `ModuleNav`
- *     (the exported `isItemVisible`, not a parallel gating implementation)
- *     and never a card linking to the home itself.
- *  3. Preservation (S1): name, email, role, "member since" and ID stay.
+ *  2. Module carousel (S4): same visibility and same order as `ModuleNav`
+ *     (one dot per visible module, never a card linking to the home itself,
+ *     active slide = first visible module) — same exported `isItemVisible`
+ *     gate, not a parallel implementation.
+ *  3. Identity (S4): the view's `h1` lives in the modules section; name and
+ *     email no longer render here (they live in the shell/nav).
  *  4. Redesign (S1–S5): KPI cards with real deltas, «consumo vs línea base»
  *     chart, distribution bars, recent-invoices table with LBEn badges and
  *     the ahorro leaderboard — all fed by real aggregates, never invented.
@@ -78,6 +80,9 @@ const estado = vi.hoisted(() => ({
     createdAt: new Date('2025-06-01T12:00:00.000Z'),
   },
   overrides: [] as Array<{ moduleId: string; action: string; expiresAt: Date | null }>,
+  usuariosActivos: 5,
+  variablesOperativas: 9,
+  usersQueries: 0,
   facturas: 48,
   ultimoPeriodo: '2026-08' as string | null,
   edificaciones: 4,
@@ -157,7 +162,13 @@ vi.mock('@/shared/models/auth', () => ({
 
 vi.mock('@/shared/models/prisma', () => ({
   prisma: {
-    user: { findUnique: async () => estado.user },
+    user: {
+      findUnique: async () => estado.user,
+      count: async () => {
+        estado.usersQueries += 1
+        return estado.usuariosActivos
+      },
+    },
     userPermissionOverride: {
       findMany: async () => estado.overrides,
       findFirst: async () => (estado.overrides.length > 0 ? { id: 'override-1' } : null),
@@ -206,6 +217,13 @@ vi.mock('@/shared/models/prisma', () => ({
       findMany: async () => {
         estado.energyQueries += 1
         return estado.lineasBase
+      },
+    },
+    variableOperativa: {
+      count: async () => {
+        // Consumption-domain stat (S4); counts with the energy queries.
+        estado.energyQueries += 1
+        return estado.variablesOperativas
       },
     },
   },
@@ -262,6 +280,9 @@ beforeEach(() => {
     createdAt: new Date('2025-06-01T12:00:00.000Z'),
   }
   estado.overrides = []
+  estado.usuariosActivos = 5
+  estado.variablesOperativas = 9
+  estado.usersQueries = 0
   estado.facturas = 48
   estado.ultimoPeriodo = '2026-08'
   estado.edificaciones = 4
@@ -327,12 +348,36 @@ describe('Home view — energy summary permission gate', () => {
     await renderHome()
     await present('main h1')
 
-    // Identity preserved (S1): name, email, role, member-since and truncated ID
-    expect(bodyText()).toContain('Ana Torres')
-    expect(bodyText()).toContain('ana.torres@tecnologicoantioquia.edu.co')
-    expect(bodyText()).toContain('Administrador (TI)')
-    expect(bodyText()).toContain('junio de 2025')
-    expect(bodyText()).toContain('ckuser000000')
+    // S4: identity (name/email) lives in the shell and must not render here;
+    // the modules section owns the view's h1 and contains the carousel.
+    const carrusel = await present('[aria-roledescription="carrusel"]')
+    const h1 = document.querySelector('main h1')
+    expect(h1?.getAttribute('id')).toBe('home-modulos')
+    expect(
+      document
+        .querySelector('section[aria-labelledby="home-modulos"]')
+        ?.contains(h1)
+    ).toBe(true)
+    expect(bodyText()).not.toContain('ana.torres@tecnologicoantioquia.edu.co')
+    // Same visibility + order as ModuleNav: one dot per visible module.
+    // ADMIN_TI: users, consumption, analisis (consumption), alertas (no
+    // module gate), plans — estimates/reports are denied by the matrix.
+    const puntos = Array.from(
+      carrusel.querySelectorAll('[aria-label^="Ir al módulo"]')
+    ).map((el) => el.getAttribute('aria-label'))
+    expect(puntos).toEqual([
+      'Ir al módulo Usuarios y acceso',
+      'Ir al módulo Gestión de datos',
+      'Ir al módulo Análisis estadístico',
+      'Ir al módulo Alertas',
+      'Ir al módulo Representación espacial',
+    ])
+    // Active slide = first visible module, with its real server-queried figure
+    const enlaceActivo = carrusel.querySelector('a')
+    expect(enlaceActivo?.getAttribute('href')).toBe('/dashboard/users')
+    expect(enlaceActivo?.textContent).toContain('usuarios activos')
+    expect(enlaceActivo?.textContent).toContain('5')
+    expect(estado.usersQueries).toBeGreaterThan(0)
 
     // Redesigned overview (S1/S2): real aggregates only.
     const resumen = await present(RESUMEN)
@@ -366,20 +411,8 @@ describe('Home view — energy summary permission gate', () => {
     expect(texto).toContain('bloques')
     expect(estado.energyQueries).toBeGreaterThan(0)
 
-    // Module cards: same visibility + order as ModuleNav, home excluded.
-    // ADMIN_TI: users, consumption, analisis (consumption), alertas (no module),
-    // plans — estimates/reports are denied by the matrix.
-    const hrefs = Array.from(document.querySelectorAll('main a')).map((a) =>
-      a.getAttribute('href')
-    )
-    expect(hrefs).toEqual([
-      '/dashboard/users',
-      '/dashboard/datos',
-      '/dashboard/analisis',
-      '/dashboard/alertas',
-      '/dashboard/espacial',
-    ])
-    expect(hrefs).not.toContain('/dashboard')
+    // The home is never a card of itself (S4)
+    expect(document.querySelector('main a[href="/dashboard"]')).toBeNull()
   })
 
   it('without saved line bases: ahorro shows the honest callout, never an invented number', async () => {
@@ -402,13 +435,22 @@ describe('Home view — energy summary permission gate', () => {
 
     // The gate must sit before the queries, not only before the rendering
     expect(estado.energyQueries).toBe(0)
+    expect(estado.usersQueries).toBe(0)
     expect(document.querySelector(RESUMEN)).toBeNull()
     const texto = bodyText().toLowerCase()
     expect(texto).not.toContain('resumen energético')
     expect(texto).not.toContain('último periodo')
     expect(texto).not.toContain('facturas registradas')
-    // Nor a card to the module it cannot access (same gating as ModuleNav)
+    // Nor a slide to the module it cannot access (same gating as ModuleNav)
     expect(document.querySelector('main a[href="/dashboard/datos"]')).toBeNull()
+    expect(document.querySelector('[aria-label^="Ir al módulo Gestión"]')).toBeNull()
+    expect(document.querySelector('[aria-label^="Ir al módulo Usuarios"]')).toBeNull()
+    // The carousel starts at the first module it CAN see (nav order)
+    expect(
+      document
+        .querySelector('[aria-label^="Ir al módulo"]')
+        ?.getAttribute('aria-label')
+    ).toBe('Ir al módulo Alertas')
   })
 
   it('a temporary override on consumption does enable the summary (canWithOverrides)', async () => {
@@ -418,9 +460,14 @@ describe('Home view — energy summary permission gate', () => {
     await renderHome()
     await present(RESUMEN)
 
-    // 8 aggregate queries + 2 per-edification groupBys
-    expect(estado.energyQueries).toBe(10)
+    // 8 aggregate queries + 2 per-edification groupBys + the variables stat
+    expect(estado.energyQueries).toBe(11)
+    expect(estado.usersQueries).toBe(0)
     expect(document.querySelector('main a[href="/dashboard/datos"]')).not.toBeNull()
+    // …and the override opens the module in the carousel too
+    expect(
+      document.querySelector('[aria-label="Ir al módulo Gestión de datos"]')
+    ).not.toBeNull()
   })
 
   it('with zero invoices: useful empty state with an action into the data module', async () => {
@@ -470,6 +517,17 @@ describe('Home view — responsive', () => {
       expect(cards.length).toBeGreaterThan(0)
       for (const card of cards) {
         expect(card.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+      }
+      // The carousel controls are also ≥40px touch targets below `lg`
+      const controles = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '[aria-roledescription="carrusel"] button'
+        )
+      )
+      expect(controles.length).toBeGreaterThan(0)
+      for (const control of controles) {
+        expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+        expect(control.getBoundingClientRect().width).toBeGreaterThanOrEqual(39.5)
       }
       expect(horizontalOverflow()).toBeLessThanOrEqual(1)
     })

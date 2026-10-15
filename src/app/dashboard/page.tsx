@@ -2,6 +2,7 @@ import { getSession } from '@/shared/models/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/shared/models/prisma'
 import { canWithOverrides, getEffectiveExtraModules } from '@/shared/models/authz'
+import { visibleModules } from '@/shared/models/permissions'
 import { DashboardHome } from '@/shared/views/DashboardHome'
 import {
   FACTURAS_MAX,
@@ -39,11 +40,22 @@ export default async function DashboardPage() {
 
   const extraModules = await getEffectiveExtraModules(user.id)
 
+  // Module stat for the home carousel (S4): active users, queried ONLY when
+  // the role can see `users` — the same visibleModules + extraModules gate
+  // ModuleNav uses (never a parallel permission matrix).
+  const veUsuarios =
+    visibleModules(user.role).includes('users') || extraModules.includes('users')
+  const usuariosActivos = veUsuarios
+    ? await prisma.user.count({ where: { status: 'ACTIVE' } })
+    : null
+
   // SECURITY GATE: energy aggregates are only computed for users that can
   // access the `consumption` module (static matrix first, then active
   // temporary overrides via `canWithOverrides`). The check runs BEFORE any
   // query, so a role without access neither fetches nor sees a single number.
   let energy: EnergySummary | null = null
+  // Carousel stat (S4): fetched only inside the same `consumption` gate.
+  let variablesOperativas: number | null = null
   if (await canWithOverrides(user, 'consumption')) {
     const [
       facturas,
@@ -54,6 +66,7 @@ export default async function DashboardPage() {
       ultimasFacturas,
       lineasBase,
       nombresEdificaciones,
+      conteoVariables,
     ] = await Promise.all([
       prisma.facturaEnergia.count(),
       prisma.facturaEnergia.findFirst({
@@ -92,7 +105,10 @@ export default async function DashboardPage() {
         },
       }),
       prisma.edificacion.findMany({ select: { id: true, nombre: true } }),
+      prisma.variableOperativa.count(),
     ])
+
+    variablesOperativas = conteoVariables
 
     const nombrePorId = new Map(nombresEdificaciones.map((e) => [e.id, e.nombre]))
 
@@ -165,6 +181,7 @@ export default async function DashboardPage() {
       }}
       extraModules={extraModules}
       energy={energy}
+      moduleStats={{ usuariosActivos, variablesOperativas }}
     />
   )
 }
