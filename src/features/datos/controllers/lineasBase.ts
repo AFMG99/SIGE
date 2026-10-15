@@ -26,6 +26,7 @@ import {
   TIPO_LBEN_DB,
   UPME_MIN_MESES,
   UPME_MIN_VALORES_MES,
+  advertenciaMinimos,
   UPME_RANGO_CONFIANZA,
 } from '@/features/datos/models/lineasBase'
 import { crearCriterioShares } from '@/features/datos/models/shares'
@@ -786,12 +787,13 @@ export async function calcularModelosLineaBase(
  * Persiste el resultado de un modelo en `LineaBaseEnergia` (upsert
  * bloqueId+tipo). Requiere permiso `upload` sobre el módulo `consumption`.
  *
- * El cálculo es libre (sirve para diagnóstico aunque falten meses), pero
- * aquí corre el gate de conformidad UPME: se exigen `UPME_MIN_MESES` meses
- * depurados **y** los 12 meses con al menos `UPME_MIN_VALORES_MES` valores
- * (3×12, estilo §7.5.1) antes de persistir una línea base oficial. Además
- * inyecta `origen` dentro de `coeficientes` para que una LB estimada sea
- * distinguible de una medida sin tocar `schema.prisma`.
+ * El cálculo es libre y la persistencia también: sin los `UPME_MIN_MESES`
+ * meses depurados (o con la regla 3×12 incompleta) la línea base se guarda
+ * igual, pero la respuesta incluye `advertencia` con la sugerencia de
+ * cargar/depurar más meses — la conformidad UPME queda como advertencia,
+ * no como bloqueo. Además inyecta `origen` dentro de `coeficientes` para
+ * que una LB estimada sea distinguible de una medida sin tocar
+ * `schema.prisma`.
  */
 export async function guardarLineaBase(input: {
   bloqueId: string
@@ -827,10 +829,10 @@ export async function guardarLineaBase(input: {
       return { ok: false, error: 'Resultado inválido: recalcule la línea base.' }
     }
 
-    // ── Gate de conformidad UPME ──────────────────────────────────────
-    // 1) Con menos de 36 meses depurados o 2) algún mes con menos de 3
-    // valores (3×12), el cálculo sigue siendo válido para diagnóstico, pero
-    // no puede volverse una línea base oficial.
+    // ── Conformidad UPME (advertencia, no bloqueo) ─────────────────────
+    // Con menos de 36 meses depurados o con algún mes con menos de 3
+    // valores (3×12) la línea base se guarda igual, pero la respuesta
+    // lleva `advertencia` con la sugerencia de cargar/depurar más meses.
     const mesesFacturados = await prisma.facturaEnergia.count()
     const depurados =
       typeof input.depurados === 'number' ? input.depurados : mesesFacturados
@@ -839,20 +841,12 @@ export async function guardarLineaBase(input: {
           (m) => Number.isInteger(m) && m >= 1 && m <= 12
         )
       : []
-    if (
-      mesesFacturados < UPME_MIN_MESES ||
-      depurados < UPME_MIN_MESES ||
-      mesesInsuficientes.length > 0
-    ) {
-      const detalleMeses =
-        mesesInsuficientes.length > 0
-          ? ` y faltan ${UPME_MIN_VALORES_MES} valores en el(los) mes(es) ${mesesInsuficientes.join(', ')} (3×12)`
-          : ''
-      return {
-        ok: false,
-        error: `Se requieren al menos ${UPME_MIN_MESES} meses depurados para persistir una línea base conforme a la UPME: hay ${depurados} de ${mesesFacturados} facturas${detalleMeses}. El cálculo queda disponible para diagnóstico, pero no puede guardarse oficialmente.`,
-      }
-    }
+    const advertencia =
+      advertenciaMinimos({
+        mesesFacturados,
+        depurados,
+        mesesInsuficientes,
+      }) ?? undefined
 
     const origen: OrigenShare =
       input.origen === 'modelo_ingenieria' ? 'modelo_ingenieria' : 'facturas_area'
@@ -890,7 +884,11 @@ export async function guardarLineaBase(input: {
       detail: `Línea base ${modelo} guardada para el bloque ${bloqueId}.`,
     })
 
-    return { ok: true, mensaje: 'Línea base guardada.' }
+    return {
+      ok: true,
+      mensaje: 'Línea base guardada.',
+      ...(advertencia ? { advertencia } : {}),
+    }
   } catch (e) {
     console.error('Error en guardarLineaBase:', e)
     return {

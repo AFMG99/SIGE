@@ -218,33 +218,37 @@ const CATEGORIAS: Categoria[] = [
       ),
       p(
         'calcular-vs-guardar-36',
-        '¿Por qué puedo calcular con menos de 36 meses pero no guardar?',
+        '¿Puedo guardar una línea base con menos de 36 meses?',
         <>
           <p>
-            Porque son dos puertas distintas y decidimos separarlas a
-            propósito. El cálculo es <em>libre</em>: sirve para diagnosticar
-            una serie corta, ver la gráfica y entender qué falla. La
-            persistencia sí exige el mínimo normativo.
+            Sí. Tanto el cálculo como la persistencia son libres: con menos de
+            36 meses depurados (o con meses incompletos por la regla 3×12) la
+            línea base se guarda, y la pantalla muestra un callout de
+            advertencia con la sugerencia de cargar y depurar más meses antes
+            de usarla para los respectivos ajustes. La Resolución UPME 0016
+            de 2024 exige 36 meses para que la línea base sea oficialmente
+            conforme.
           </p>
           <Snippet
-            archivo="src/features/datos/views/LineasBase.tsx"
-            referencia="conformeParaGuardar"
-            linea={522}
-            codigo={`const conformeParaGuardar =
-  calc !== null &&
-  calc.depurados >= UPME_MIN_MESES &&
-  calc.mesesInsuficientes.length === 0`}
+            archivo="src/features/datos/models/lineasBase.ts"
+            referencia="advertenciaMinimos"
+            linea={314}
+            codigo={`export function advertenciaMinimos(entrada: {
+  mesesFacturados: number
+  depurados: number
+  mesesInsuficientes?: number[]
+}): string | null`}
           />
           <p>
-            Con esa condición en falso el botón «Guardar modelo» no se renderiza
-            y el texto explica cuántos meses faltan o en qué meses falta el
-            mínimo de 3 valores (regla 3×12). El cálculo sigue en pantalla
-            para diagnóstico.
+            Los chips de puertas UPME siguen mostrando el estado de cada
+            criterio (36 meses, 3×12, p ≤ 0,05 y MAPE ≤ 5 %): un criterio en
+            rojo no bloquea guardar, pero avisa que la línea base no es
+            conforme.
           </p>
           <Ref
             archivo="src/features/datos/controllers/lineasBase.ts"
-            referencia="gate de conformidad UPME"
-            linea={738}
+            referencia="Conformidad UPME (advertencia, no bloqueo)"
+            linea={830}
           />
         </>
       ),
@@ -264,9 +268,9 @@ const CATEGORIAS: Categoria[] = [
               <code className="ui-chip">LineaBaseEnergia</code>, con su R², su
               peor p-value, el resultado completo y el{' '}
               <code className="ui-chip">origen</code> del share. Requiere el
-              permiso <code className="ui-chip">upload</code>, alcance de
-              bloque, ≥ 36 meses depurados y los 12 meses con ≥ 3 valores
-              (3×12).
+              permiso <code className="ui-chip">upload</code> y alcance de
+              bloque; sin los 36 meses o con meses incompletos (3×12) se
+              guarda igual, con advertencia de no conformidad.
             </li>
           </ul>
           <p className="mt-2">

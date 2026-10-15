@@ -21,6 +21,7 @@ import {
   UPME_MIN_MESES,
   UPME_MIN_VALORES_MES,
   UPME_P_VALUE,
+  advertenciaMinimos,
   lineaBaseKwh,
 } from '@/features/datos/models/lineasBase'
 import type {
@@ -244,7 +245,8 @@ function construirPuertas(
     },
     {
       // Regla 3×12: los 12 meses deben tener ≥ 3 valores para no salir
-      // `estimado`; sin eso no se puede guardar (gate de la action).
+      // `estimado`; sin eso la puerta falla, pero guardar no se bloquea
+      // (la action devuelve advertencia y la UI lo muestra).
       label:
         calc.mesesInsuficientes.length > 0
           ? `3×12: sin ≥${UPME_MIN_VALORES_MES} valores en ${calc.mesesInsuficientes.join(', ')}`
@@ -529,13 +531,17 @@ export function LineasBase({
       ? lineaBaseKwh(modelo, estado.resultado, calc.serie)
       : null
 
-  // Gate de conformidad UPME: el cálculo es libre (sirve para diagnóstico),
-  // pero sin 36 meses depurados o sin los 12 meses con ≥ 3 valores (3×12)
-  // no se puede persistir la LB.
-  const conformeParaGuardar =
-    calc !== null &&
-    calc.depurados >= UPME_MIN_MESES &&
-    calc.mesesInsuficientes.length === 0
+  // Conformidad UPME (advertencia, no bloqueo): con menos de 36 meses
+  // depurados o con meses incompletos (3×12) la LB se guarda igual, pero
+  // se avisa y se sugiere cargar/depurar más meses antes de usarla.
+  const advertenciaCalculo =
+    calc !== null
+      ? advertenciaMinimos({
+          mesesFacturados: calc.originales,
+          depurados: calc.depurados,
+          mesesInsuficientes: calc.mesesInsuficientes,
+        })
+      : null
 
   async function calcular() {
     setCargando(true)
@@ -912,6 +918,13 @@ export function LineasBase({
             </div>
           )}
 
+          {advertenciaCalculo && (
+            <div className="ui-callout ui-callout-warn" role="status">
+              <p className="font-semibold">Línea base no conforme (UPME)</p>
+              <p className="mt-1">{advertenciaCalculo}</p>
+            </div>
+          )}
+
           {/* Métricas/puertas/guardado (2/5) + gráfica (3/5) */}
           <div className="grid gap-6 lg:grid-cols-5">
             <div className="space-y-3 lg:col-span-2">
@@ -959,15 +972,12 @@ export function LineasBase({
                     <p className="ui-muted text-xs">
                       {calc.alcance.tipo !== 'bloque'
                         ? 'El guardado oficial aplica a nivel de bloque: elija un bloque como alcance para guardar.'
-                        : conformeParaGuardar
-                          ? 'Guardar persiste este resultado como línea base oficial del bloque (LineaBaseEnergia).'
-                          : calc.mesesInsuficientes.length > 0
-                            ? `Faltan al menos ${UPME_MIN_VALORES_MES} valores en el(los) mes(es) ${calc.mesesInsuficientes.join(', ')} (regla 3×12) y se exigen ${UPME_MIN_MESES} meses depurados: hay ${calc.depurados}. El cálculo sirve para diagnóstico.`
-                            : `Se requieren al menos ${UPME_MIN_MESES} meses depurados para persistir una línea base conforme: hay ${calc.depurados}. El cálculo sirve para diagnóstico.`}
+                        : advertenciaCalculo
+                          ? 'Guardar persiste este resultado como línea base oficial del bloque (LineaBaseEnergia), con la advertencia de no conformidad mostrada arriba.'
+                          : 'Guardar persiste este resultado como línea base oficial del bloque (LineaBaseEnergia).'}
                     </p>
                     {calc.alcance.tipo === 'bloque' &&
-                      puedeGuardar &&
-                      conformeParaGuardar && (
+                      puedeGuardar && (
                       <button
                         type="button"
                         onClick={() => guardar(modelo)}
