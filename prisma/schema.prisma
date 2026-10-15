@@ -146,8 +146,29 @@ model Edificacion {
   facturas   FacturaEnergia[]
   lineasBase LineaBaseEnergia[]
   calendario CalendarioOperativo?
+  horarios   HorarioEquipo[]
 
   @@map("edificaciones")
+}
+
+// Horario de funcionamiento de un grupo de equipos de la edificación
+// (Resolución UPME 0016/2024, §7.1/§7.3: horarios de operación). Días de la
+// semana (códigos LUN..DOM en array de Postgres) + franja horaria diaria.
+// Sin cruce de medianoche: una franja que pasa de 23:00 a 06:00 se registra
+// como dos filas. Validación de dominio en features/datos/models/horarios.ts.
+model HorarioEquipo {
+  id            String   @id @default(cuid())
+  edificacionId String
+  nombre        String
+  diasSemana    String[]
+  horaInicio    Int
+  horaFin       Int
+  createdAt     DateTime @default(now())
+
+  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+
+  @@index([edificacionId])
+  @@map("horarios_equipo")
 }
 
 // Calendario operativo configurable por edificación (UPME 0016/2024 §7.1/§7.3:

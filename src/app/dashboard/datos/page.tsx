@@ -31,6 +31,7 @@ export default async function DatosPage() {
     espacios,
     calendarios,
     rangosCalendario,
+    horariosEquipo,
     ajustesAgg,
     ajustesRecientes,
     bloquesConAjustes,
@@ -129,6 +130,17 @@ export default async function DatosPage() {
         fechaFin: true,
         tipoDia: true,
         nombre: true,
+      },
+    }),
+    prisma.horarioEquipo.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        edificacionId: true,
+        nombre: true,
+        diasSemana: true,
+        horaInicio: true,
+        horaFin: true,
       },
     }),
     prisma.ajusteEnergetico.aggregate({
@@ -273,6 +285,7 @@ export default async function DatosPage() {
         tipoDia: r.tipoDia,
         nombre: r.nombre,
       }))}
+      horarios={horariosEquipo}
       facturasExistentes={facturasExistentes}
       equiposExistentes={equiposExistentes}
       variablesExistentes={variablesExistentes}

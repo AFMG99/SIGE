@@ -25,6 +25,7 @@ import type {
   CalendarioInfo,
   EdificacionInfo,
   EspacioInfo,
+  HorarioEquipoInfo,
   RangoCalendarioUI,
 } from './useCatalogoEdificaciones'
 import { ComoFunciona } from './ComoFunciona'
@@ -92,6 +93,8 @@ type DatosContentProps = {
   calendarios: CalendarioInfo[]
   /** Rangos de fechas con tipo de día de todos los calendarios. */
   rangos: RangoCalendarioUI[]
+  /** Horarios de funcionamiento de equipos por edificación (UPME §7.1/§7.3). */
+  horarios: HorarioEquipoInfo[]
   facturasExistentes: FacturasExistentes
   equiposExistentes: EquiposExistentes
   variablesExistentes: VariablesExistentes
@@ -110,6 +113,7 @@ export function DatosContent({
   espacios,
   calendarios,
   rangos,
+  horarios,
   facturasExistentes,
   equiposExistentes,
   variablesExistentes,
@@ -417,6 +421,7 @@ export function DatosContent({
                   espacios={espaciosCat}
                   calendarios={calendarios}
                   rangos={rangos}
+                  horarios={horarios}
                   crearEdificacion={crearEdificacion}
                   actualizarEdificacion={actualizarEdificacion}
                   eliminarEdificacion={eliminarEdificacion}

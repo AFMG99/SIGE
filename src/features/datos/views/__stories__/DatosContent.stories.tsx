@@ -9,7 +9,7 @@ import { DatosContent } from '../DatosContent'
  * first query for their content needs more than the default 1s wait.
  */
 const LAZY_SECTION_TIMEOUT = 5000
-import { bloquesDemo, calendariosDemo, edificacionesDemo, espaciosDemo, rangosCalendarioDemo } from '../__fixtures__/catalogo'
+import { bloquesDemo, calendariosDemo, edificacionesDemo, espaciosDemo, horariosEquipoDemo, rangosCalendarioDemo } from '../__fixtures__/catalogo'
 import {
   ajustesExistentesDemo,
   equiposExistentesDemo,
@@ -31,6 +31,7 @@ const meta = {
     espacios: espaciosDemo,
     calendarios: calendariosDemo,
     rangos: rangosCalendarioDemo,
+    horarios: horariosEquipoDemo,
     facturasExistentes: facturasExistentesDemo,
     equiposExistentes: equiposExistentesDemo,
     variablesExistentes: variablesExistentesDemo,

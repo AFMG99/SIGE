@@ -3,12 +3,14 @@
 /**
  * Drawer «Calendario y GDE» de una edificación (sección Edificaciones).
  *
- * Tres bloques, en orden (UPME 0016/2024 §7.1/§7.3):
+ * Cuatro bloques, en orden (UPME 0016/2024 §7.1/§7.3):
  * 1. Configuración operativa: horario diario H, temperatura base Tb y
  *    coordenadas (requeridas por la fuente climática).
  * 2. Rangos del calendario: días operativos vs. no operativos; plantilla TdeA
  *    como datos iniciales editables (sin fechas fijas en la lógica).
- * 3. GDE mensual calculada con la fórmula de la resolución, mostrando la
+ * 3. Horarios de funcionamiento de equipos: días de la semana + franja horaria
+ *    por grupo de equipos, editables sin depender de la configuración.
+ * 4. GDE mensual calculada con la fórmula de la resolución, mostrando la
  *    fórmula con los valores sustituidos junto al resultado (interpretabilidad).
  */
 
@@ -30,10 +32,17 @@ import {
   guardarConfigCalendario,
   registrarGdeCalculado,
 } from '@/features/datos/controllers/calendario'
+import { crearHorarioEquipo, eliminarHorarioEquipo } from '@/features/datos/controllers/horarios'
+import {
+  CATALOGO_DIAS,
+  formatearDias,
+  formatearFranja,
+} from '@/features/datos/models/horarios'
 import type { ResultadoCalculoGde } from '@/features/datos/controllers/calendario'
 import type {
   CalendarioInfo,
   EdificacionInfo,
+  HorarioEquipoInfo,
   RangoCalendarioUI,
 } from './useCatalogoEdificaciones'
 
@@ -59,6 +68,8 @@ interface CalendarioGdeDrawerProps {
   edificacion: EdificacionInfo | null
   configInicial: CalendarioInfo | null
   rangosIniciales: RangoCalendarioUI[]
+  /** Horarios de equipos ya registrados en esta edificación. */
+  horariosIniciales: HorarioEquipoInfo[]
 }
 
 const ANO_BASE = new Date().getFullYear()
@@ -70,6 +81,7 @@ export function CalendarioGdeDrawer({
   edificacion,
   configInicial,
   rangosIniciales,
+  horariosIniciales,
 }: CalendarioGdeDrawerProps) {
   const router = useRouter()
   const { showToast } = useToast()
@@ -94,6 +106,16 @@ export function CalendarioGdeDrawer({
   })
   const [rangoEliminando, setRangoEliminando] = useState<RangoCalendarioUI | null>(null)
 
+  // Horarios de equipos
+  const [horarios, setHorarios] = useState<HorarioEquipoInfo[]>(horariosIniciales)
+  const [horarioForm, setHorarioForm] = useState({
+    nombre: '',
+    diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'] as string[],
+    horaInicio: '7',
+    horaFin: '19',
+  })
+  const [horarioEliminando, setHorarioEliminando] = useState<HorarioEquipoInfo | null>(null)
+
   // GDE
   const [mes, setMes] = useState(new Date().getMonth() + 1)
   const [ano, setAno] = useState(ANO_BASE)
@@ -107,6 +129,7 @@ export function CalendarioGdeDrawer({
     if (!isOpen) return
     setConfig(configInicial)
     setRangos(rangosIniciales)
+    setHorarios(horariosIniciales)
     setResultado(null)
     setError('')
     setHoraInicio(configInicial ? String(configInicial.horaInicioOperacion) : '8')
@@ -114,6 +137,12 @@ export function CalendarioGdeDrawer({
     setTb(configInicial ? String(configInicial.temperaturaBase) : '23')
     setLat(edificacion?.lat != null ? String(edificacion.lat) : '')
     setLon(edificacion?.lon != null ? String(edificacion.lon) : '')
+    setHorarioForm({
+      nombre: '',
+      diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
+      horaInicio: '7',
+      horaFin: '19',
+    })
     const first = drawerRef.current?.querySelector<HTMLInputElement>('input, select')
     first?.focus()
   }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -211,6 +240,65 @@ export function CalendarioGdeDrawer({
       fallo(res.mensaje)
       return
     }
+    showToast(res.mensaje, 'success')
+    router.refresh()
+  }
+
+  // ------------------------- Horarios de equipos -------------------------
+
+  const alternarDia = (codigo: string) => {
+    setHorarioForm((f) => ({
+      ...f,
+      diasSemana: f.diasSemana.includes(codigo)
+        ? f.diasSemana.filter((c) => c !== codigo)
+        : [...f.diasSemana, codigo],
+    }))
+  }
+
+  const agregarHorario = async (e: FormEvent) => {
+    e.preventDefault()
+    setError('')
+    const ini = Number(horarioForm.horaInicio)
+    const fin = Number(horarioForm.horaFin)
+    if (horarioForm.diasSemana.length === 0) {
+      fallo('Seleccione al menos un día de la semana.')
+      return
+    }
+    if (fin <= ini) {
+      fallo('La hora final debe ser posterior a la inicial (sin cruce de medianoche).')
+      return
+    }
+    const res = await crearHorarioEquipo(edificacion.id, {
+      nombre: horarioForm.nombre,
+      diasSemana: horarioForm.diasSemana,
+      horaInicio: ini,
+      horaFin: fin,
+    })
+    if (res.estado === 'error') {
+      fallo(res.mensaje)
+      return
+    }
+    // Refresca desde el servidor: el id lo crea la BD.
+    showToast(res.mensaje, 'success')
+    router.refresh()
+    setHorarioForm({
+      nombre: '',
+      diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
+      horaInicio: '7',
+      horaFin: '19',
+    })
+  }
+
+  const eliminarHorario = async () => {
+    if (!horarioEliminando) return
+    const res = await eliminarHorarioEquipo(horarioEliminando.id)
+    if (res.estado === 'error') {
+      setHorarioEliminando(null)
+      fallo(res.mensaje)
+      return
+    }
+    setHorarios((prev) => prev.filter((h) => h.id !== horarioEliminando.id))
+    setHorarioEliminando(null)
     showToast(res.mensaje, 'success')
     router.refresh()
   }
@@ -518,7 +606,126 @@ export function CalendarioGdeDrawer({
             )}
           </div>
 
-          {/* 3. GDE mensual */}
+          {/* 3. Horarios de funcionamiento de equipos */}
+          <div className="space-y-3 border-t border-gray-100 pt-5 dark:border-slate-800">
+            <div>
+              <h3 className="ui-title text-sm">Horarios de funcionamiento de equipos</h3>
+              <p className="ui-muted mt-1 text-xs">
+                Días de la semana y franja horaria en que opera cada grupo de equipos de la
+                edificación (horarios de operación, UPME §7.1/§7.3). Independiente de la
+                configuración del calendario.
+              </p>
+            </div>
+
+            <form
+              onSubmit={(e) => void agregarHorario(e)}
+              className="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-slate-700"
+              noValidate
+            >
+              <div>
+                <label htmlFor="horario-nombre" className="ui-label mb-1.5">
+                  Nombre del grupo
+                </label>
+                <input
+                  id="horario-nombre"
+                  type="text"
+                  required
+                  maxLength={80}
+                  placeholder="Ej. Iluminación aulas, HVAC administración"
+                  className="ui-input"
+                  value={horarioForm.nombre}
+                  onChange={(e) => setHorarioForm((f) => ({ ...f, nombre: e.target.value }))}
+                />
+              </div>
+
+              <fieldset>
+                <legend className="ui-label mb-1.5">Días de la semana</legend>
+                <div className="flex flex-wrap gap-1.5">
+                  {CATALOGO_DIAS.map((d) => {
+                    const activo = horarioForm.diasSemana.includes(d.codigo)
+                    return (
+                      <button
+                        key={d.codigo}
+                        type="button"
+                        onClick={() => alternarDia(d.codigo)}
+                        aria-pressed={activo}
+                        className={`focus-ring min-h-10 rounded-lg border px-2.5 text-xs font-medium ${
+                          activo
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-gray-300 bg-white text-gray-600 hover:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-300'
+                        }`}
+                      >
+                        {d.abrev}
+                      </button>
+                    )
+                  })}
+                </div>
+              </fieldset>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="horario-inicio" className="ui-label mb-1.5">Hora inicio</label>
+                  <select
+                    id="horario-inicio"
+                    className="ui-input"
+                    value={horarioForm.horaInicio}
+                    onChange={(e) => setHorarioForm((f) => ({ ...f, horaInicio: e.target.value }))}
+                  >
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <option key={h} value={h}>{hora(h)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="horario-fin" className="ui-label mb-1.5">Hora final</label>
+                  <select
+                    id="horario-fin"
+                    className="ui-input"
+                    value={horarioForm.horaFin}
+                    onChange={(e) => setHorarioForm((f) => ({ ...f, horaFin: e.target.value }))}
+                  >
+                    {Array.from({ length: 24 }, (_, i) => i + 1).map((h) => (
+                      <option key={h} value={h}>{h === 24 ? '24:00' : hora(h)}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button type="submit" className="ui-btn ui-btn-secondary">
+                Agregar horario
+              </button>
+            </form>
+
+            {horarios.length === 0 ? (
+              <div className="ui-empty">
+                Sin horarios registrados. Agregue los horarios de funcionamiento de los grupos de
+                equipos de esta edificación.
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-slate-800 dark:border-slate-700">
+                {horarios.map((h) => (
+                  <li key={h.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm">{h.nombre}</p>
+                      <p className="ui-muted text-xs">
+                        {formatearDias(h.diasSemana)} · {formatearFranja(h.horaInicio, h.horaFin)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setHorarioEliminando(h)}
+                      aria-label={`Eliminar horario ${h.nombre}`}
+                      className="focus-ring shrink-0 rounded text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    >
+                      Eliminar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* 4. GDE mensual */}
           <div className="space-y-3 border-t border-gray-100 pt-5 dark:border-slate-800">
             <div>
               <h3 className="ui-title text-sm">GDE mensual calculada</h3>
@@ -664,6 +871,14 @@ export function CalendarioGdeDrawer({
         onConfirm={() => void eliminarRango()}
         title="Eliminar rango"
         description={`Se eliminará el rango ${rangoEliminando ? `${fechaCorta(rangoEliminando.fechaInicio)} → ${fechaCorta(rangoEliminando.fechaFin)}` : ''} del calendario. La GDE de meses que dependan de este rango cambiará. Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+      />
+      <ConfirmDialog
+        isOpen={horarioEliminando != null}
+        onClose={() => setHorarioEliminando(null)}
+        onConfirm={() => void eliminarHorario()}
+        title="Eliminar horario"
+        description={`Se eliminará el horario "${horarioEliminando?.nombre ?? ''}" (${horarioEliminando ? formatearDias(horarioEliminando.diasSemana) : ''}). Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
       />
     </div>,

@@ -45,6 +45,7 @@ const config: StorybookConfig = {
       { find: '@/features/datos/controllers/variables', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/edificaciones', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/calendario', replacement: SERVER_ACTIONS_MOCK },
+      { find: '@/features/datos/controllers/horarios', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/lineasBase', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/ajustes', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/analisis/controllers/analisis', replacement: ANALISIS_MOCK },

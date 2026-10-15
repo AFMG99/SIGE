@@ -60,6 +60,18 @@ export interface RangoCalendarioUI {
   nombre: string | null
 }
 
+/** Horario de funcionamiento de un grupo de equipos (UPME §7.1/§7.3). */
+export interface HorarioEquipoInfo {
+  id: string
+  edificacionId: string
+  nombre: string
+  /** Códigos de día: LUN..DOM (CATALOGO_DIAS). */
+  diasSemana: string[]
+  /** Hora de inicio (0-23) y final (1-24), sin cruce de medianoche. */
+  horaInicio: number
+  horaFin: number
+}
+
 export interface BloqueInfo {
   id: string
   codigo: string

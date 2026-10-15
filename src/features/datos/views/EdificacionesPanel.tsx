@@ -32,6 +32,7 @@ import type {
   EliminarEdificacion,
   EliminarEspacio,
   EspacioInfo,
+  HorarioEquipoInfo,
   RangoCalendarioUI,
 } from './useCatalogoEdificaciones'
 
@@ -48,6 +49,7 @@ export function EdificacionesPanel({
   espacios,
   calendarios,
   rangos,
+  horarios,
   crearEdificacion,
   actualizarEdificacion,
   eliminarEdificacion,
@@ -63,6 +65,8 @@ export function EdificacionesPanel({
   calendarios: CalendarioInfo[]
   /** Rangos de fechas de todos los calendarios. */
   rangos: RangoCalendarioUI[]
+  /** Horarios de funcionamiento de equipos por edificación. */
+  horarios: HorarioEquipoInfo[]
   crearEdificacion: CrearEdificacion
   actualizarEdificacion: ActualizarEdificacion
   eliminarEdificacion: EliminarEdificacion
@@ -479,6 +483,9 @@ export function EdificacionesPanel({
                 return cfg ? rangos.filter((r) => r.calendarioId === cfg.id) : []
               })()
             : []
+        }
+        horariosIniciales={
+          calEdificacion ? horarios.filter((h) => h.edificacionId === calEdificacion.id) : []
         }
       />
 
