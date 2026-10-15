@@ -11,7 +11,13 @@ import {
   eliminarEspacio,
 } from '@/features/datos/controllers/edificaciones'
 import { EdificacionesPanel } from '../EdificacionesPanel'
-import { bloquesDemo, edificacionesDemo, espaciosDemo } from '../__fixtures__/catalogo'
+import {
+  bloquesDemo,
+  calendariosDemo,
+  edificacionesDemo,
+  espaciosDemo,
+  rangosCalendarioDemo,
+} from '../__fixtures__/catalogo'
 
 const meta = {
   component: EdificacionesPanel,
@@ -20,6 +26,8 @@ const meta = {
     edificaciones: edificacionesDemo,
     bloques: bloquesDemo,
     espacios: espaciosDemo,
+    calendarios: calendariosDemo,
+    rangos: rangosCalendarioDemo,
     crearEdificacion,
     actualizarEdificacion,
     eliminarEdificacion,
@@ -158,5 +166,39 @@ export const AniadirEspacio: Story = {
     await screen.findByText(/Espacio "Aula 103" creado/, {}, { timeout: 3000 })
     // En Storybook el panel es stateless: la lista no se muta; el alta se
     // verifica por el toast del servidor.
+  },
+}
+
+export const CalendarioGde: Story = {
+  name: 'Calendario y GDE con fórmula visible',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const screen = within(canvasElement.ownerDocument.body)
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: /calendario y gde de campus bloque a/i })
+    )
+    const dialog = await screen.findByRole('dialog')
+
+    // Configuración operativa precargada (Tb = 23 °C del fixture).
+    const tb = within(dialog).getByLabelText(/tb \(°c\)/i) as HTMLInputElement
+    expect(tb.value).toBe('23')
+
+    // Rangos del calendario visibles.
+    await expect(within(dialog).getByText('09/02/2026 → 13/06/2026')).toBeVisible()
+
+    // Calcular con la fuente climática mockeada.
+    await userEvent.click(within(dialog).getByRole('button', { name: /calcular gde/i }))
+    // Resultado + fórmula sustituida (interpretabilidad — S8).
+    await screen.findByText('41,2 °C·día', {}, { timeout: 3000 })
+    await expect(
+      within(dialog).getByText(/GDE = Σ\(Tp − Tb\)·Xd sobre 20 días operativos/)
+    ).toBeVisible()
+    await expect(within(dialog).getByText('12/02/2026')).toBeVisible()
+
+    // Registro en variables operativas existentes.
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: /registrar en variables operativas/i })
+    )
+    await screen.findByText(/registrada en 2 variables operativas/i, {}, { timeout: 3000 })
   },
 }

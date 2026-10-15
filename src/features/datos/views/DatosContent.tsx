@@ -20,7 +20,13 @@ import {
 } from './icons'
 import { EdificacionesPanel } from './EdificacionesPanel'
 import { useCatalogoEdificaciones } from './useCatalogoEdificaciones'
-import type { BloqueInfo, EdificacionInfo, EspacioInfo } from './useCatalogoEdificaciones'
+import type {
+  BloqueInfo,
+  CalendarioInfo,
+  EdificacionInfo,
+  EspacioInfo,
+  RangoCalendarioUI,
+} from './useCatalogoEdificaciones'
 import { ComoFunciona } from './ComoFunciona'
 import { VistaDatos } from './VistaDatos'
 import { GestionFacturas } from './GestionFacturas'
@@ -82,6 +88,10 @@ type DatosContentProps = {
   edificaciones: EdificacionInfo[]
   bloques: BloqueInfo[]
   espacios: EspacioInfo[]
+  /** Configuración operativa por edificación (calendario de la GDE). */
+  calendarios: CalendarioInfo[]
+  /** Rangos de fechas con tipo de día de todos los calendarios. */
+  rangos: RangoCalendarioUI[]
   facturasExistentes: FacturasExistentes
   equiposExistentes: EquiposExistentes
   variablesExistentes: VariablesExistentes
@@ -98,6 +108,8 @@ export function DatosContent({
   edificaciones,
   bloques,
   espacios,
+  calendarios,
+  rangos,
   facturasExistentes,
   equiposExistentes,
   variablesExistentes,
@@ -403,6 +415,8 @@ export function DatosContent({
                   edificaciones={edificacionesCat}
                   bloques={bloquesCat}
                   espacios={espaciosCat}
+                  calendarios={calendarios}
+                  rangos={rangos}
                   crearEdificacion={crearEdificacion}
                   actualizarEdificacion={actualizarEdificacion}
                   eliminarEdificacion={eliminarEdificacion}

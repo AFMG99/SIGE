@@ -1,0 +1,672 @@
+'use client'
+
+/**
+ * Drawer «Calendario y GDE» de una edificación (sección Edificaciones).
+ *
+ * Tres bloques, en orden (UPME 0016/2024 §7.1/§7.3):
+ * 1. Configuración operativa: horario diario H, temperatura base Tb y
+ *    coordenadas (requeridas por la fuente climática).
+ * 2. Rangos del calendario: días operativos vs. no operativos; plantilla TdeA
+ *    como datos iniciales editables (sin fechas fijas en la lógica).
+ * 3. GDE mensual calculada con la fórmula de la resolución, mostrando la
+ *    fórmula con los valores sustituidos junto al resultado (interpretabilidad).
+ */
+
+import { useEffect, useRef, useState, FormEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { useRouter } from 'next/navigation'
+import { useToast } from '@/shared/views/ui/ToastProvider'
+import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
+import {
+  CATALOGO_TIPOS_DIA,
+  TDEA_PLANTILLA,
+  tipoDiaEsOperativo,
+} from '@/features/datos/models/calendario'
+import {
+  agregarRangoCalendario,
+  calcularGdeMensual,
+  cargarPlantillaCalendario,
+  eliminarRangoCalendario,
+  guardarConfigCalendario,
+  registrarGdeCalculado,
+} from '@/features/datos/controllers/calendario'
+import type { ResultadoCalculoGde } from '@/features/datos/controllers/calendario'
+import type {
+  CalendarioInfo,
+  EdificacionInfo,
+  RangoCalendarioUI,
+} from './useCatalogoEdificaciones'
+
+const MESES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+]
+
+const num = (n: number): string =>
+  new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(n)
+
+const fechaCorta = (iso: string): string => {
+  const [a, m, d] = iso.split('-')
+  return `${d}/${m}/${a}`
+}
+
+const hora = (h: number): string => `${String(h).padStart(2, '0')}:00`
+
+interface CalendarioGdeDrawerProps {
+  isOpen: boolean
+  onClose: () => void
+  /** Edificación a la que pertenece el calendario (ya creada). */
+  edificacion: EdificacionInfo | null
+  configInicial: CalendarioInfo | null
+  rangosIniciales: RangoCalendarioUI[]
+}
+
+const ANO_BASE = new Date().getFullYear()
+const ANOS = [ANO_BASE - 1, ANO_BASE, ANO_BASE + 1, ANO_BASE + 2]
+
+export function CalendarioGdeDrawer({
+  isOpen,
+  onClose,
+  edificacion,
+  configInicial,
+  rangosIniciales,
+}: CalendarioGdeDrawerProps) {
+  const router = useRouter()
+  const { showToast } = useToast()
+  const drawerRef = useRef<HTMLDivElement>(null)
+
+  // Configuración operativa
+  const [horaInicio, setHoraInicio] = useState('8')
+  const [horasDia, setHorasDia] = useState('12')
+  const [tb, setTb] = useState('23')
+  const [lat, setLat] = useState('')
+  const [lon, setLon] = useState('')
+  const [guardandoConfig, setGuardandoConfig] = useState(false)
+  const [config, setConfig] = useState<CalendarioInfo | null>(configInicial)
+
+  // Rangos
+  const [rangos, setRangos] = useState<RangoCalendarioUI[]>(rangosIniciales)
+  const [rangoForm, setRangoForm] = useState({
+    fechaInicio: '',
+    fechaFin: '',
+    tipoDia: 'LECTIVO',
+    nombre: '',
+  })
+  const [rangoEliminando, setRangoEliminando] = useState<RangoCalendarioUI | null>(null)
+
+  // GDE
+  const [mes, setMes] = useState(new Date().getMonth() + 1)
+  const [ano, setAno] = useState(ANO_BASE)
+  const [calculando, setCalculando] = useState(false)
+  const [registro, setRegistro] = useState(false)
+  const [resultado, setResultado] = useState<ResultadoCalculoGde | null>(null)
+  const [error, setError] = useState('')
+
+  // Re-inicializa desde props al abrir
+  useEffect(() => {
+    if (!isOpen) return
+    setConfig(configInicial)
+    setRangos(rangosIniciales)
+    setResultado(null)
+    setError('')
+    setHoraInicio(configInicial ? String(configInicial.horaInicioOperacion) : '8')
+    setHorasDia(configInicial ? String(configInicial.horasOperacionDia) : '12')
+    setTb(configInicial ? String(configInicial.temperaturaBase) : '23')
+    setLat(edificacion?.lat != null ? String(edificacion.lat) : '')
+    setLon(edificacion?.lon != null ? String(edificacion.lon) : '')
+    const first = drawerRef.current?.querySelector<HTMLInputElement>('input, select')
+    first?.focus()
+  }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [isOpen, onClose])
+
+  if (!isOpen || !edificacion) return null
+
+  const fallo = (mensaje: string) => setError(mensaje)
+
+  // ------------------------- Configuración -------------------------
+
+  const guardarConfig = async (e: FormEvent) => {
+    e.preventDefault()
+    if (guardandoConfig) return
+    setError('')
+    const datos = {
+      horaInicioOperacion: Number(horaInicio),
+      horasOperacionDia: Number(horasDia),
+      temperaturaBase: Number(tb),
+      lat: Number(lat),
+      lon: Number(lon),
+    }
+    if (lat.trim() === '' || lon.trim() === '' || Number.isNaN(datos.lat) || Number.isNaN(datos.lon)) {
+      fallo('Ingrese las coordenadas (latitud y longitud) de la edificación.')
+      return
+    }
+    setGuardandoConfig(true)
+    try {
+      const res = await guardarConfigCalendario(edificacion.id, datos)
+      if (res.estado === 'error') {
+        fallo(res.mensaje)
+        return
+      }
+      setConfig({
+        id: config?.id ?? 'local',
+        edificacionId: edificacion.id,
+        horaInicioOperacion: datos.horaInicioOperacion,
+        horasOperacionDia: datos.horasOperacionDia,
+        temperaturaBase: datos.temperaturaBase,
+      })
+      showToast(res.mensaje, 'success')
+      router.refresh()
+    } finally {
+      setGuardandoConfig(false)
+    }
+  }
+
+  // ------------------------- Rangos -------------------------
+
+  const agregarRango = async (e: FormEvent) => {
+    e.preventDefault()
+    setError('')
+    const res = await agregarRangoCalendario(edificacion.id, {
+      fechaInicio: rangoForm.fechaInicio,
+      fechaFin: rangoForm.fechaFin,
+      tipoDia: rangoForm.tipoDia,
+      nombre: rangoForm.nombre.trim() || undefined,
+    })
+    if (res.estado === 'error') {
+      fallo(res.mensaje)
+      return
+    }
+    // Refresca desde el servidor: el id lo crea la BD.
+    showToast(res.mensaje, 'success')
+    router.refresh()
+    setRangoForm({ fechaInicio: '', fechaFin: '', tipoDia: 'LECTIVO', nombre: '' })
+  }
+
+  const eliminarRango = async () => {
+    if (!rangoEliminando) return
+    const res = await eliminarRangoCalendario(rangoEliminando.id)
+    if (res.estado === 'error') {
+      setRangoEliminando(null)
+      fallo(res.mensaje)
+      return
+    }
+    setRangos((prev) => prev.filter((r) => r.id !== rangoEliminando.id))
+    setRangoEliminando(null)
+    showToast(res.mensaje, 'success')
+    router.refresh()
+  }
+
+  const cargarPlantilla = async () => {
+    setError('')
+    const res = await cargarPlantillaCalendario(edificacion.id)
+    if (res.estado === 'error') {
+      fallo(res.mensaje)
+      return
+    }
+    showToast(res.mensaje, 'success')
+    router.refresh()
+  }
+
+  // ------------------------- GDE -------------------------
+
+  const calcular = async () => {
+    if (calculando) return
+    setError('')
+    setResultado(null)
+    setCalculando(true)
+    try {
+      const res = await calcularGdeMensual(edificacion.id, mes, ano)
+      if (res.estado === 'error') {
+        fallo(res.mensaje)
+        return
+      }
+      setResultado(res)
+    } finally {
+      setCalculando(false)
+    }
+  }
+
+  const registrar = async () => {
+    if (!resultado || registro) return
+    setError('')
+    setRegistro(true)
+    try {
+      const res = await registrarGdeCalculado(
+        edificacion.id,
+        resultado.mes,
+        resultado.ano,
+        resultado.resultado.gde
+      )
+      if (res.estado === 'error') {
+        fallo(res.mensaje)
+        return
+      }
+      showToast(res.mensaje, 'success')
+      router.refresh()
+    } finally {
+      setRegistro(false)
+    }
+  }
+
+  // ------------------------- Render -------------------------
+
+  const hayConfig = config != null
+  const horaFin = hayConfig
+    ? (config.horaInicioOperacion + config.horasOperacionDia) % 24
+    : 0
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/40 dark:bg-black/60"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="calendario-drawer-title"
+    >
+      <div
+        ref={drawerRef}
+        className="h-full w-full max-w-[34rem] animate-slide-in-right overflow-y-auto bg-white shadow-2xl dark:bg-slate-900 dark:shadow-black/40"
+      >
+        <div className="mb-5 flex items-start justify-between gap-4 border-b border-gray-100 px-6 pt-6 pb-4 dark:border-slate-800">
+          <div>
+            <h2 id="calendario-drawer-title" className="ui-title text-lg">
+              Calendario y GDE
+            </h2>
+            <p className="ui-muted mt-1 text-sm">{edificacion.nombre}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="focus-ring cursor-pointer rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:text-gray-500 dark:hover:bg-slate-800"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="space-y-6 px-6 pb-6">
+          {error && (
+            <div role="alert" className="ui-callout ui-callout-danger">
+              {error}
+            </div>
+          )}
+
+          {/* 1. Configuración operativa (H, Tb, coordenadas) */}
+          <form onSubmit={guardarConfig} className="space-y-3" noValidate>
+            <div>
+              <h3 className="ui-title text-sm">Configuración operativa</h3>
+              <p className="ui-muted mt-1 text-xs">
+                Horario H sobre el que se promedia la temperatura, temperatura base Tb de la
+                fórmula GDE = Σ(Tp − Tb)·Xd y coordenadas de la fuente climática.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="cfg-hora-inicio" className="ui-label mb-1.5">
+                  Inicio del día operativo
+                </label>
+                <select
+                  id="cfg-hora-inicio"
+                  className="ui-input"
+                  value={horaInicio}
+                  onChange={(e) => setHoraInicio(e.target.value)}
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>{hora(h)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="cfg-horas" className="ui-label mb-1.5">
+                  Horas de operación por día
+                </label>
+                <input
+                  id="cfg-horas"
+                  type="number"
+                  min={1}
+                  max={24}
+                  className="ui-input"
+                  value={horasDia}
+                  onChange={(e) => setHorasDia(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="ui-muted text-xs">
+              Horario diario: {hora(Number(horaInicio))}–{hora(horaFin)} ({horasDia} h)
+            </p>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label htmlFor="cfg-tb" className="ui-label mb-1.5">Tb (°C)</label>
+                <input
+                  id="cfg-tb"
+                  type="number"
+                  min={10}
+                  max={40}
+                  step="any"
+                  className="ui-input"
+                  value={tb}
+                  onChange={(e) => setTb(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="cfg-lat" className="ui-label mb-1.5">Latitud</label>
+                <input
+                  id="cfg-lat"
+                  type="number"
+                  step="any"
+                  placeholder="Ej. 6.2477"
+                  className="ui-input"
+                  value={lat}
+                  onChange={(e) => setLat(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="cfg-lon" className="ui-label mb-1.5">Longitud</label>
+                <input
+                  id="cfg-lon"
+                  type="number"
+                  step="any"
+                  placeholder="Ej. -75.5662"
+                  className="ui-input"
+                  value={lon}
+                  onChange={(e) => setLon(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="ui-muted text-xs">
+              La temperatura base Tb se define por tipo de edificación (típicamente 3 °C bajo el
+              confort: 20 / 23 / 25 °C según la resolución).
+            </p>
+
+            <button type="submit" disabled={guardandoConfig} className="ui-btn ui-btn-primary">
+              {guardandoConfig ? 'Guardando…' : hayConfig ? 'Actualizar configuración' : 'Guardar configuración'}
+            </button>
+          </form>
+
+          {/* 2. Rangos del calendario */}
+          <div className="space-y-3 border-t border-gray-100 pt-5 dark:border-slate-800">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="ui-title text-sm">Rangos del calendario</h3>
+                <p className="ui-muted mt-1 text-xs">
+                  Días operativos (lectivo/hábil) vs. no operativos (vacaciones/festivo). Si un
+                  rango cae dentro de otro, manda el último registrado.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void cargarPlantilla()}
+                disabled={!hayConfig}
+                className="ui-btn ui-btn-secondary shrink-0"
+                title={TDEA_PLANTILLA.descripcion}
+              >
+                Plantilla TdeA
+              </button>
+            </div>
+
+            {!hayConfig && (
+              <div className="ui-callout ui-callout-info" role="status">
+                Guarde primero la configuración operativa para editar los rangos.
+              </div>
+            )}
+
+            {hayConfig && (
+              <>
+                <form onSubmit={agregarRango} className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-slate-700" noValidate>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="rango-inicio" className="ui-label mb-1.5">Fecha inicio</label>
+                      <input
+                        id="rango-inicio"
+                        type="date"
+                        required
+                        className="ui-input"
+                        value={rangoForm.fechaInicio}
+                        onChange={(e) => setRangoForm((f) => ({ ...f, fechaInicio: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="rango-fin" className="ui-label mb-1.5">Fecha final</label>
+                      <input
+                        id="rango-fin"
+                        type="date"
+                        required
+                        className="ui-input"
+                        value={rangoForm.fechaFin}
+                        onChange={(e) => setRangoForm((f) => ({ ...f, fechaFin: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="rango-tipo" className="ui-label mb-1.5">Tipo de día</label>
+                      <select
+                        id="rango-tipo"
+                        className="ui-input"
+                        value={rangoForm.tipoDia}
+                        onChange={(e) => setRangoForm((f) => ({ ...f, tipoDia: e.target.value }))}
+                      >
+                        {CATALOGO_TIPOS_DIA.map((t) => (
+                          <option key={t.codigo} value={t.codigo}>{t.etiqueta}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="rango-nombre" className="ui-label mb-1.5">Nombre (opcional)</label>
+                      <input
+                        id="rango-nombre"
+                        type="text"
+                        maxLength={80}
+                        placeholder="Ej. Período 2026-1"
+                        className="ui-input"
+                        value={rangoForm.nombre}
+                        onChange={(e) => setRangoForm((f) => ({ ...f, nombre: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" className="ui-btn ui-btn-secondary">Agregar rango</button>
+                </form>
+
+                {rangos.length === 0 ? (
+                  <div className="ui-empty">
+                    Sin rangos. Agregue rangos manualmente o cargue la plantilla TdeA como punto de
+                    partida editable.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-slate-800 dark:border-slate-700">
+                    {rangos.map((r) => (
+                      <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm">
+                            {fechaCorta(r.fechaInicio)} → {fechaCorta(r.fechaFin)}
+                            {r.nombre ? <span className="ui-muted"> · {r.nombre}</span> : null}
+                          </p>
+                          <span
+                            className={`text-xs font-medium ${tipoDiaEsOperativo(r.tipoDia) ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}
+                          >
+                            {CATALOGO_TIPOS_DIA.find((t) => t.codigo === r.tipoDia)?.etiqueta ?? r.tipoDia}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setRangoEliminando(r)}
+                          aria-label={`Eliminar rango del ${fechaCorta(r.fechaInicio)}`}
+                          className="focus-ring shrink-0 rounded text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        >
+                          Eliminar
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 3. GDE mensual */}
+          <div className="space-y-3 border-t border-gray-100 pt-5 dark:border-slate-800">
+            <div>
+              <h3 className="ui-title text-sm">GDE mensual calculada</h3>
+              <p className="ui-muted mt-1 text-xs">
+                GDE = Σ(Tp − Tb)·Xd sobre los días operativos del mes, con la temperatura de la
+                fuente climática durante el horario operativo.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label htmlFor="gde-mes" className="ui-label mb-1.5">Mes</label>
+                <select
+                  id="gde-mes"
+                  className="ui-input"
+                  value={mes}
+                  onChange={(e) => setMes(Number(e.target.value))}
+                >
+                  {MESES.map((m, i) => (
+                    <option key={m} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="gde-ano" className="ui-label mb-1.5">Año</label>
+                <select
+                  id="gde-ano"
+                  className="ui-input"
+                  value={ano}
+                  onChange={(e) => setAno(Number(e.target.value))}
+                >
+                  {ANOS.map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => void calcular()}
+                disabled={calculando || !hayConfig}
+                className="ui-btn ui-btn-primary"
+              >
+                {calculando ? 'Calculando…' : 'Calcular GDE'}
+              </button>
+            </div>
+
+            {!hayConfig && (
+              <div className="ui-callout ui-callout-info" role="status">
+                Complete la configuración operativa y los rangos antes de calcular.
+              </div>
+            )}
+
+            {resultado && (
+              <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/40">
+                {/* Resultado */}
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div>
+                    <p className="ui-label">GDE de {MESES[resultado.mes - 1]} de {resultado.ano}</p>
+                    <p className="ui-title text-2xl text-emerald-800 dark:text-emerald-300">
+                      {num(resultado.resultado.gde)} °C·día
+                    </p>
+                  </div>
+                  <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                    Fuente: {resultado.fuente}
+                  </p>
+                </div>
+
+                {/* Fórmula aplicada con los valores sustituidos (interpretabilidad) */}
+                <div className="rounded-md bg-white/80 p-3 text-sm dark:bg-slate-900/60">
+                  <p className="ui-label mb-1">Fórmula aplicada</p>
+                  <p className="font-mono text-xs leading-5">
+                    GDE = Σ(Tp − Tb)·Xd sobre {resultado.resultado.diasOperativos} días operativos
+                    (Xd = 1 operativo / 0 no operativo)
+                    <br />
+                    con Tb = {num(resultado.config.temperaturaBase)} °C,
+                    H = {hora(resultado.config.horaInicioOperacion)}–{hora((resultado.config.horaInicioOperacion + resultado.config.horasOperacionDia) % 24)}
+                    ({resultado.config.horasOperacionDia} h/día)
+                    <br />
+                    = {' '}
+                    {resultado.resultado.detalle
+                      .filter((d) => d.tp != null)
+                      .slice(0, 6)
+                      .map((d) =>
+                        d.grados > 0
+                          ? `(${num(d.tp as number)} − ${num(resultado.config.temperaturaBase)})`
+                          : 'max(0)'
+                      )
+                      .join(' + ')}
+                    {resultado.resultado.detalle.filter((d) => d.tp != null).length > 6 ? ' + …' : ''}
+                    <br />
+                    = {num(resultado.resultado.sumaGrados)} °C·día
+                    {resultado.resultado.diasConTemperatura !== resultado.resultado.diasOperativos && (
+                      <span className="text-amber-700 dark:text-amber-400">
+                        {' '}
+                        (sobre {resultado.resultado.diasConTemperatura} de{' '}
+                        {resultado.resultado.diasOperativos} días operativos con datos climáticos)
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                {/* Desglose por día */}
+                <div className="max-h-52 overflow-y-auto rounded-md bg-white/80 dark:bg-slate-900/60">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-gray-50 dark:bg-slate-800">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-medium">Día</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Tp (°C)</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Grados (Tp − Tb)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resultado.resultado.detalle.map((d) => (
+                        <tr key={d.fecha} className="border-t border-gray-100 dark:border-slate-800">
+                          <td className="px-2 py-1">{fechaCorta(d.fecha)}</td>
+                          <td className="px-2 py-1 text-right">
+                            {d.tp == null ? '—' : num(d.tp)}
+                          </td>
+                          <td className="px-2 py-1 text-right">{d.grados > 0 ? num(d.grados) : '0'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void registrar()}
+                  disabled={registro}
+                  className="ui-btn ui-btn-secondary"
+                >
+                  {registro ? 'Registrando…' : 'Registrar en variables operativas'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        isOpen={rangoEliminando != null}
+        onClose={() => setRangoEliminando(null)}
+        onConfirm={() => void eliminarRango()}
+        title="Eliminar rango"
+        description={`Se eliminará el rango ${rangoEliminando ? `${fechaCorta(rangoEliminando.fechaInicio)} → ${fechaCorta(rangoEliminando.fechaFin)}` : ''} del calendario. La GDE de meses que dependan de este rango cambiará. Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+      />
+    </div>,
+    document.body
+  )
+}

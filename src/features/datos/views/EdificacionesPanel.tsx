@@ -17,11 +17,13 @@ import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { EdificacionDrawer } from './EdificacionDrawer'
 import type { EdificacionFormData, EdificacionEditable } from './EdificacionDrawer'
+import { CalendarioGdeDrawer } from './CalendarioGdeDrawer'
 import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
 import type {
   ActualizarEdificacion,
   BloqueInfo,
+  CalendarioInfo,
   CrearBloque,
   CrearEdificacion,
   CrearEspacio,
@@ -30,6 +32,7 @@ import type {
   EliminarEdificacion,
   EliminarEspacio,
   EspacioInfo,
+  RangoCalendarioUI,
 } from './useCatalogoEdificaciones'
 
 type ObjetivoBorrado = 'edificacion' | 'bloque' | 'espacio' | null
@@ -43,6 +46,8 @@ export function EdificacionesPanel({
   edificaciones,
   bloques,
   espacios,
+  calendarios,
+  rangos,
   crearEdificacion,
   actualizarEdificacion,
   eliminarEdificacion,
@@ -54,6 +59,10 @@ export function EdificacionesPanel({
   edificaciones: EdificacionInfo[]
   bloques: BloqueInfo[]
   espacios: EspacioInfo[]
+  /** Configuración operativa (calendario/GDE) por edificación. */
+  calendarios: CalendarioInfo[]
+  /** Rangos de fechas de todos los calendarios. */
+  rangos: RangoCalendarioUI[]
   crearEdificacion: CrearEdificacion
   actualizarEdificacion: ActualizarEdificacion
   eliminarEdificacion: EliminarEdificacion
@@ -74,6 +83,8 @@ export function EdificacionesPanel({
   const [edificacionNueva, setEdificacionNueva] = useState<EdificacionInfo | null>(null)
 
   const [dialogoBorrado, setDialogoBorrado] = useState<ObjetivoBorrado>(null)
+  /** Edificación con el drawer de calendario/GDE abierto. */
+  const [calEdificacion, setCalEdificacion] = useState<EdificacionInfo | null>(null)
   const [edificacionObjetivo, setEdificacionObjetivo] = useState<EdificacionInfo | null>(null)
   const [bloqueObjetivo, setBloqueObjetivo] = useState<BloqueInfo | null>(null)
   const [espacioObjetivo, setEspacioObjetivo] = useState<EspacioInfo | null>(null)
@@ -303,6 +314,15 @@ export function EdificacionesPanel({
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCalEdificacion(e)}
+                  disabled={borrando}
+                  aria-label={`Calendario y GDE de ${e.nombre}`}
+                  className="ui-btn ui-btn-secondary"
+                >
+                  Calendario y GDE
+                </button>
                 {info.requiereBloque && (
                   <button
                     type="button"
@@ -442,6 +462,24 @@ export function EdificacionesPanel({
         onSubmit={crearBloqueDesdeDrawer}
         edificacion={edificacionNueva}
         submitting={guardandoBloque}
+      />
+      <CalendarioGdeDrawer
+        isOpen={calEdificacion != null}
+        onClose={() => setCalEdificacion(null)}
+        edificacion={calEdificacion}
+        configInicial={
+          calEdificacion
+            ? calendarios.find((c) => c.edificacionId === calEdificacion.id) ?? null
+            : null
+        }
+        rangosIniciales={
+          calEdificacion
+            ? (() => {
+                const cfg = calendarios.find((c) => c.edificacionId === calEdificacion.id)
+                return cfg ? rangos.filter((r) => r.calendarioId === cfg.id) : []
+              })()
+            : []
+        }
       />
 
       {/* Confirmaciones de borrado */}
