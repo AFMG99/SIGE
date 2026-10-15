@@ -16,6 +16,55 @@ const resumen: EnergySummary = {
   ultimoPeriodo: '2026-08',
   edificaciones: 4,
   bloques: 9,
+  serie: [
+    { periodo: '2026-08', consumoNormalizado: 45800, costoCop: 5200000 },
+    { periodo: '2026-07', consumoNormalizado: 43300, costoCop: 4900000 },
+  ],
+  ultimasFacturas: [
+    {
+      id: 'cfactura000000000000001',
+      periodo: '2026-08',
+      edificacionId: 'cedif00000000000000001',
+      edificacionNombre: 'Campus Norte',
+      consumoKwh: 45200,
+      consumoNormalizado: 45800,
+      costoCop: 5200000,
+      diasFacturados: 30,
+    },
+  ],
+  lineasBase: [
+    {
+      bloqueId: 'cbloque00000000000001',
+      edificacionId: 'cedif00000000000000001',
+      modelos: [
+        {
+          tipo: 'valor_absoluto',
+          r2: 0.91,
+          coeficientes: {
+            lben_mensual: [
+              null, null, null, null, null, null, null, 50000, null, null, null, null,
+            ],
+          },
+        },
+      ],
+    },
+  ],
+  periodoActual: [
+    {
+      edificacionId: 'cedif00000000000000001',
+      nombre: 'Campus Norte',
+      consumoNormalizado: 45800,
+      costoCop: 5200000,
+    },
+  ],
+  periodoPrevio: [
+    {
+      edificacionId: 'cedif00000000000000001',
+      nombre: 'Campus Norte',
+      consumoNormalizado: 43300,
+      costoCop: 4900000,
+    },
+  ],
 }
 
 const meta = {
@@ -49,6 +98,15 @@ export const ConResumen: Story = {
     expect(canvas.getByRole('link', { name: /Gestión de datos/ })).toBeTruthy()
     // The home is never a card of itself
     expect(canvas.queryByRole('link', { name: 'Dashboard' })).toBeNull()
+
+    // Redesigned overview (S1/S2): real KPIs + chart + leaderboard
+    expect(canvas.getByText('Consumo · ago 26')).toBeTruthy()
+    // 45.800 kWh aparece en KPI, distribución y tabla; 4.200 en KPI y ranking
+    expect(canvas.getAllByText('45.800 kWh').length).toBeGreaterThan(0)
+    expect(canvas.getAllByText('4.200 kWh').length).toBeGreaterThan(0)
+    expect(canvas.getByText('Con LBEn')).toBeTruthy()
+    expect(await canvas.findByRole('img', { name: 'Consumo mensual contra línea base' })).toBeTruthy()
+    expect(canvas.getByRole('list', { name: 'Ranking de ahorro por edificación' })).toBeTruthy()
   },
 }
 
@@ -74,7 +132,17 @@ export const SinAccesoConsumo: Story = {
 export const SinFacturas: Story = {
   name: 'Inicio · base sin facturas (estado vacío con acción)',
   args: {
-    energy: { facturas: 0, ultimoPeriodo: null, edificaciones: 0, bloques: 0 },
+    energy: {
+      facturas: 0,
+      ultimoPeriodo: null,
+      edificaciones: 0,
+      bloques: 0,
+      serie: [],
+      ultimasFacturas: [],
+      lineasBase: [],
+      periodoActual: null,
+      periodoPrevio: null,
+    },
   },
   play: async ({ canvas }) => {
     expect(canvas.getByText('Aún no hay facturas registradas')).toBeTruthy()

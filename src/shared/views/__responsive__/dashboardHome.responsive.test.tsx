@@ -1,5 +1,6 @@
 /**
- * Fase 2b — dashboard inicial como vista de inicio (T3).
+ * Fase 2b — dashboard inicial como vista de inicio (T3) + overview estilo
+ * dashboard (T2 del rediseño).
  *
  * Contracts protected here:
  *  1. SECURITY (non-negotiable): the energy summary is only rendered — and
@@ -12,7 +13,10 @@
  *     (the exported `isItemVisible`, not a parallel gating implementation)
  *     and never a card linking to the home itself.
  *  3. Preservation (S1): name, email, role, "member since" and ID stay.
- *  4. Responsive: no horizontal overflow at 320 / 375 / 768 / 1024 / 1280 /
+ *  4. Redesign (S1–S5): KPI cards with real deltas, «consumo vs línea base»
+ *     chart, distribution bars, recent-invoices table with LBEn badges and
+ *     the ahorro leaderboard — all fed by real aggregates, never invented.
+ *  5. Responsive: no horizontal overflow at 320 / 375 / 768 / 1024 / 1280 /
  *     1920 and module cards ≥ 40px tall below `lg`.
  *
  * A failing assertion is never fixed by lowering a threshold.
@@ -63,7 +67,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 
-// --- Backend doubles: session, user row, permission overrides, counts -------
+// --- Backend doubles: session, user row, permission overrides, aggregates ---
 const estado = vi.hoisted(() => ({
   session: { userId: 'ckuser0000000000000000' } as { userId: string } | null,
   user: {
@@ -78,8 +82,65 @@ const estado = vi.hoisted(() => ({
   ultimoPeriodo: '2026-08' as string | null,
   edificaciones: 4,
   bloques: 9,
-  /** Energy queries launched during one test — must be 0 without permission. */
   energyQueries: 0,
+  serieBruta: [
+    {
+      periodo: '2026-08',
+      _sum: { consumoNormalizado: 45800, costoCop: 5200000 },
+    },
+    {
+      periodo: '2026-07',
+      _sum: { consumoNormalizado: 43300, costoCop: 4900000 },
+    },
+  ] as Array<{
+    periodo: string
+    _sum: { consumoNormalizado: number; costoCop: number }
+  }>,
+  ultimasFacturas: [
+    {
+      id: 'cfactura000000000000001',
+      periodo: '2026-08',
+      consumoKwh: 45200,
+      consumoNormalizado: 45800,
+      costoCop: 5200000,
+      diasFacturados: 30,
+      edificacion: { id: 'cedif00000000000000001', nombre: 'Campus Norte' },
+    },
+  ] as Array<Record<string, unknown>>,
+  lineasBase: [
+    {
+      r2: 0.91,
+      tipo: 'valor_absoluto',
+      coeficientes: {
+        lben_mensual: [
+          null, null, null, null, null, null, null, 50000, null, null, null, null,
+        ],
+      },
+      bloque: { id: 'cbloque00000000000001', edificacionId: 'cedif00000000000000001' },
+    },
+  ] as Array<Record<string, unknown>>,
+  nombres: [{ id: 'cedif00000000000000001', nombre: 'Campus Norte' }] as Array<{
+    id: string
+    nombre: string
+  }>,
+  porEdifActual: [
+    {
+      edificacionId: 'cedif00000000000000001',
+      _sum: { consumoNormalizado: 45800, costoCop: 5200000 },
+    },
+  ] as Array<{
+    edificacionId: string
+    _sum: { consumoNormalizado: number | null; costoCop: number | null }
+  }> | null,
+  porEdifPrevio: [
+    {
+      edificacionId: 'cedif00000000000000001',
+      _sum: { consumoNormalizado: 43300, costoCop: 4900000 },
+    },
+  ] as Array<{
+    edificacionId: string
+    _sum: { consumoNormalizado: number | null; costoCop: number | null }
+  }> | null,
 }))
 
 vi.mock('@/shared/models/auth', () => ({
@@ -102,17 +163,41 @@ vi.mock('@/shared/models/prisma', () => ({
         estado.energyQueries += 1
         return estado.ultimoPeriodo === null ? null : { periodo: estado.ultimoPeriodo }
       },
+      groupBy: async (args: {
+        by: string[]
+        where?: { periodo?: string }
+      }) => {
+        estado.energyQueries += 1
+        if (args.by.includes('periodo')) return estado.serieBruta
+        return args.where?.periodo === '2026-08'
+          ? estado.porEdifActual
+          : estado.porEdifPrevio
+      },
+      findMany: async () => {
+        estado.energyQueries += 1
+        return estado.ultimasFacturas
+      },
     },
     edificacion: {
       count: async () => {
         estado.energyQueries += 1
         return estado.edificaciones
       },
+      findMany: async () => {
+        estado.energyQueries += 1
+        return estado.nombres
+      },
     },
     bloque: {
       count: async () => {
         estado.energyQueries += 1
         return estado.bloques
+      },
+    },
+    lineaBaseEnergia: {
+      findMany: async () => {
+        estado.energyQueries += 1
+        return estado.lineasBase
       },
     },
   },
@@ -174,6 +259,46 @@ beforeEach(() => {
   estado.edificaciones = 4
   estado.bloques = 9
   estado.energyQueries = 0
+  estado.serieBruta = [
+    { periodo: '2026-08', _sum: { consumoNormalizado: 45800, costoCop: 5200000 } },
+    { periodo: '2026-07', _sum: { consumoNormalizado: 43300, costoCop: 4900000 } },
+  ]
+  estado.ultimasFacturas = [
+    {
+      id: 'cfactura000000000000001',
+      periodo: '2026-08',
+      consumoKwh: 45200,
+      consumoNormalizado: 45800,
+      costoCop: 5200000,
+      diasFacturados: 30,
+      edificacion: { id: 'cedif00000000000000001', nombre: 'Campus Norte' },
+    },
+  ]
+  estado.lineasBase = [
+    {
+      r2: 0.91,
+      tipo: 'valor_absoluto',
+      coeficientes: {
+        lben_mensual: [
+          null, null, null, null, null, null, null, 50000, null, null, null, null,
+        ],
+      },
+      bloque: { id: 'cbloque00000000000001', edificacionId: 'cedif00000000000000001' },
+    },
+  ]
+  estado.nombres = [{ id: 'cedif00000000000000001', nombre: 'Campus Norte' }]
+  estado.porEdifActual = [
+    {
+      edificacionId: 'cedif00000000000000001',
+      _sum: { consumoNormalizado: 45800, costoCop: 5200000 },
+    },
+  ]
+  estado.porEdifPrevio = [
+    {
+      edificacionId: 'cedif00000000000000001',
+      _sum: { consumoNormalizado: 43300, costoCop: 4900000 },
+    },
+  ]
 })
 afterEach(() => cleanup())
 
@@ -182,7 +307,7 @@ describe('Home view — energy summary permission gate', () => {
     await setViewport(1280, 800)
   })
 
-  it('ADMIN_TI sees the summary with an explicit period, its identity and the module cards in nav order', async () => {
+  it('ADMIN_TI sees the overview with real KPIs, chart, table, ranking and the module cards in nav order', async () => {
     await renderHome()
     await present('main h1')
 
@@ -193,16 +318,36 @@ describe('Home view — energy summary permission gate', () => {
     expect(bodyText()).toContain('junio de 2025')
     expect(bodyText()).toContain('ckuser000000')
 
-    // Real summary (S4): counts from the mocked DB, period always explicit.
-    // Labels use `text-transform: uppercase`, so compare lowercased.
+    // Redesigned overview (S1/S2): real aggregates only.
     const resumen = await present(RESUMEN)
-    const resumenText = resumen.innerText.toLowerCase()
-    expect(resumenText).toContain('facturas registradas')
-    expect(resumenText).toMatch(/\b48\b/)
-    expect(resumenText).toContain('último periodo')
-    expect(resumenText).toContain('2026-08')
-    expect(resumenText).toContain('edificaciones')
-    expect(resumenText).toContain('bloques')
+    const texto = resumen.innerText.toLowerCase()
+    expect(texto).toContain('consumo · ago 26')
+    expect(texto).toContain('45.800 kwh')
+    expect(texto).toContain('costo · ago 26')
+    expect(texto).toContain('ahorro vs línea base')
+    expect(texto).toContain('4.200 kwh')
+    expect(texto).toContain('cobertura lben')
+    expect(texto).toContain('1 / 9')
+
+    // Chart: two real series (real vs LBEn) drawn on the figure
+    const figura = await present(`${RESUMEN} figure svg[viewBox^="0 0 720"]`)
+    expect(figura.querySelectorAll('path').length).toBeGreaterThan(0)
+
+    // Distribution bars + recent invoices table + leaderboard
+    await present(`${RESUMEN} [role="meter"]`)
+    expect(resumen.querySelectorAll('[role="meter"]').length).toBeGreaterThan(0)
+    await present(`${RESUMEN} table`)
+    expect(resumen.innerText).toContain('Con LBEn')
+    expect(resumen.innerText).toContain('Top ahorros')
+    expect(resumen.querySelector('ol[aria-label="Ranking de ahorro por edificación"]')).not.toBeNull()
+
+    // Inventory (S4): counts from the mocked DB, period always explicit.
+    expect(texto).toContain('facturas registradas')
+    expect(texto).toMatch(/\b48\b/)
+    expect(texto).toContain('último periodo')
+    expect(texto).toContain('2026-08')
+    expect(texto).toContain('edificaciones')
+    expect(texto).toContain('bloques')
     expect(estado.energyQueries).toBeGreaterThan(0)
 
     // Module cards: same visibility + order as ModuleNav, home excluded.
@@ -219,6 +364,19 @@ describe('Home view — energy summary permission gate', () => {
       '/dashboard/espacial',
     ])
     expect(hrefs).not.toContain('/dashboard')
+  })
+
+  it('without saved line bases: ahorro shows the honest callout, never an invented number', async () => {
+    estado.lineasBase = []
+    await renderHome()
+    const resumen = await present(RESUMEN)
+    const texto = resumen.innerText.toLowerCase()
+
+    expect(texto).toContain('sin línea base guardada')
+    expect(texto).toContain('guarda líneas base en datos')
+    // Cobertura 0 / 9 and no leaderboard rows
+    expect(texto).toContain('0 / 9')
+    expect(resumen.querySelector('ol[aria-label="Ranking de ahorro por edificación"]')).toBeNull()
   })
 
   it('COMUNIDAD_UNIVERSITARIA: no energy query runs and no energy number is rendered', async () => {
@@ -244,13 +402,18 @@ describe('Home view — energy summary permission gate', () => {
     await renderHome()
     await present(RESUMEN)
 
-    expect(estado.energyQueries).toBe(4)
+    // 8 aggregate queries + 2 per-edification groupBys
+    expect(estado.energyQueries).toBe(10)
     expect(document.querySelector('main a[href="/dashboard/datos"]')).not.toBeNull()
   })
 
   it('with zero invoices: useful empty state with an action into the data module', async () => {
     estado.facturas = 0
     estado.ultimoPeriodo = null
+    estado.serieBruta = []
+    estado.ultimasFacturas = []
+    estado.porEdifActual = null
+    estado.porEdifPrevio = null
 
     await renderHome()
     const vacio = await present('.ui-empty')
@@ -258,6 +421,8 @@ describe('Home view — energy summary permission gate', () => {
     expect(vacio.innerText).toContain('facturas')
     expect(vacio.querySelector('a[href="/dashboard/datos"]')).not.toBeNull()
     expect(bodyText()).toContain('Sin registros')
+    // No fabricated KPIs when there is nothing to measure
+    expect(bodyText()).not.toContain('Ahorro vs línea base')
   })
 })
 
@@ -276,7 +441,7 @@ describe('Home view — responsive', () => {
       await setViewport(width, height)
     })
 
-    it('the document does not overflow horizontally', async () => {
+    it('el documento no desborda horizontalmente', async () => {
       await renderHome()
       await present('main h1')
       expect(horizontalOverflow()).toBeLessThanOrEqual(1)
