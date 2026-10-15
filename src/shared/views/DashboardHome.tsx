@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import * as React from 'react'
-import { ROLE_BADGES, ROLE_LABELS, type Role } from '@/shared/models/permissions'
+import { type Role } from '@/shared/models/permissions'
+import { ModuleCarousel, type EstadisticaModulo, type TarjetaModulo } from './ModuleCarousel'
 import { NAV_ITEMS, isItemVisible } from './ModuleNav'
 import { BarList, SeriesChart, Sparkline } from './charts'
 import {
@@ -25,6 +26,14 @@ export interface HomeAccount {
   createdAt: string
 }
 
+/** Real per-module figures the server queried (S4: never invented data). */
+export interface HomeModuleStats {
+  /** ACTIVE users — queried only when the role can see the `users` module. */
+  usuariosActivos?: number | null
+  /** Operational variables — only fetched with access to `consumption`. */
+  variablesOperativas?: number | null
+}
+
 /** Short card copy keyed by NAV_ITEMS id (the home never links to itself). */
 const DESCRIPTIONS: Record<string, string> = {
   users: 'Cuentas, roles y permisos de acceso.',
@@ -38,44 +47,11 @@ const DESCRIPTIONS: Record<string, string> = {
 
 const STAT_LABEL = 'text-xs font-medium uppercase tracking-wide ui-muted'
 
-function PersonIcon() {
-  return (
-    <svg
-      width="28"
-      height="28"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-      className="text-emerald-600 dark:text-emerald-400"
-    >
-      <path d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0z" />
-      <path d="M12 14a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7z" />
-    </svg>
-  )
-}
+/** Placeholder modules (route exists, feature pending): honest label, no figures. */
+const EN_CONSTRUCCION = new Set(['alertas', 'estimates', 'reports', 'plans'])
 
-function Chevron() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-      className="ml-auto shrink-0 self-center text-gray-300 transition-colors group-hover:text-emerald-600 dark:text-slate-600 dark:group-hover:text-emerald-400"
-    >
-      <path d="m9 18 6-6-6-6" />
-    </svg>
-  )
-}
+/** es-CO integer formatting for the carousel's real figures. */
+const FORMATO_ENTERO = new Intl.NumberFormat('es-CO')
 
 /**
  * Variación con semántica correcta: en consumo/costo, BAJAR es bueno
@@ -125,25 +101,25 @@ function BadgeCobertura({ conLineaBase }: { conLineaBase: boolean }) {
 }
 
 /**
- * Landing view of the authenticated area: account identity (all fields the
- * dashboard already showed), one card per module the role can see and — only
- * when the server authorized it — a real energy overview in dashboard style:
- * KPIs with deltas, «consumo vs línea base», distribution, recent invoices
- * and the ahorro leaderboard (T2 of the redesign, S1–S5).
+ * Landing view of the authenticated area: the modules section — home of the
+ * view's `h1`, a carousel with one slide per module the role can see, showing
+ * only real figures the server queried (S4) — and, only when the server
+ * authorized it, a real energy overview in dashboard style: KPIs with deltas,
+ * «consumo vs línea base», distribution, recent invoices and the ahorro
+ * leaderboard (T2 of the redesign, S1–S5; identity lives in the shell/nav).
  */
 export function DashboardHome({
   account,
   extraModules = [],
   energy = null,
+  moduleStats,
 }: {
   account: HomeAccount
   extraModules?: string[]
   energy?: EnergySummary | null
+  /** Real figures for the carousel; a missing value renders no figure. */
+  moduleStats?: HomeModuleStats
 }) {
-  const memberSince = new Date(account.createdAt).toLocaleDateString('es-ES', {
-    year: 'numeric',
-    month: 'long',
-  })
 
   // Same gating as ModuleNav: visibleModules(role) + extraModules, shared
   // through the exported isItemVisible — never a parallel permission check.
@@ -157,77 +133,50 @@ export function DashboardHome({
     [energy]
   )
 
+  // Real figures only (S4): whatever the server actually queried for this
+  // role. A missing figure is simply not shown — never invented.
+  const estadisticaDe = (id: string): EstadisticaModulo | null => {
+    if (id === 'users' && typeof moduleStats?.usuariosActivos === 'number') {
+      return {
+        valor: FORMATO_ENTERO.format(moduleStats.usuariosActivos),
+        etiqueta: 'usuarios activos',
+      }
+    }
+    if (id === 'consumption' && energy) {
+      return {
+        valor: FORMATO_ENTERO.format(energy.facturas),
+        etiqueta: 'facturas registradas',
+      }
+    }
+    if (id === 'analisis' && typeof moduleStats?.variablesOperativas === 'number') {
+      return {
+        valor: FORMATO_ENTERO.format(moduleStats.variablesOperativas),
+        etiqueta: 'variables operativas registradas',
+      }
+    }
+    return null
+  }
+
+  const tarjetas: TarjetaModulo[] = cards.map((item) => ({
+    id: item.id,
+    href: item.href,
+    titulo: item.fullLabel,
+    descripcion: DESCRIPTIONS[item.id] ?? '',
+    icon: item.icon,
+    enConstruccion: EN_CONSTRUCCION.has(item.id),
+    estadistica: estadisticaDe(item.id),
+  }))
+
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-12 sm:px-6 lg:px-8">
-      <header className="ui-panel space-y-4">
-        <div className="flex min-w-0 items-center gap-4">
-          <span
-            aria-hidden
-            className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-emerald-100 dark:bg-emerald-500/15"
-          >
-            <PersonIcon />
-          </span>
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-wide ui-muted">Vista de inicio</p>
-            <h1 className="ui-title truncate text-2xl">{account.name || 'Usuario'}</h1>
-            <p className="truncate text-sm ui-muted">{account.email}</p>
-          </div>
-        </div>
-
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="ui-stat">
-            <dt className={STAT_LABEL}>Rol</dt>
-            <dd className="mt-1">
-              <span
-                className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${ROLE_BADGES[account.role]}`}
-              >
-                {ROLE_LABELS[account.role]}
-              </span>
-            </dd>
-          </div>
-          <div className="ui-stat">
-            <dt className={STAT_LABEL}>Miembro desde</dt>
-            <dd className="ui-title mt-1 text-sm">{memberSince}</dd>
-          </div>
-          <div className="ui-stat">
-            <dt className={STAT_LABEL}>ID</dt>
-            <dd className="ui-title mt-1 font-mono text-sm">
-              {account.id.slice(0, 12)}...
-            </dd>
-          </div>
-        </dl>
-      </header>
-
       <section aria-labelledby="home-modulos" className="space-y-4">
         <div>
-          <h2 id="home-modulos" className="ui-title text-lg">
+          <h1 id="home-modulos" className="ui-title text-2xl">
             Módulos
-          </h2>
+          </h1>
           <p className="text-sm ui-muted">Accesos disponibles según tu rol.</p>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {cards.map((item) => (
-            <Link
-              key={item.id}
-              href={item.href}
-              className="ui-card focus-ring group flex min-h-10 items-start gap-3 transition-colors hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700"
-            >
-              <span
-                aria-hidden
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
-              >
-                {item.icon}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="ui-title block text-sm">{item.fullLabel}</span>
-                <span className="mt-0.5 block text-xs ui-muted">
-                  {DESCRIPTIONS[item.id]}
-                </span>
-              </span>
-              <Chevron />
-            </Link>
-          ))}
-        </div>
+        <ModuleCarousel modulos={tarjetas} />
       </section>
 
       {energy && resumen && (
@@ -486,7 +435,7 @@ export function DashboardHome({
             </div>
             <div className="ui-stat">
               <dt className={STAT_LABEL}>Bloques</dt>
-              <dd className="ui-title mt-1 text-2xl">{energy.bloques}</dd>
+              <dd className="ui-title mt-1 text-2xl">{energy.bloques.length}</dd>
             </div>
           </dl>
 

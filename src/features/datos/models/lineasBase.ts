@@ -299,8 +299,38 @@ export type RespuestaCalculo =
   | { ok: false; error: string }
 
 export type RespuestaGuardar =
-  | { ok: true; mensaje: string }
+  | { ok: true; mensaje: string; advertencia?: string }
   | { ok: false; error: string }
+
+/**
+ * Advertencia transitoria (no persistida) cuando la línea base no alcanza
+ * los mínimos regulatorios: se guarda igual, pero se sugiere cargar y
+ * depurar más meses antes de usarla para los respectivos ajustes.
+ * Devuelve `null` cuando el cálculo cumple los mínimos.
+ */
+export function advertenciaMinimos(entrada: {
+  mesesFacturados: number
+  depurados: number
+  mesesInsuficientes?: number[]
+}): string | null {
+  const insuficientes = (entrada.mesesInsuficientes ?? []).filter(
+    (m) => Number.isInteger(m) && m >= 1 && m <= 12
+  )
+  const conforme =
+    entrada.mesesFacturados >= UPME_MIN_MESES &&
+    entrada.depurados >= UPME_MIN_MESES &&
+    insuficientes.length === 0
+  if (conforme) return null
+
+  const parte3x12 =
+    insuficientes.length > 0
+      ? `; además, faltan al menos ${UPME_MIN_VALORES_MES} valores en el(los) mes(es) ${insuficientes.join(', ')} (regla 3×12)`
+      : ''
+  return (
+    `Esta línea base tiene ${entrada.depurados} de ${entrada.mesesFacturados} meses y no alcanza el mínimo de ${UPME_MIN_MESES} meses de la Resolución UPME 0016 de 2024${parte3x12}. ` +
+    `Se sugiere cargar y depurar al menos ${UPME_MIN_MESES} meses antes de usarla para los respectivos ajustes de ahorro.`
+  )
+}
 
 /** Columna del PuntoSerie que grafica cada modelo. */
 export const PRED_POR_MODELO: Record<

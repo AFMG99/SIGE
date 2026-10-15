@@ -26,6 +26,7 @@ import {
   TIPO_LBEN_DB,
   UPME_MIN_MESES,
   UPME_MIN_VALORES_MES,
+  advertenciaMinimos,
   UPME_RANGO_CONFIANZA,
 } from '@/features/datos/models/lineasBase'
 import { crearCriterioShares } from '@/features/datos/models/shares'
@@ -786,15 +787,19 @@ export async function calcularModelosLineaBase(
  * Persiste el resultado de un modelo en `LineaBaseEnergia` (upsert
  * bloqueId+tipo). Requiere permiso `upload` sobre el módulo `consumption`.
  *
- * El cálculo es libre (sirve para diagnóstico aunque falten meses), pero
- * aquí corre el gate de conformidad UPME: se exigen `UPME_MIN_MESES` meses
- * depurados **y** los 12 meses con al menos `UPME_MIN_VALORES_MES` valores
- * (3×12, estilo §7.5.1) antes de persistir una línea base oficial. Además
- * inyecta `origen` dentro de `coeficientes` para que una LB estimada sea
- * distinguible de una medida sin tocar `schema.prisma`.
+ * El cálculo es libre y la persistencia también: sin los `UPME_MIN_MESES`
+ * meses depurados (o con la regla 3×12 incompleta) la línea base se guarda
+ * igual, pero la respuesta incluye `advertencia` con la sugerencia de
+ * cargar/depurar más meses — la conformidad UPME queda como advertencia,
+ * no como bloqueo. Además inyecta `origen` dentro de `coeficientes` para
+ * que una LB estimada sea distinguible de una medida sin tocar
+ * `schema.prisma`.
  */
 export async function guardarLineaBase(input: {
-  bloqueId: string
+  /** CUID del bloque (alcance de bloque); excluyente con `edificacionId`. */
+  bloqueId?: string
+  /** CUID de la edificación completa (alcance global); excluyente con `bloqueId`. */
+  edificacionId?: string
   modelo: ModeloLbenId
   resultado: Record<string, unknown>
   /** Meses sobrevivientes a la depuración (banda ±10 %, ec. 3; gate UPME). */
@@ -816,9 +821,14 @@ export async function guardarLineaBase(input: {
       }
     }
 
-    const { bloqueId, modelo, resultado } = input ?? {}
-    if (typeof bloqueId !== 'string' || !bloqueId) {
-      return { ok: false, error: 'Bloque inválido.' }
+    const { bloqueId, edificacionId, modelo, resultado } = input ?? {}
+    // Alcance exactamente uno por guardado: bloque o edificación completa;
+    // ambos ausentes o ambos presentes es error.
+    const bloqueSel = typeof bloqueId === 'string' && bloqueId ? bloqueId : null
+    const edificacionSel =
+      typeof edificacionId === 'string' && edificacionId ? edificacionId : null
+    if ((bloqueSel === null) === (edificacionSel === null)) {
+      return { ok: false, error: 'Selecciona un bloque o la edificación completa.' }
     }
     if (!MODELOS_LBEN.includes(modelo)) {
       return { ok: false, error: 'Modelo inválido.' }
@@ -827,10 +837,10 @@ export async function guardarLineaBase(input: {
       return { ok: false, error: 'Resultado inválido: recalcule la línea base.' }
     }
 
-    // ── Gate de conformidad UPME ──────────────────────────────────────
-    // 1) Con menos de 36 meses depurados o 2) algún mes con menos de 3
-    // valores (3×12), el cálculo sigue siendo válido para diagnóstico, pero
-    // no puede volverse una línea base oficial.
+    // ── Conformidad UPME (advertencia, no bloqueo) ─────────────────────
+    // Con menos de 36 meses depurados o con algún mes con menos de 3
+    // valores (3×12) la línea base se guarda igual, pero la respuesta
+    // lleva `advertencia` con la sugerencia de cargar/depurar más meses.
     const mesesFacturados = await prisma.facturaEnergia.count()
     const depurados =
       typeof input.depurados === 'number' ? input.depurados : mesesFacturados
@@ -839,20 +849,12 @@ export async function guardarLineaBase(input: {
           (m) => Number.isInteger(m) && m >= 1 && m <= 12
         )
       : []
-    if (
-      mesesFacturados < UPME_MIN_MESES ||
-      depurados < UPME_MIN_MESES ||
-      mesesInsuficientes.length > 0
-    ) {
-      const detalleMeses =
-        mesesInsuficientes.length > 0
-          ? ` y faltan ${UPME_MIN_VALORES_MES} valores en el(los) mes(es) ${mesesInsuficientes.join(', ')} (3×12)`
-          : ''
-      return {
-        ok: false,
-        error: `Se requieren al menos ${UPME_MIN_MESES} meses depurados para persistir una línea base conforme a la UPME: hay ${depurados} de ${mesesFacturados} facturas${detalleMeses}. El cálculo queda disponible para diagnóstico, pero no puede guardarse oficialmente.`,
-      }
-    }
+    const advertencia =
+      advertenciaMinimos({
+        mesesFacturados,
+        depurados,
+        mesesInsuficientes,
+      }) ?? undefined
 
     const origen: OrigenShare =
       input.origen === 'modelo_ingenieria' ? 'modelo_ingenieria' : 'facturas_area'
@@ -872,10 +874,12 @@ export async function guardarLineaBase(input: {
 
     const tipo = TIPO_LBEN_DB[modelo]
     await prisma.lineaBaseEnergia.upsert({
-      where: { bloqueId_tipo: { bloqueId, tipo } },
+      where: bloqueSel
+        ? { bloqueId_tipo: { bloqueId: bloqueSel, tipo } }
+        : { edificacionId_tipo: { edificacionId: edificacionSel as string, tipo } },
       update: { coeficientes, r2, pValue },
       create: {
-        bloqueId,
+        ...(bloqueSel ? { bloqueId: bloqueSel } : { edificacionId: edificacionSel }),
         tipo,
         coeficientes,
         r2,
@@ -886,11 +890,17 @@ export async function guardarLineaBase(input: {
 
     await auditarAccion({
       action: 'linea_base.save',
-      targetId: bloqueId,
-      detail: `Línea base ${modelo} guardada para el bloque ${bloqueId}.`,
+      targetId: bloqueSel ?? edificacionSel ?? '',
+      detail: bloqueSel
+        ? `Línea base ${modelo} guardada para el bloque ${bloqueSel}.`
+        : `Línea base ${modelo} guardada para la edificación completa ${edificacionSel}.`,
     })
 
-    return { ok: true, mensaje: 'Línea base guardada.' }
+    return {
+      ok: true,
+      mensaje: 'Línea base guardada.',
+      ...(advertencia ? { advertencia } : {}),
+    }
   } catch (e) {
     console.error('Error en guardarLineaBase:', e)
     return {
@@ -916,9 +926,9 @@ async function autorizarGestionLineasBase(): Promise<
 }
 
 /**
- * Elimina una línea base guardada (bloque + modelo). Requiere `upload`.
+ * Elimina una línea base guardada (bloque o edificación + modelo). Requiere `upload`.
  * A diferencia de `vaciarFacturas`, no toca el histórico de facturas:
- * sirve para liberar un bloque o recalcular su modelo desde cero.
+ * sirve para liberar un alcance o recalcular su modelo desde cero.
  */
 export async function eliminarLineaBase(id: string): Promise<ResultadoGestion> {
   try {
@@ -936,25 +946,30 @@ export async function eliminarLineaBase(id: string): Promise<ResultadoGestion> {
         id: true,
         tipo: true,
         bloque: { select: { codigo: true, nombre: true } },
+        edificacion: { select: { nombre: true } },
       },
     })
     if (!lineaBase) {
       return { estado: 'error', mensaje: 'La línea base indicada ya no existe.' }
     }
 
+    const alcanceDescripcion = lineaBase.bloque
+      ? `del bloque "${lineaBase.bloque.codigo} — ${lineaBase.bloque.nombre}"`
+      : `de la edificación completa "${lineaBase.edificacion?.nombre ?? '—'}"`
+
     await prisma.lineaBaseEnergia.delete({ where: { id: lineaBase.id } })
 
     await auditarAccion({
       action: 'linea_base.delete',
       targetId: lineaBase.id,
-      detail: `Línea base ${lineaBase.tipo} eliminada del bloque "${lineaBase.bloque.codigo} — ${lineaBase.bloque.nombre}".`,
+      detail: `Línea base ${lineaBase.tipo} eliminada ${alcanceDescripcion}.`,
     })
 
     return {
       estado: 'completado',
       eliminadas: 1,
       lineasBaseEliminadas: 1,
-      mensaje: `Se eliminó la línea base ${lineaBase.tipo} del bloque "${lineaBase.bloque.codigo} — ${lineaBase.bloque.nombre}".`,
+      mensaje: `Se eliminó la línea base ${lineaBase.tipo} ${alcanceDescripcion}.`,
     }
   } catch (error) {
     console.error('Error en eliminarLineaBase:', error)

@@ -33,6 +33,7 @@ import type {
   RespuestaCalculo,
   RespuestaGuardar,
 } from '@/features/datos/models/lineasBase'
+import { advertenciaMinimos } from '@/features/datos/models/lineasBase'
 import { resultadoEquiposDemo, resultadoFacturasDemo, resultadoVariablesDemo } from '../__fixtures__/resultado'
 import { bloquesDemo, edificacionesDemo, espaciosDemo } from '../__fixtures__/catalogo'
 
@@ -689,25 +690,27 @@ export async function calcularModelosLineaBase(
 }
 
 export async function guardarLineaBase(input: {
-  bloqueId: string
+  bloqueId?: string
+  edificacionId?: string
   modelo: ModeloLbenId
   resultado: Record<string, unknown>
   depurados?: number
   mesesInsuficientes?: number[]
   origen?: OrigenShare
 }): Promise<RespuestaGuardar> {
-  if (!input?.bloqueId) {
-    return { ok: false, error: 'Bloque inválido.' }
+  if (!input?.bloqueId && !input?.edificacionId) {
+    return { ok: false, error: 'Selecciona un bloque o la edificación completa.' }
   }
-  if (
-    (input.depurados ?? 48) < 36 ||
-    (input.mesesInsuficientes ?? []).length > 0
-  ) {
-    return {
-      ok: false,
-      error:
-        'Se requieren al menos 36 meses depurados y los 12 meses con al menos 3 valores (3×12) para persistir una línea base conforme a la UPME: el cálculo queda disponible para diagnóstico, pero no puede guardarse oficialmente.',
-    }
+  // La action real guarda igual con < 36 meses y devuelve `advertencia`.
+  const advertencia =
+    advertenciaMinimos({
+      mesesFacturados: 49,
+      depurados: input.depurados ?? 48,
+      mesesInsuficientes: input.mesesInsuficientes ?? [],
+    }) ?? undefined
+  return {
+    ok: true,
+    mensaje: 'Línea base guardada.',
+    ...(advertencia ? { advertencia } : {}),
   }
-  return { ok: true, mensaje: 'Línea base guardada.' }
 }
