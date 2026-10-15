@@ -74,6 +74,8 @@ Usar estas clases directamente en JSX — **no** recrear botones/paneles/inputs 
 
 `ConfirmDialog` (portal + focus trap + ESC, variant `destructive|primary`), `ToastProvider` (`useToast()`, variants `success|error|info`, auto-dismiss 4s), `ListboxSelect`, `DropdownMenu`, `Avatar`, `Skeleton`. **No hay Radix/shadcn** — son implementaciones propias sobre `ui-*`. Para la mayoría de superficies, usar las clases CSS directamente, no un componente wrapper.
 
+`ModuleCarousel` vive un nivel arriba, en `src/shared/views/ModuleCarousel.tsx`: carrusel accesible con framer-motion para el home (auto-avance que se cancela permanentemente en la primera interacción del usuario, pausa transitoria en hover/foco, `useReducedMotion` ⇒ manual sin animación, controles ≥40px bajo `lg`, `h1` de la vista en la sección contenedora, no dentro del carrusel). Reutilizarlo antes de construir un carrusel nuevo.
+
 ### Gráficos compartidos (`src/shared/views/charts/`)
 
 **SVG propio, sin librería de charts** (decisión explícita del proyecto; recharts/chart.js no). Exportados desde `@/shared/views/charts`:
