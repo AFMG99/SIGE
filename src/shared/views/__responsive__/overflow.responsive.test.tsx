@@ -107,10 +107,13 @@ import {
 } from '@/features/datos/views/__fixtures__/existencias'
 import { LineasBasePreguntas } from '@/features/datos/views/LineasBasePreguntas'
 import type {
+  ActualizarEdificacion,
   CrearBloque,
   CrearEdificacion,
+  CrearEspacio,
   EliminarBloque,
   EliminarEdificacion,
+  EliminarEspacio,
 } from '@/features/datos/views/useCatalogoEdificaciones'
 import { UserTable, type AdminUser } from '@/features/users/views/UserTable'
 import { CountryPhoneInput } from '@/features/users/views/CountryPhoneInput'
@@ -180,9 +183,12 @@ const usuarios: AdminUser[] = [
 
 const stubs = {
   crearEdificacion: (async () => ({ ok: true })) as unknown as CrearEdificacion,
+  actualizarEdificacion: (async () => ({ ok: true })) as unknown as ActualizarEdificacion,
   eliminarEdificacion: (async () => ({ ok: true })) as unknown as EliminarEdificacion,
   crearBloque: (async () => ({ ok: true })) as unknown as CrearBloque,
   eliminarBloque: (async () => ({ ok: true })) as unknown as EliminarBloque,
+  crearEspacio: (async () => ({ ok: true })) as unknown as CrearEspacio,
+  eliminarEspacio: (async () => ({ ok: true })) as unknown as EliminarEspacio,
 }
 
 const noop = () => {}

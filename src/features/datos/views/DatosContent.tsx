@@ -11,7 +11,6 @@ import SidebarNav, {
 import { DATOS_SECTIONS } from './nav'
 import {
   IconCarga,
-  IconEdificacion,
   IconEquipo,
   IconFactura,
   IconGestionar,
@@ -117,16 +116,20 @@ export function DatosContent({
   const [vista, setVista] = React.useState<Modo>(puedeCargar ? 'carga' : 'datos')
   const modo: Modo = puedeCargar ? vista : 'datos'
 
-  // Catálogo compartido: edificaciones y bloques viven aquí (fuente única para
-  // Facturas de energía, Equipos, Variables y Líneas Base).
+  // Catálogo compartido: edificaciones, bloques y espacios viven aquí (fuente
+  // única para Edificaciones, Facturas de energía, Equipos, Variables y Líneas Base).
   const {
     edificaciones: edificacionesCat,
     bloques: bloquesCat,
+    espacios: espaciosCat,
     crearEdificacion,
+    actualizarEdificacion,
     eliminarEdificacion,
     crearBloque,
     eliminarBloque,
-  } = useCatalogoEdificaciones(edificaciones, bloques)
+    crearEspacio,
+    eliminarEspacio,
+  } = useCatalogoEdificaciones(edificaciones, bloques, espacios)
 
   /** Modo efectivo de una sección: si el modo global no existe en ella, cae al primero. */
   const modoDe = (modos: readonly ModoInfo[]): Modo =>
@@ -152,10 +155,9 @@ export function DatosContent({
     })
   })
 
-  /** Del importador (o su CTA vacío) al catálogo de edificaciones de Facturas de energía. */
+  /** Del importador (o su CTA vacío) a la sección de primer nivel Edificaciones. */
   const irAlCatalogo = () => {
-    setVista('edificaciones')
-    setActiveId('facturas')
+    setActiveId('edificaciones')
   }
 
   const headerOnTop = pos === 'center'
@@ -204,9 +206,7 @@ export function DatosContent({
       >
         {modos.map((m) => {
           const activa = modoActivo === m.id
-          const deshabilitada =
-            (m.id === 'carga' || m.id === 'gestion' || m.id === 'edificaciones') &&
-            !puedeCargar
+          const deshabilitada = (m.id === 'carga' || m.id === 'gestion') && !puedeCargar
           return (
             <button
               key={m.id}
@@ -348,9 +348,7 @@ export function DatosContent({
                       ? 'Importe facturas de energía desde un archivo o ingréselas manualmente.'
                       : modoFacturas === 'gestion'
                         ? 'Edite, elimine o vacíe las facturas guardadas y sus líneas base asociadas.'
-                        : modoFacturas === 'edificaciones'
-                          ? 'Administre las edificaciones, bloques y espacios: la estructura que segmenta facturas, equipos y variables.'
-                          : 'Consulte las facturas de energía guardadas: consumo, costos y periodos que alimentan la Línea Base.'}
+                        : 'Consulte las facturas de energía guardadas: consumo, costos y periodos que alimentan la Línea Base.'}
                   </p>
                 </div>
                 {renderToggle('Facturas de energía', 'bg-emerald-600', MODOS)}
@@ -377,18 +375,42 @@ export function DatosContent({
                   lineasBaseTotal={stats.lineasBase}
                   lineasBaseFilas={lineasBaseFilas}
                 />
-              ) : modoFacturas === 'edificaciones' ? (
+              ) : (
+                <VistaDatos {...construirPanelFacturas(facturasExistentes)} />
+              )}
+            </div>
+          )}
+
+          {/* Sección: Edificaciones — catálogo maestro de la estructura física */}
+          {activeId === 'edificaciones' && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="ui-title text-lg">Gestión de Edificaciones</h2>
+                <p className="ui-muted text-sm">
+                  Administre las edificaciones, bloques y espacios: la estructura que segmenta
+                  facturas, equipos y variables, con las características que exige la línea base
+                  de la Resolución UPME 0016 de 2024.
+                </p>
+              </div>
+
+              {!puedeCargar ? (
+                <div className="ui-callout ui-callout-info" role="status">
+                  Su rol tiene permisos de <strong>solo lectura</strong> en este módulo. Puede
+                  consultar las edificaciones desde las demás secciones, pero no modificarlas aquí.
+                </div>
+              ) : (
                 <EdificacionesPanel
                   edificaciones={edificacionesCat}
                   bloques={bloquesCat}
-                  espacios={espacios}
+                  espacios={espaciosCat}
                   crearEdificacion={crearEdificacion}
+                  actualizarEdificacion={actualizarEdificacion}
                   eliminarEdificacion={eliminarEdificacion}
                   crearBloque={crearBloque}
                   eliminarBloque={eliminarBloque}
+                  crearEspacio={crearEspacio}
+                  eliminarEspacio={eliminarEspacio}
                 />
-              ) : (
-                <VistaDatos {...construirPanelFacturas(facturasExistentes)} />
               )}
             </div>
           )}
@@ -517,12 +539,10 @@ const MODOS = [
   { id: 'carga', label: 'Carga', Icon: IconCarga },
   { id: 'datos', label: 'Visualización', Icon: IconVistaPrevia },
   { id: 'gestion', label: 'Gestión', Icon: IconGestionar },
-  { id: 'edificaciones', label: 'Edificaciones', Icon: IconEdificacion },
 ] as const
 
-/** Secciones sin el modo «Edificaciones» (solo Facturas de energía lo ofrece). */
-const MODOS_SECCION = MODOS.filter((m) => m.id !== 'edificaciones')
-/** Ajustes tiene todos los modos excepto 'edificaciones'. */
+/** Ajustes reutiliza los mismos modos que el resto de secciones. */
+const MODOS_SECCION = MODOS
 const MODOS_AJUSTES = MODOS_SECCION
 
 type Modo = (typeof MODOS)[number]['id']
