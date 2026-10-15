@@ -486,7 +486,7 @@ export function DashboardHome({
             </div>
             <div className="ui-stat">
               <dt className={STAT_LABEL}>Bloques</dt>
-              <dd className="ui-title mt-1 text-2xl">{energy.bloques}</dd>
+              <dd className="ui-title mt-1 text-2xl">{energy.bloques.length}</dd>
             </div>
           </dl>
 

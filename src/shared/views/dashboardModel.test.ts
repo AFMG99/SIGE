@@ -105,7 +105,10 @@ function base(): EnergySummary {
     facturas: 24,
     ultimoPeriodo: '2026-08',
     edificaciones: 2,
-    bloques: 2,
+    bloques: [
+      { id: 'b1', edificacionId: 'e1' },
+      { id: 'b2', edificacionId: 'e2' },
+    ],
     serie: [
       { periodo: '2026-08', consumoNormalizado: 90, costoCop: 900 },
       { periodo: '2026-07', consumoNormalizado: 100, costoCop: 1000 },
@@ -217,7 +220,7 @@ describe('construirResumen', () => {
       facturas: 0,
       ultimoPeriodo: null,
       edificaciones: 0,
-      bloques: 0,
+      bloques: [],
       serie: [],
       ultimasFacturas: [],
       lineasBase: [],
@@ -230,5 +233,90 @@ describe('construirResumen', () => {
     expect(r.consumo.valor).toBeNull()
     expect(r.ahorro).toBeNull()
     expect(r.ranking).toEqual([])
+  })
+
+  it('S3: cada bloque usa su LB propia; sin ella, la de su edificación', () => {
+    const conRespaldo: EnergySummary = {
+      ...base(),
+      bloques: [
+        { id: 'b1', edificacionId: 'e1' },
+        { id: 'b2', edificacionId: 'e1' },
+        { id: 'b3', edificacionId: 'e1' },
+      ],
+      lineasBase: [
+        {
+          bloqueId: 'b1',
+          edificacionId: 'e1',
+          modelos: [
+            modelo({
+              tipo: 'valor_absoluto',
+              r2: 0.8,
+              coeficientes: { consumo_promedio_mensual: 100 },
+            }),
+          ],
+        },
+        {
+          bloqueId: null,
+          edificacionId: 'e1',
+          modelos: [modelo({ tipo: 'cociente', coeficientes: { consumo_promedio: 110 } })],
+        },
+      ],
+    }
+    const r = construirResumen(conRespaldo)
+    // b1 mantiene su propia (100, no 110); b2 y b3 usan el respaldo (110 c/u).
+    expect(r.serieLb).toEqual([320, 320, 320])
+    expect(r.cobertura).toEqual({ bloquesConLb: 3, bloquesTotales: 3 })
+    expect(r.ahorro).toEqual({ kwh: 230, pct: 71.875, lbKwh: 320 })
+  })
+
+  it('S3: la LB de una edificación sin bloques entra en los agregados', () => {
+    const sinBloques: EnergySummary = {
+      ...base(),
+      lineasBase: [
+        ...base().lineasBase,
+        {
+          bloqueId: null,
+          edificacionId: 'e3',
+          modelos: [modelo({ tipo: 'cociente', coeficientes: { consumo_promedio: 50 } })],
+        },
+      ],
+    }
+    const r = construirResumen(sinBloques)
+    // e1 aporta su LB de bloque (95/95/100) y e3 su LB de edificación (50).
+    expect(r.serieLb).toEqual([145, 145, 150])
+    // La cobertura de bloques solo cuenta unidades de bloque (e3 no tiene).
+    expect(r.cobertura).toEqual({ bloquesConLb: 1, bloquesTotales: 2 })
+  })
+
+  it('S3: mejor modelo por bloque contado una sola vez aunque haya varios', () => {
+    const dosModelos: EnergySummary = {
+      ...base(),
+      lineasBase: [
+        {
+          bloqueId: 'b1',
+          edificacionId: 'e1',
+          modelos: [
+            modelo({ tipo: 'cociente', r2: 0.5, coeficientes: { consumo_promedio: 80 } }),
+          ],
+        },
+        {
+          bloqueId: 'b1',
+          edificacionId: 'e1',
+          modelos: [
+            modelo({
+              tipo: 'valor_absoluto',
+              r2: 0.9,
+              coeficientes: { consumo_promedio_mensual: 100 },
+            }),
+          ],
+        },
+        ...base().lineasBase.filter((lb) => lb.bloqueId === 'b2'),
+      ],
+    }
+    const r = construirResumen(dosModelos)
+    // Del bloque b1 cuenta SOLO el mejor R² (0.9 → 100); la fila cociente
+    // (80) no se suma al agregado.
+    expect(r.serieLb).toEqual([100, 100, 100])
+    expect(r.ahorro?.lbKwh).toBe(100)
   })
 })

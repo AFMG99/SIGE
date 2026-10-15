@@ -69,7 +69,8 @@ export interface EnergySummary {
   facturas: number
   ultimoPeriodo: string | null
   edificaciones: number
-  bloques: number
+  /** Lista de bloques (id + edificación dueña) para resolver el fallback S3. */
+  bloques: { id: string; edificacionId: string }[]
   /** Histórico agregado, desc desde el servidor (≤12). */
   serie: SeriePeriodo[]
   ultimasFacturas: FacturaReciente[]
@@ -232,12 +233,38 @@ export function construirResumen(energy: EnergySummary): ResumenDashboard {
     .sort((a, b) => a.periodo.localeCompare(b.periodo))
     .slice(-SERIE_MAX)
 
-  // Mejor modelo por bloque → contribución mensual por edificación.
-  const modeloPorBloque = energy.lineasBase.map((lb) => ({
-    edificacionId: lb.edificacionId,
-    modelo: mejorModelo(lb.modelos),
+  // Índices de modelos por alcance (S2): una fila por (alcance, tipo).
+  const modelosPorBloque = new Map<string, ModeloSerie[]>()
+  const modelosPorEdificacion = new Map<string, ModeloSerie[]>()
+  for (const lb of energy.lineasBase) {
+    if (lb.bloqueId) {
+      modelosPorBloque.set(lb.bloqueId, [
+        ...(modelosPorBloque.get(lb.bloqueId) ?? []),
+        ...lb.modelos,
+      ])
+    } else {
+      modelosPorEdificacion.set(lb.edificacionId, [
+        ...(modelosPorEdificacion.get(lb.edificacionId) ?? []),
+        ...lb.modelos,
+      ])
+    }
+  }
+
+  // Unidad aditiva por bloque (S3 «el bloque primero»): su LB propia (mejor
+  // modelo usable); sin ella, la LB de su edificación como respaldo. Las
+  // edificaciones sin bloques aportan su LB de edificación como unidad.
+  const unidadesBloque = energy.bloques.map((b) => ({
+    edificacionId: b.edificacionId,
+    modelo: mejorModelo(
+      modelosPorBloque.get(b.id) ?? modelosPorEdificacion.get(b.edificacionId) ?? []
+    ),
   }))
-  const bloquesConLb = modeloPorBloque.filter((b) => b.modelo !== null).length
+  const bloquesConLb = unidadesBloque.filter((u) => u.modelo !== null).length
+  const edificacionesConBloques = new Set(energy.bloques.map((b) => b.edificacionId))
+  const unidadesEdificacion = Array.from(modelosPorEdificacion)
+    .filter(([edificacionId]) => !edificacionesConBloques.has(edificacionId))
+    .map(([edificacionId, modelos]) => ({ edificacionId, modelo: mejorModelo(modelos) }))
+  const modeloPorBloque = [...unidadesBloque, ...unidadesEdificacion]
   const conLb = new Set(
     modeloPorBloque.filter((b) => b.modelo !== null).map((b) => b.edificacionId)
   )
@@ -314,7 +341,8 @@ export function construirResumen(energy: EnergySummary): ResumenDashboard {
   const ranking: FilaRanking[] = actuales
     .map((e) => {
       if (!conLb.has(e.edificacionId)) return null
-      // LB de la edificación = suma de sus bloques con modelo usable.
+      // LB de la edificación = suma de sus unidades con modelo usable
+      // (bloque propio o respaldo de la edificación).
       const mes = indiceMes(energy.ultimoPeriodo ?? '')
       const lbEdif = modeloPorBloque.reduce((s, b) => {
         if (b.edificacionId !== e.edificacionId || !b.modelo) return s
@@ -342,7 +370,7 @@ export function construirResumen(energy: EnergySummary): ResumenDashboard {
     consumo,
     costo,
     ahorro,
-    cobertura: { bloquesConLb, bloquesTotales: energy.bloques },
+    cobertura: { bloquesConLb, bloquesTotales: energy.bloques.length },
     distribucion,
     facturas,
     ranking,

@@ -81,7 +81,13 @@ const estado = vi.hoisted(() => ({
   facturas: 48,
   ultimoPeriodo: '2026-08' as string | null,
   edificaciones: 4,
-  bloques: 9,
+  bloques: [
+    { id: 'cbloque00000000000001', edificacionId: 'cedif00000000000000001' },
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `cbloque${String(i + 2).padStart(16, '0')}`,
+      edificacionId: 'cedif00000000000000001',
+    })),
+  ],
   energyQueries: 0,
   serieBruta: [
     {
@@ -116,7 +122,9 @@ const estado = vi.hoisted(() => ({
           null, null, null, null, null, null, null, 50000, null, null, null, null,
         ],
       },
-      bloque: { id: 'cbloque00000000000001', edificacionId: 'cedif00000000000000001' },
+      bloqueId: 'cbloque00000000000001',
+      edificacionId: null,
+      bloque: { edificacionId: 'cedif00000000000000001' },
     },
   ] as Array<Record<string, unknown>>,
   nombres: [{ id: 'cedif00000000000000001', nombre: 'Campus Norte' }] as Array<{
@@ -189,7 +197,7 @@ vi.mock('@/shared/models/prisma', () => ({
       },
     },
     bloque: {
-      count: async () => {
+      findMany: async () => {
         estado.energyQueries += 1
         return estado.bloques
       },
@@ -257,7 +265,13 @@ beforeEach(() => {
   estado.facturas = 48
   estado.ultimoPeriodo = '2026-08'
   estado.edificaciones = 4
-  estado.bloques = 9
+  estado.bloques = [
+    { id: 'cbloque00000000000001', edificacionId: 'cedif00000000000000001' },
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `cbloque${String(i + 2).padStart(16, '0')}`,
+      edificacionId: 'cedif00000000000000001',
+    })),
+  ]
   estado.energyQueries = 0
   estado.serieBruta = [
     { periodo: '2026-08', _sum: { consumoNormalizado: 45800, costoCop: 5200000 } },
@@ -283,7 +297,9 @@ beforeEach(() => {
           null, null, null, null, null, null, null, 50000, null, null, null, null,
         ],
       },
-      bloque: { id: 'cbloque00000000000001', edificacionId: 'cedif00000000000000001' },
+      bloqueId: 'cbloque00000000000001',
+      edificacionId: null,
+      bloque: { edificacionId: 'cedif00000000000000001' },
     },
   ]
   estado.nombres = [{ id: 'cedif00000000000000001', nombre: 'Campus Norte' }]

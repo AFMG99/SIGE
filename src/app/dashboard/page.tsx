@@ -61,7 +61,7 @@ export default async function DashboardPage() {
         select: { periodo: true },
       }),
       prisma.edificacion.count(),
-      prisma.bloque.count(),
+      prisma.bloque.findMany({ select: { id: true, edificacionId: true } }),
       prisma.facturaEnergia.groupBy({
         by: ['periodo'],
         _sum: { consumoNormalizado: true, costoCop: true },

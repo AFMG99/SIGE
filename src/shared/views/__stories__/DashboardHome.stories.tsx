@@ -15,7 +15,13 @@ const resumen: EnergySummary = {
   facturas: 48,
   ultimoPeriodo: '2026-08',
   edificaciones: 4,
-  bloques: 9,
+  bloques: [
+    { id: 'cbloque00000000000001', edificacionId: 'cedif00000000000000001' },
+    ...Array.from({ length: 8 }, (_, i) => ({
+      id: `cbloque${String(i + 2).padStart(16, '0')}`,
+      edificacionId: 'cedif00000000000000001',
+    })),
+  ],
   serie: [
     { periodo: '2026-08', consumoNormalizado: 45800, costoCop: 5200000 },
     { periodo: '2026-07', consumoNormalizado: 43300, costoCop: 4900000 },
@@ -136,7 +142,7 @@ export const SinFacturas: Story = {
       facturas: 0,
       ultimoPeriodo: null,
       edificaciones: 0,
-      bloques: 0,
+      bloques: [],
       serie: [],
       ultimasFacturas: [],
       lineasBase: [],
