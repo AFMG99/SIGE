@@ -14,6 +14,7 @@ import {
   type Periodicidad,
 } from '../../models/analisis'
 import { ATRIBUTOS_ICONO, ChipIcon, SeccionTitulo } from './comunes'
+import { BarList } from '@/shared/views/charts'
 
 /**
  * Submódulo Ahorros: «Línea base del análisis» — identidad y validación
@@ -99,6 +100,27 @@ export function AhorrosPanel({
       </p>
     )
   }
+
+  // Barras del layout de referencia: potencial §8.1 de TODOS los modelos
+  // disponibles que la Resolución define, ordenadas desc (ranking). Los
+  // modelos sin potencial se listan aparte — nunca se fabrica un número.
+  const filasModelos = Object.entries(modelos)
+    .filter(([, m]) => m.estado === 'disponible' && m.ahorro !== null)
+    .map(([clave, m]) => {
+      const a = m.ahorro!
+      const anual = periodicidad === 'ano' ? ahorroAnual(a) : null
+      return {
+        clave,
+        etiqueta: m.etiqueta,
+        valor: anual ? anual.potencial : a.potencial_mensual,
+        pct: anual ? anual.potencial_pct : a.potencial_pct,
+        unidad: periodicidad === 'ano' ? 'kWh/año' : 'kWh/mes',
+      }
+    })
+    .sort((x, y) => y.valor - x.valor)
+  const etiquetasSinPotencial = Object.values(modelos)
+    .filter((m) => m.estado === 'disponible' && m.ahorro === null)
+    .map((m) => m.etiqueta)
 
   return (
     <section aria-labelledby="titulo-lben-analisis" className="ui-card space-y-4 p-5 sm:p-6">
@@ -204,6 +226,33 @@ export function AhorrosPanel({
               </p>
             </div>
           </div>
+
+          {/* Barras: potencial de ahorro por modelo (ranking, layout ref.) */}
+          {filasModelos.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-uv-ink dark:text-slate-100">
+                Potencial de ahorro por modelo §8.1
+              </h4>
+              <BarList
+                titulo="Potencial de ahorro por modelo"
+                datos={filasModelos.map((f) => ({
+                  clave: f.clave,
+                  etiqueta: f.etiqueta,
+                  valor: f.valor,
+                  textoValor: `${formatoNumero(f.valor, 1)} ${f.unidad}${
+                    f.pct !== null ? ` · ${formatoNumero(f.pct, 1)} %` : ''
+                  }`,
+                }))}
+                vacio="Ningún modelo define potencial de ahorro."
+              />
+              {etiquetasSinPotencial.length > 0 && (
+                <p className="ui-muted text-xs">
+                  La Resolución no define potencial para:{' '}
+                  {etiquetasSinPotencial.join(', ')}.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Tabla §8.1: potencial de ahorro por mes calendario */}
           {ahorro ? (

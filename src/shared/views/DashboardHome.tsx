@@ -362,6 +362,7 @@ export function DashboardHome({
                     titulo="Distribución del consumo por edificación"
                     datos={resumen.distribucion}
                     vacio="Registra facturas para ver la distribución."
+                    deltaPositivoEsBueno={false}
                   />
                 </div>
               </div>

@@ -11,6 +11,7 @@ import {
   type SalidaAnalisis,
 } from '../../models/analisis'
 import { ATRIBUTOS_ICONO, BadgeCalendario, ChipIcon, CLASE_BADGE, SeccionTitulo } from './comunes'
+import { BarList } from '@/shared/views/charts'
 
 /**
  * Submódulo Patrones de consumo: indicadores de gestión por nivel
@@ -31,6 +32,25 @@ export function PatronesPanel({ resumen, salida, nivel }: PatronesPanelProps) {
   // Período con la explicación expandida (null = ninguna).
   const [explicacionDe, setExplicacionDe] = React.useState<string | null>(null)
   const inusuales = salida.periodos.filter((p) => p.es_atipico)
+
+  // Barras del layout de referencia: magnitud de la desviación (%) de cada
+  // período inusual respecto de la banda de su mes calendario. Solo los que
+  // tienen desviación medible; los demás viven en la tabla con «—».
+  const barrasDesviacion = inusuales
+    .flatMap((p) =>
+      typeof p.desviacion_pct === 'number'
+        ? [
+            {
+              clave: `${p.ano}-${p.mes}`,
+              etiqueta: etiquetaPeriodo(p.mes, p.ano),
+              valor: Math.abs(p.desviacion_pct),
+              textoValor: formatoPct(p.desviacion_pct),
+              color: 'yellow' as const,
+            },
+          ]
+        : []
+    )
+    .sort((a, b) => b.valor - a.valor)
 
   return (
     <div className="space-y-6">
@@ -184,6 +204,23 @@ export function PatronesPanel({ resumen, salida, nivel }: PatronesPanelProps) {
             </>
           }
         />
+
+        {barrasDesviacion.length > 0 && (
+          <div className="ui-card space-y-3 p-4 sm:p-5">
+            <div>
+              <h3 className="ui-title text-sm">Desviación vs la banda del mes</h3>
+              <p className="ui-muted text-xs">
+                Barra proporcional al % de desviación de cada período; el consumo y
+                la banda están en la tabla.
+              </p>
+            </div>
+            <BarList
+              titulo="Desviación de los períodos inusuales"
+              datos={barrasDesviacion}
+              vacio="Sin desviaciones medibles."
+            />
+          </div>
+        )}
 
         {resumen.atipicos === 0 ? (
           <div className="ui-empty py-10">

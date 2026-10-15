@@ -49,6 +49,12 @@ export type BarListProps = {
   formatoValor?: (valor: number) => string
   formatoDelta?: (valor: number) => string
   vacio?: string
+  /**
+   * Semántica del color del delta: true (default) = subir es bueno (p. ej.
+   * ahorro); false = subir es malo (p. ej. consumo: un alza se pinta rose,
+   * aunque la flecha siga mostrando la dirección real del dato).
+   */
+  deltaPositivoEsBueno?: boolean
 }
 
 const fmtDelta = (v: number): string => {
@@ -63,6 +69,7 @@ export function BarList({
   formatoValor = (v) => fmtDefecto.format(v),
   formatoDelta = fmtDelta,
   vacio = 'Sin datos para mostrar',
+  deltaPositivoEsBueno = true,
 }: BarListProps) {
   const reducir = useReducedMotion()
 
@@ -82,6 +89,8 @@ export function BarList({
         const color = d.color ?? ORDEN_COLORES[i % ORDEN_COLORES.length]
         const pct = tope > 0 ? Math.max(0, (d.valor / tope) * 100) : 0
         const delta = typeof d.delta === 'number' && Number.isFinite(d.delta) ? d.delta : null
+        const deltaBueno =
+          delta !== null && (delta >= 0) === deltaPositivoEsBueno
         return (
           <li key={d.clave} className="space-y-1">
             <div className="flex items-baseline justify-between gap-3">
@@ -95,9 +104,9 @@ export function BarList({
                 {delta !== null ? (
                   <span
                     className={`text-xs font-medium ${
-                      delta < 0
-                        ? 'text-rose-600 dark:text-rose-400'
-                        : 'text-uv-forest dark:text-uv-soft'
+                      deltaBueno
+                        ? 'text-uv-forest dark:text-uv-soft'
+                        : 'text-rose-600 dark:text-rose-400'
                     }`}
                   >
                     <span aria-hidden="true">{delta < 0 ? '▼' : '▲'}</span>{' '}
