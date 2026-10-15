@@ -86,7 +86,9 @@ export default async function DashboardPage() {
           r2: true,
           tipo: true,
           coeficientes: true,
-          bloque: { select: { id: true, edificacionId: true } },
+          bloqueId: true,
+          edificacionId: true,
+          bloque: { select: { edificacionId: true } },
         },
       }),
       prisma.edificacion.findMany({ select: { id: true, nombre: true } }),
@@ -137,8 +139,8 @@ export default async function DashboardPage() {
         diasFacturados: f.diasFacturados,
       })),
       lineasBase: lineasBase.map((lb) => ({
-        bloqueId: lb.bloque.id,
-        edificacionId: lb.bloque.edificacionId,
+        bloqueId: lb.bloqueId,
+        edificacionId: lb.edificacionId ?? lb.bloque?.edificacionId ?? '',
         modelos: [
           {
             tipo: lb.tipo,

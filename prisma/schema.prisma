@@ -134,8 +134,9 @@ model Edificacion {
   tipo      String
   createdAt DateTime @default(now())
 
-  bloques  Bloque[]
-  facturas FacturaEnergia[]
+  bloques    Bloque[]
+  facturas   FacturaEnergia[]
+  lineasBase LineaBaseEnergia[]
 
   @@map("edificaciones")
 }
@@ -236,7 +237,8 @@ model VariableOperativa {
 
 model LineaBaseEnergia {
   id              String   @id @default(cuid())
-  bloqueId        String
+  bloqueId        String?
+  edificacionId   String?
   tipo            String
   coeficientes    Json
   r2              Float?
@@ -244,10 +246,15 @@ model LineaBaseEnergia {
   rangosConfianza Float
   createdAt       DateTime @default(now())
 
-  bloque Bloque @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  bloque      Bloque?      @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  edificacion Edificacion? @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
 
-  // Una línea base por bloque y tipo: el guardado es un upsert explícito.
+  // Alcance exactamente uno por fila (XOR validado en aplicación: Prisma no
+  // expone CHECK): una línea base por bloque y tipo, o una por edificación
+  // completa y tipo. En Postgres los NULL no colisionan en únicos, así que
+  // conviven ambas llaves sin migrar datos existentes.
   @@unique([bloqueId, tipo])
+  @@unique([edificacionId, tipo])
   @@map("lineas_base_energia")
 }
 

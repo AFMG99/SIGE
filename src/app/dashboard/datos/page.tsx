@@ -143,6 +143,7 @@ export default async function DatosPage() {
         r2: true,
         createdAt: true,
         bloque: { select: { codigo: true, nombre: true } },
+        edificacion: { select: { nombre: true } },
       },
     }),
   ])
@@ -219,8 +220,9 @@ export default async function DatosPage() {
 
   const lineasBaseFilas: LineaBaseExistente[] = lineasBaseRecientes.map((lb) => ({
     id: lb.id,
-    bloqueCodigo: lb.bloque.codigo,
-    bloqueNombre: lb.bloque.nombre,
+    bloqueCodigo: lb.bloque?.codigo ?? null,
+    bloqueNombre: lb.bloque?.nombre ?? null,
+    edificacionNombre: lb.edificacion?.nombre ?? null,
     tipo: lb.tipo,
     r2: lb.r2,
     guardadaEn: fechaCorta(lb.createdAt),

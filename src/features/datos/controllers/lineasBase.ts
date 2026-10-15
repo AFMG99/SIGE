@@ -796,7 +796,10 @@ export async function calcularModelosLineaBase(
  * `schema.prisma`.
  */
 export async function guardarLineaBase(input: {
-  bloqueId: string
+  /** CUID del bloque (alcance de bloque); excluyente con `edificacionId`. */
+  bloqueId?: string
+  /** CUID de la edificación completa (alcance global); excluyente con `bloqueId`. */
+  edificacionId?: string
   modelo: ModeloLbenId
   resultado: Record<string, unknown>
   /** Meses sobrevivientes a la depuración (banda ±10 %, ec. 3; gate UPME). */
@@ -818,9 +821,14 @@ export async function guardarLineaBase(input: {
       }
     }
 
-    const { bloqueId, modelo, resultado } = input ?? {}
-    if (typeof bloqueId !== 'string' || !bloqueId) {
-      return { ok: false, error: 'Bloque inválido.' }
+    const { bloqueId, edificacionId, modelo, resultado } = input ?? {}
+    // Alcance exactamente uno por guardado: bloque o edificación completa;
+    // ambos ausentes o ambos presentes es error.
+    const bloqueSel = typeof bloqueId === 'string' && bloqueId ? bloqueId : null
+    const edificacionSel =
+      typeof edificacionId === 'string' && edificacionId ? edificacionId : null
+    if ((bloqueSel === null) === (edificacionSel === null)) {
+      return { ok: false, error: 'Selecciona un bloque o la edificación completa.' }
     }
     if (!MODELOS_LBEN.includes(modelo)) {
       return { ok: false, error: 'Modelo inválido.' }
@@ -866,10 +874,12 @@ export async function guardarLineaBase(input: {
 
     const tipo = TIPO_LBEN_DB[modelo]
     await prisma.lineaBaseEnergia.upsert({
-      where: { bloqueId_tipo: { bloqueId, tipo } },
+      where: bloqueSel
+        ? { bloqueId_tipo: { bloqueId: bloqueSel, tipo } }
+        : { edificacionId_tipo: { edificacionId: edificacionSel as string, tipo } },
       update: { coeficientes, r2, pValue },
       create: {
-        bloqueId,
+        ...(bloqueSel ? { bloqueId: bloqueSel } : { edificacionId: edificacionSel }),
         tipo,
         coeficientes,
         r2,
@@ -880,8 +890,10 @@ export async function guardarLineaBase(input: {
 
     await auditarAccion({
       action: 'linea_base.save',
-      targetId: bloqueId,
-      detail: `Línea base ${modelo} guardada para el bloque ${bloqueId}.`,
+      targetId: bloqueSel ?? edificacionSel ?? '',
+      detail: bloqueSel
+        ? `Línea base ${modelo} guardada para el bloque ${bloqueSel}.`
+        : `Línea base ${modelo} guardada para la edificación completa ${edificacionSel}.`,
     })
 
     return {
@@ -914,9 +926,9 @@ async function autorizarGestionLineasBase(): Promise<
 }
 
 /**
- * Elimina una línea base guardada (bloque + modelo). Requiere `upload`.
+ * Elimina una línea base guardada (bloque o edificación + modelo). Requiere `upload`.
  * A diferencia de `vaciarFacturas`, no toca el histórico de facturas:
- * sirve para liberar un bloque o recalcular su modelo desde cero.
+ * sirve para liberar un alcance o recalcular su modelo desde cero.
  */
 export async function eliminarLineaBase(id: string): Promise<ResultadoGestion> {
   try {
@@ -934,25 +946,30 @@ export async function eliminarLineaBase(id: string): Promise<ResultadoGestion> {
         id: true,
         tipo: true,
         bloque: { select: { codigo: true, nombre: true } },
+        edificacion: { select: { nombre: true } },
       },
     })
     if (!lineaBase) {
       return { estado: 'error', mensaje: 'La línea base indicada ya no existe.' }
     }
 
+    const alcanceDescripcion = lineaBase.bloque
+      ? `del bloque "${lineaBase.bloque.codigo} — ${lineaBase.bloque.nombre}"`
+      : `de la edificación completa "${lineaBase.edificacion?.nombre ?? '—'}"`
+
     await prisma.lineaBaseEnergia.delete({ where: { id: lineaBase.id } })
 
     await auditarAccion({
       action: 'linea_base.delete',
       targetId: lineaBase.id,
-      detail: `Línea base ${lineaBase.tipo} eliminada del bloque "${lineaBase.bloque.codigo} — ${lineaBase.bloque.nombre}".`,
+      detail: `Línea base ${lineaBase.tipo} eliminada ${alcanceDescripcion}.`,
     })
 
     return {
       estado: 'completado',
       eliminadas: 1,
       lineasBaseEliminadas: 1,
-      mensaje: `Se eliminó la línea base ${lineaBase.tipo} del bloque "${lineaBase.bloque.codigo} — ${lineaBase.bloque.nombre}".`,
+      mensaje: `Se eliminó la línea base ${lineaBase.tipo} ${alcanceDescripcion}.`,
     }
   } catch (error) {
     console.error('Error en eliminarLineaBase:', error)

@@ -52,7 +52,8 @@ export type ModeloSerie = {
 }
 
 export type LineaBaseBloque = {
-  bloqueId: string
+  /** `null` cuando la línea base es de la edificación completa. */
+  bloqueId: string | null
   edificacionId: string
   modelos: ModeloSerie[]
 }

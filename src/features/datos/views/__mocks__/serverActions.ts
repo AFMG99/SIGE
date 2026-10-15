@@ -690,15 +690,16 @@ export async function calcularModelosLineaBase(
 }
 
 export async function guardarLineaBase(input: {
-  bloqueId: string
+  bloqueId?: string
+  edificacionId?: string
   modelo: ModeloLbenId
   resultado: Record<string, unknown>
   depurados?: number
   mesesInsuficientes?: number[]
   origen?: OrigenShare
 }): Promise<RespuestaGuardar> {
-  if (!input?.bloqueId) {
-    return { ok: false, error: 'Bloque inválido.' }
+  if (!input?.bloqueId && !input?.edificacionId) {
+    return { ok: false, error: 'Selecciona un bloque o la edificación completa.' }
   }
   // La action real guarda igual con < 36 meses y devuelve `advertencia`.
   const advertencia =

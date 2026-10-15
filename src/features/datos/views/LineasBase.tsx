@@ -562,12 +562,18 @@ export function LineasBase({
 
   async function guardar(id: ModeloLbenId) {
     const previo = calc?.resultados[id]
-    const bloqueId = calc?.alcance.tipo === 'bloque' ? calc.alcance.bloqueId : null
-    if (!calc || !bloqueId || previo?.estado !== 'ok') return
+    if (!calc || previo?.estado !== 'ok') return
+    // Alcance de bloque → LB del bloque; alcance global con una edificación
+    // elegida → LB de la edificación completa. Global sin edificación (todas)
+    // y alcance de espacio no tienen alcance persistible.
+    const bloqueId = calc.alcance.tipo === 'bloque' ? calc.alcance.bloqueId : null
+    const edificacionId =
+      calc.alcance.tipo === 'global' && edificacionClave ? edificacionClave : null
+    if (!bloqueId && !edificacionId) return
     setGuardando(id)
     setErrorGuardado(null)
     const res = await guardarLineaBase({
-      bloqueId,
+      ...(bloqueId ? { bloqueId } : { edificacionId: edificacionId as string }),
       modelo: id,
       resultado: previo.resultado as unknown as Record<string, unknown>,
       depurados: calc.depurados,

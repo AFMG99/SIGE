@@ -113,12 +113,15 @@ export type AjustesExistentes = {
   filas: AjusteExistente[]
 }
 
-/** Línea base guardada (bloque + modelo) para la tabla de gestión. */
+/** Línea base guardada (bloque o edificación + modelo) para la tabla de gestión. */
 export type LineaBaseExistente = {
   /** Id del registro en BD; lo usa "Gestión de Facturas" para eliminarlo. */
   id: string
-  bloqueCodigo: string
-  bloqueNombre: string
+  /** Código del bloque; `null` cuando la línea base es de la edificación completa. */
+  bloqueCodigo: string | null
+  bloqueNombre: string | null
+  /** Nombre de la edificación completa (solo en filas sin bloque). */
+  edificacionNombre: string | null
   /** `LineaBaseEnergia.tipo` en BD (VALOR_ABSOLUTO, COCIENTE, …). */
   tipo: string
   r2: number | null

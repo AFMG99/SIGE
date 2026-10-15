@@ -495,7 +495,7 @@ export function GestionFacturas({ facturas, lineasBaseTotal, lineasBaseFilas }: 
               <thead className="sticky top-0 z-0">
                 <tr>
                   <th scope="col" className="whitespace-nowrap">
-                    Bloque
+                    Alcance
                   </th>
                   <th scope="col" className="whitespace-nowrap">
                     Modelo
@@ -515,7 +515,9 @@ export function GestionFacturas({ facturas, lineasBaseTotal, lineasBaseFilas }: 
                 {filasLineaBase.map((lb) => (
                   <tr key={lb.id} className="hover:bg-gray-50/70 dark:hover:bg-slate-800/60">
                     <td className="whitespace-nowrap text-gray-700 dark:text-gray-300">
-                      {lb.bloqueCodigo} — {lb.bloqueNombre}
+                      {lb.bloqueCodigo
+                        ? `${lb.bloqueCodigo} — ${lb.bloqueNombre}`
+                        : `Edificación completa${lb.edificacionNombre ? ` (${lb.edificacionNombre})` : ''}`}
                     </td>
                     <td className="whitespace-nowrap text-gray-700 dark:text-gray-300">
                       {LABEL_POR_TIPO_LBEN[lb.tipo] ?? lb.tipo}
@@ -530,7 +532,7 @@ export function GestionFacturas({ facturas, lineasBaseTotal, lineasBaseFilas }: 
                       <div className="flex justify-end">
                         <button
                           type="button"
-                          aria-label={`Eliminar línea base ${LABEL_POR_TIPO_LBEN[lb.tipo] ?? lb.tipo} del bloque ${lb.bloqueCodigo}`}
+                          aria-label={`Eliminar línea base ${LABEL_POR_TIPO_LBEN[lb.tipo] ?? lb.tipo} ${lb.bloqueCodigo ? `del bloque ${lb.bloqueCodigo}` : 'de la edificación completa'}`}
                           onClick={() => setLineaBasePorEliminar(lb.id)}
                           className={`${BOTON_FILA} border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40`}
                         >
@@ -578,7 +580,7 @@ export function GestionFacturas({ facturas, lineasBaseTotal, lineasBaseFilas }: 
         isOpen={lineaBasePorEliminar !== null}
         onClose={() => setLineaBasePorEliminar(null)}
         onConfirm={confirmarEliminarLineaBase}
-        title={`¿Eliminar la línea base ${filaLineaBasePorEliminar ? (LABEL_POR_TIPO_LBEN[filaLineaBasePorEliminar.tipo] ?? filaLineaBasePorEliminar.tipo).toLowerCase() : ''} del bloque ${filaLineaBasePorEliminar?.bloqueCodigo ?? ''}?`}
+        title={`¿Eliminar la línea base ${filaLineaBasePorEliminar ? (LABEL_POR_TIPO_LBEN[filaLineaBasePorEliminar.tipo] ?? filaLineaBasePorEliminar.tipo).toLowerCase() : ''} ${filaLineaBasePorEliminar ? (filaLineaBasePorEliminar.bloqueCodigo ? `del bloque ${filaLineaBasePorEliminar.bloqueCodigo}` : 'de la edificación completa') : ''}?`}
         description="El registro se eliminará permanentemente de la base de datos. Las facturas y variables se conservan. Esta acción no se puede deshacer."
         confirmText="Eliminar"
       />

@@ -321,8 +321,8 @@ export async function ejecutarAnalisis(
           },
         }),
         prisma.lineaBaseEnergia.findMany({
-          where: { bloque: { edificacionId } },
-          select: { bloqueId: true, tipo: true, coeficientes: true },
+          where: { OR: [{ bloque: { edificacionId } }, { edificacionId }] },
+          select: { bloqueId: true, edificacionId: true, tipo: true, coeficientes: true },
         }),
       ])
 
@@ -414,26 +414,40 @@ export async function ejecutarAnalisis(
 
     // ── KPIs de gestión por nivel (issue #75) ──────────────────────────
     // Edificación = exacto (facturas); bloques y espacios = el MISMO
-    // criterio de share que LBEn (models/shares.ts). Cada línea base
-    // guardada es de su bloque (el guardado oficial es por bloque), así
-    // que la LB de la edificación es la Σ de las de sus bloques y solo
-    // se habilita con cobertura completa (comparar una LB parcial contra
-    // el consumo total subestimaría el ahorro).
+    // criterio de share que LBEn (models/shares.ts). Cada línea base es
+    // de su bloque o de la edificación completa; la precedencia es
+    // «el bloque primero»: un bloque sin LB propia usa la de su
+    // edificación como respaldo (S3).
     const mediaNormalizado =
       facturas.reduce((suma, f) => suma + f.consumoNormalizado, 0) / facturas.length
     const criterio = crearCriterioShares({ bloques, espacios, mediaNormalizado })
 
     const filasPorBloque = new Map<string, { tipo: string; coeficientes: unknown }[]>()
+    const filasEdificacion: { tipo: string; coeficientes: unknown }[] = []
     for (const lb of lineasBase) {
-      const previas = filasPorBloque.get(lb.bloqueId) ?? []
-      previas.push({ tipo: lb.tipo, coeficientes: lb.coeficientes })
-      filasPorBloque.set(lb.bloqueId, previas)
+      const fila = { tipo: lb.tipo, coeficientes: lb.coeficientes }
+      if (lb.bloqueId) {
+        const previas = filasPorBloque.get(lb.bloqueId) ?? []
+        previas.push(fila)
+        filasPorBloque.set(lb.bloqueId, previas)
+      } else if (lb.edificacionId) {
+        filasEdificacion.push(fila)
+      }
     }
 
     const entradas: EntradaNivelGestion[] = []
-    const lbsBloques = bloques.map((b) =>
-      mejorLineaBaseGuardada(filasPorBloque.get(b.id) ?? [])
-    )
+    // Resolución por bloque (S3 «el bloque primero»): LB propia; sin ella,
+    // la LB de la edificación como respaldo.
+    const porBloque = bloques.map((b) => {
+      const propias = filasPorBloque.get(b.id) ?? []
+      const filas = propias.length > 0 ? propias : filasEdificacion
+      return {
+        lb: mejorLineaBaseGuardada(filas),
+        respaldada: propias.length === 0 && filas.length > 0,
+        notaSinLb: notaSinLineaBase(filas),
+      }
+    })
+    const lbsBloques = porBloque.map((x) => x.lb)
     const conLb = lbsBloques.filter((lb) => lb !== null).length
     const lbCompleta = bloques.length > 0 && conLb === bloques.length
     const lbTotal = lbsBloques.reduce((suma, lb) => suma + (lb?.kwh ?? 0), 0)
@@ -464,9 +478,9 @@ export async function ejecutarAnalisis(
       },
     })
 
-    for (const b of bloques) {
-      const filas = filasPorBloque.get(b.id) ?? []
-      const lbBloque = mejorLineaBaseGuardada(filas)
+    for (let indice = 0; indice < bloques.length; indice++) {
+      const b = bloques[indice]
+      const { lb: lbBloque, respaldada, notaSinLb } = porBloque[indice]
       entradas.push({
         tipo: 'bloque',
         clave: `b:${b.id}`,
@@ -477,7 +491,11 @@ export async function ejecutarAnalisis(
           kwh: lbBloque ? lbBloque.kwh : null,
           modelo: lbBloque ? lbBloque.modelo : null,
           cobertura: null,
-          nota: lbBloque ? null : notaSinLineaBase(filas),
+          nota: lbBloque
+            ? respaldada
+              ? 'Respaldada por la línea base de la edificación (el bloque aún no tiene la suya).'
+              : null
+            : notaSinLb,
         },
       })
       for (const e of espacios) {
@@ -493,7 +511,7 @@ export async function ejecutarAnalisis(
             kwh: lbBloque ? lbBloque.kwh * shareEspacio : null,
             modelo: lbBloque ? lbBloque.modelo : null,
             cobertura: null,
-            nota: lbBloque ? null : notaSinLineaBase(filas),
+            nota: lbBloque ? null : notaSinLb,
           },
         })
       }
