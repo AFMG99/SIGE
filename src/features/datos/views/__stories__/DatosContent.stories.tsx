@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { expect } from 'storybook/test'
+import { expect, within } from 'storybook/test'
 
 import { HeaderPosProvider } from '@/shared/views/nav/NavContext'
 import { DatosContent } from '../DatosContent'
@@ -264,6 +264,39 @@ export const CalendarioFestivosEnEdificaciones: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Infraestructura' }))
     await expect(
       await canvas.findByRole('button', { name: /nueva edificación/i })
+    ).toBeVisible()
+  },
+}
+
+export const HorariosPorEquipoEnSeccion: Story = {
+  name: 'Equipos Eléctricos · trazabilidad de horarios y horas de uso (S3)',
+  play: async ({ canvas, userEvent }) => {
+    // Sección «Equipos Eléctricos» (sidebar de DATOS_SECTIONS). Se acota al
+    // aside: la guía «Cómo funciona» del Resumen repite una pestaña con el
+    // mismo nombre exacto y rompe el getByRole único.
+    const menu = canvas.getByRole('complementary', {
+      name: /menú lateral del módulo de datos/i,
+    })
+    await userEvent.click(
+      await within(menu).findByRole('button', { name: /^equipos eléctricos$/i })
+    )
+
+    // Modo Visualización: panel de datos + trazabilidad por equipo (S3).
+    await userEvent.click(canvas.getByRole('button', { name: /^visualización$/i }))
+    await expect(
+      await canvas.findByRole('heading', { name: 'Horarios aplicables y horas de uso' })
+    ).toBeVisible()
+    // Cada equipo con horarios muestra su resumen anclado a «esta semana».
+    expect(canvas.getAllByText('Horas de uso · esta semana').length).toBeGreaterThan(0)
+    // Los equipos de Administración no tienen horarios en el fixture: estado
+    // vacío por equipo con la puntería al drawer «Calendario operativo».
+    const vacios = await canvas.findAllByText('Este equipo aún no tiene horarios asociados.')
+    expect(vacios.length).toBe(2)
+
+    // La trazabilidad también se lista bajo la tabla del modo Gestión.
+    await userEvent.click(canvas.getByRole('button', { name: /^gestión$/i }))
+    await expect(
+      await canvas.findByRole('heading', { name: 'Horarios aplicables y horas de uso' })
     ).toBeVisible()
   },
 }

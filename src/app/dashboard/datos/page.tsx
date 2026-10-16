@@ -73,7 +73,7 @@ export default async function DatosPage() {
           select: {
             codigo: true,
             nombre: true,
-            edificacion: { select: { nombre: true } },
+            edificacion: { select: { id: true, nombre: true } },
           },
         },
         espacio: { select: { nombre: true } },
@@ -218,6 +218,7 @@ export default async function DatosPage() {
     bloquesConInventario: bloquesConIds.size,
     filas: equiposRecientes.map((r) => ({
       id: r.id,
+      edificacionId: r.bloque.edificacion.id,
       bloqueId: r.bloqueId,
       espacioId: r.espacioId,
       edificacion: r.bloque.edificacion.nombre,

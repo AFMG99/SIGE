@@ -234,6 +234,150 @@ export function hayConflictoHorario(a: HorarioComparable, b: HorarioComparable):
 }
 
 // ============================================================
+// Fase 6 — trazabilidad de horarios por equipo (S3)
+// ============================================================
+
+/** Contexto jerárquico de un equipo del inventario (ids exactos por nivel). */
+export interface ContextoEquipo {
+  edificacionId: string
+  bloqueId: string
+  espacioId: string
+  equipoId?: string | null
+}
+
+/**
+ * Campos de ámbito en forma plana que necesita la aplicabilidad (S3): la fila
+ * de BD (`horarioEquipo`) y `HorarioEquipoInfo` cumplen esta forma
+ * estructuralmente; el dominio no conoce Prisma ni la UI.
+ */
+export interface HorarioConAmbito {
+  edificacionId: string
+  bloqueId?: string | null
+  espacioId?: string | null
+  equipoId?: string | null
+}
+
+/** Horario que aplica a un equipo + el nivel jerárquico por el que coincide. */
+export interface HorarioAplicable<T> {
+  horario: T
+  nivel: CodigoAmbito
+}
+
+/** Menor índice = más específico (el orden de salida de la aplicabilidad). */
+const ORDEN_NIVEL: Record<CodigoAmbito, number> = {
+  EQUIPO: 0,
+  ESPACIO: 1,
+  BLOQUE: 2,
+  EDIFICACION: 3,
+}
+
+/** Nivel activo de un horario: el más específico de la cascada (igual que `claveAmbito`). */
+const nivelDeHorario = (h: HorarioConAmbito): CodigoAmbito =>
+  h.equipoId ? 'EQUIPO' : h.espacioId ? 'ESPACIO' : h.bloqueId ? 'BLOQUE' : 'EDIFICACION'
+
+/**
+ * Horarios aplicables a un equipo (S3): coincide el nivel activo del horario
+ * (equipo → espacio → bloque → edificación) con el id exacto del contexto del
+ * equipo; solo se compara ese nivel más específico (un id equivocado en otro
+ * nivel nunca casa). Devuelve TODAS las filas aplicables — también las aún no
+ * vigentes o vencidas, porque la sección es de trazabilidad — ordenadas por
+ * especificidad (equipo → espacio → bloque → edificación) y, dentro de un
+ * nivel, en el orden original. Sin coincidencias: `[]`.
+ */
+export function horariosAplicablesAEquipo<T extends HorarioConAmbito>(
+  horarios: T[],
+  contexto: ContextoEquipo
+): HorarioAplicable<T>[] {
+  const coincidencias: { horario: T; nivel: CodigoAmbito; indice: number }[] = []
+  horarios.forEach((horario, indice) => {
+    const nivel = nivelDeHorario(horario)
+    const coincide =
+      nivel === 'EQUIPO'
+        ? !!contexto.equipoId && horario.equipoId === contexto.equipoId
+        : nivel === 'ESPACIO'
+          ? horario.espacioId === contexto.espacioId
+          : nivel === 'BLOQUE'
+            ? horario.bloqueId === contexto.bloqueId
+            : horario.edificacionId === contexto.edificacionId
+    if (coincide) coincidencias.push({ horario, nivel, indice })
+  })
+  coincidencias.sort(
+    (a, b) => ORDEN_NIVEL[a.nivel] - ORDEN_NIVEL[b.nivel] || a.indice - b.indice
+  )
+  return coincidencias.map(({ horario, nivel }) => ({ horario, nivel }))
+}
+
+/** Día de un resumen semanal: código LUN..DOM, fecha ISO y horas de uso. */
+export interface DiaHorasUso {
+  codigo: string
+  fecha: string
+  horas: number
+}
+
+/** Horas de uso de una semana completa (S3): «esta semana» es un número anclado. */
+export interface ResumenHorasUso {
+  /** Lunes y domingo de la semana anclada (`YYYY-MM-DD`). */
+  lunes: string
+  domingo: string
+  /** 7 entradas en orden LUN..DOM. */
+  dias: DiaHorasUso[]
+  /** Suma de las horas diarias (unión por día, sin doble conteo). */
+  total: number
+}
+
+const fechaHoyIso = (): string => new Date().toISOString().slice(0, 10)
+
+/**
+ * Lunes de la semana que contiene `fechaIso` (UTC; domingo pertenece a la
+ * semana que empezó el lunes anterior). Sin fecha o con una fecha mal formada
+ * devuelve el lunes de la semana en curso (fail-safe, como el resto del módulo).
+ */
+export function lunesDeSemana(fechaIso?: string): string {
+  const iso = fechaIso && /^\d{4}-\d{2}-\d{2}$/.test(fechaIso) ? fechaIso : fechaHoyIso()
+  const fecha = new Date(`${iso}T00:00:00Z`)
+  const desfaseLunes = (fecha.getUTCDay() + 6) % 7 // 0 si ya es lunes
+  fecha.setUTCDate(fecha.getUTCDate() - desfaseLunes)
+  return fecha.toISOString().slice(0, 10)
+}
+
+/**
+ * Horas de uso por día de la semana (L…D) y total semanal (S3), etiquetados
+ * como «esta semana»: la vigencia hace que las horas dependan del periodo, así
+ * que el resumen se ancla a una semana concreta (por defecto la en curso,
+ * lunes → domingo). Solo aportan horas los horarios con vigencia solapada a la
+ * semana; dentro de cada día se reutiliza `horasDeUsoEnFecha`, que respeta
+ * vigencia inclusiva, `diasSemana` y la unión de franjas (el solape entre
+ * horarios nunca se cuenta dos veces). Función pura, sin I/O ni Prisma.
+ */
+export function resumenHorasUsoDeSemana(
+  horarios: HorarioHorasUso[],
+  lunesIso?: string
+): ResumenHorasUso {
+  const lunes = lunesDeSemana(lunesIso)
+  const lunesFecha = new Date(`${lunes}T00:00:00Z`)
+  const domingoFecha = new Date(lunesFecha)
+  domingoFecha.setUTCDate(domingoFecha.getUTCDate() + 6)
+  const domingo = domingoFecha.toISOString().slice(0, 10)
+
+  const vigentesEnSemana = horarios.filter(
+    (h) => (!h.hasta || h.hasta >= lunes) && (!h.desde || h.desde <= domingo)
+  )
+
+  const dias: DiaHorasUso[] = CATALOGO_DIAS.map((d, i) => {
+    const fecha = new Date(lunesFecha)
+    fecha.setUTCDate(fecha.getUTCDate() + i)
+    const fechaIso = fecha.toISOString().slice(0, 10)
+    return {
+      codigo: d.codigo,
+      fecha: fechaIso,
+      horas: horasDeUsoEnFecha(vigentesEnSemana, fechaIso),
+    }
+  })
+
+  return { lunes, domingo, dias, total: dias.reduce((suma, d) => suma + d.horas, 0) }
+}
+
+// ============================================================
 // Presentación
 // ============================================================
 
@@ -288,4 +432,16 @@ export function formatearVigencia(desde: string | null, hasta: string | null): s
   if (desde && !hasta) return `Desde ${fechaEs(desde)}`
   if (!desde && hasta) return `Hasta ${fechaEs(hasta)}`
   return `${fechaEs(desde as string)} → ${fechaEs(hasta as string)}`
+}
+
+/**
+ * Vigencia corta para la trazabilidad por equipo (S3): rango `desde`–`hasta`;
+ * un extremo sin fecha se muestra como «abierta» en su posición y sin fechas
+ * la vigencia es «abierta».
+ */
+export function formatearVigenciaCorta(desde: string | null, hasta: string | null): string {
+  if (desde && hasta) return `${fechaEs(desde)} – ${fechaEs(hasta)}`
+  if (desde) return `${fechaEs(desde)} – abierta`
+  if (hasta) return `abierta – ${fechaEs(hasta)}`
+  return 'abierta'
 }

@@ -105,6 +105,7 @@ import { AjustesSection } from '@/features/datos/views/AjustesSection'
 import { ComoFunciona } from '@/features/datos/views/ComoFunciona'
 import { EdificacionesPanel } from '@/features/datos/views/EdificacionesPanel'
 import { CalendarioFestivos } from '@/features/datos/views/CalendarioFestivos'
+import { HorariosEquipos } from '@/features/datos/views/HorariosEquipos'
 import { MockFacturaVistaPrevia } from '@/features/datos/views/ComoFuncionaMocks'
 import { DATOS_SECTIONS } from '@/features/datos/views/nav'
 import { DatosContent } from '@/features/datos/views/DatosContent'
@@ -392,6 +393,21 @@ describe('desborde horizontal', () => {
       })
       // La rejilla (7 columnas) ni la lista de festivos desbordan en 320px.
       expect(grid.querySelectorAll('[role="gridcell"]').length).toBeGreaterThanOrEqual(31)
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+    })
+
+    it('HorariosEquipos: la trazabilidad por equipo no desborda el documento', async () => {
+      render(
+        <HorariosEquipos
+          equipos={equiposExistentesDemo.filas}
+          horarios={horariosEquipoDemo}
+        />
+      )
+      // Badges de nivel por fila: el panel ya renderizó sus tarjetas.
+      await vi.waitFor(() => {
+        expect(document.querySelector('[data-nivel]')).not.toBeNull()
+      })
+      // Filas de horario y chips de días con envoltura: sin desborde a 320px.
       expect(desbordeDocumento()).toBeLessThanOrEqual(1)
     })
 
