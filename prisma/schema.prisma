@@ -132,6 +132,10 @@ model Edificacion {
   nombre    String
   // Código del catálogo CATALOGO_EDIFICACIONES (ej. EDUCATIVO_CAMPUS)
   tipo      String
+  // Área total de la edificación en m² — variable relevante de la línea base
+  // (Resolución UPME 0016/2024, §7.3). Nullable: las edificaciones preexistentes
+  // conservan NULL hasta que el usuario la complete (compatibilidad sin migración).
+  area      Float?
   createdAt DateTime @default(now())
 
   bloques    Bloque[]

@@ -28,6 +28,8 @@ export type EdificacionCreada = {
   id: string
   nombre: string
   tipo: string
+  /** Área total en m² (UPME §7.3); null cuando aún no se ha registrado. */
+  area: number | null
 }
 
 export type BloqueCreado = {
@@ -51,13 +53,32 @@ export type ResultadoCreacionBloque =
   | { estado: 'error'; mensaje: string }
 
 /**
+ * Valida el área total en m² (UPME 0016/2024 §7.3). Entrada vacía o
+ * `undefined` → null (sin área registrada); cualquier otro valor debe ser un
+ * número finito mayor que cero.
+ */
+function validarArea(area: number | string | undefined): { ok: true; valor: number | null } | { ok: false; mensaje: string } {
+  if (area === undefined || area === null || String(area).trim() === '') {
+    return { ok: true, valor: null }
+  }
+  const valor = Number(area)
+  if (!Number.isFinite(valor) || valor <= 0) {
+    return { ok: false, mensaje: 'El área debe ser un número mayor que cero (en m²).' }
+  }
+  return { ok: true, valor }
+}
+
+const EDIF_SELECT = { id: true, nombre: true, tipo: true, area: true } as const
+
+/**
  * Crea una edificación con su tipo según CATALOGO_EDIFICACIONES.
  * Si el tipo no requiere bloque, crea en la misma transacción el bloque
  * automático único (invisible en el UI) que sostiene espacios y equipos.
  */
 export async function crearEdificacion(
   nombre: string,
-  tipo: string
+  tipo: string,
+  area?: number | string
 ): Promise<ResultadoCreacionEdificacion> {
   try {
     const auth = await autorizarCarga()
@@ -77,10 +98,13 @@ export async function crearEdificacion(
     }
     const info = tipoEdificacionPorCodigo(codigoTipo)
 
+    const areaValidada = validarArea(area)
+    if (!areaValidada.ok) return { estado: 'error', mensaje: areaValidada.mensaje }
+
     const creado = await prisma.$transaction(async (tx) => {
       const edificacion = await tx.edificacion.create({
-        data: { nombre: nombreLimpio, tipo: codigoTipo },
-        select: { id: true, nombre: true, tipo: true },
+        data: { nombre: nombreLimpio, tipo: codigoTipo, area: areaValidada.valor },
+        select: EDIF_SELECT,
       })
 
       if (info.requiereBloque) {
@@ -213,6 +237,196 @@ export async function crearBloque(
     }
     console.error('Error en crearBloque:', error)
     return { estado: 'error', mensaje: 'No fue posible crear el bloque. Intente de nuevo.' }
+  }
+}
+
+// ============================================================
+// EDICIÓN DEL CATÁLOGO
+// ============================================================
+
+export type ResultadoActualizacionEdificacion =
+  | { estado: 'ok'; edificacion: EdificacionCreada; mensaje: string }
+  | { estado: 'error'; mensaje: string }
+
+/**
+ * Actualiza nombre y área de una edificación.
+ *
+ * El tipo NO es editable: gobierna la estructura bloques/espacios y las
+ * identidades `[bloqueId, mes, ano]` de las variables operativas; cambiarlo
+ * dejaría equipos y variables huérfanos de su segmentación. Para otro tipo
+ * hay que crear una edificación nueva.
+ */
+export async function actualizarEdificacion(
+  id: string,
+  datos: { nombre: string; area?: number | string }
+): Promise<ResultadoActualizacionEdificacion> {
+  try {
+    const auth = await autorizarCarga()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    const idEdificacion = String(id ?? '').trim()
+    if (!idEdificacion) {
+      return { estado: 'error', mensaje: 'Debe indicar la edificación a actualizar.' }
+    }
+
+    const nombreLimpio = String(datos?.nombre ?? '').trim()
+    if (nombreLimpio.length < 2 || nombreLimpio.length > 100) {
+      return { estado: 'error', mensaje: 'El nombre debe tener entre 2 y 100 caracteres.' }
+    }
+
+    const areaValidada = validarArea(datos?.area)
+    if (!areaValidada.ok) return { estado: 'error', mensaje: areaValidada.mensaje }
+
+    const existente = await prisma.edificacion.findUnique({
+      where: { id: idEdificacion },
+      select: { id: true, nombre: true },
+    })
+    if (!existente) {
+      return { estado: 'error', mensaje: 'La edificación indicada no existe.' }
+    }
+
+    const edificacion = await prisma.edificacion.update({
+      where: { id: idEdificacion },
+      data: { nombre: nombreLimpio, area: areaValidada.valor },
+      select: EDIF_SELECT,
+    })
+
+    await auditarAccion({
+      action: 'edificacion.update',
+      targetId: edificacion.id,
+      detail: `Edificación "${edificacion.nombre}" actualizada (nombre/área).`,
+    })
+
+    return {
+      estado: 'ok',
+      edificacion,
+      mensaje: `Edificación "${edificacion.nombre}" actualizada.`,
+    }
+  } catch (error) {
+    console.error('Error en actualizarEdificacion:', error)
+    return {
+      estado: 'error',
+      mensaje: 'No fue posible actualizar la edificación. Intente de nuevo.',
+    }
+  }
+}
+
+// ============================================================
+// ESPACIOS (cantidad de espacios por bloque — UPME §7.3)
+// ============================================================
+
+export type EspacioCreado = { id: string; bloqueId: string; nombre: string }
+
+export type ResultadoCreacionEspacio =
+  | { estado: 'ok'; espacio: EspacioCreado; mensaje: string }
+  | { estado: 'error'; mensaje: string }
+
+/** Crea un espacio dentro de un bloque (nombre único por bloque). */
+export async function crearEspacio(
+  bloqueId: string,
+  nombre: string
+): Promise<ResultadoCreacionEspacio> {
+  try {
+    const auth = await autorizarCarga()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    const idBloque = String(bloqueId ?? '').trim()
+    const nombreLimpio = String(nombre ?? '').trim().replace(/\s+/g, ' ')
+    if (!idBloque) {
+      return { estado: 'error', mensaje: 'Debe indicar el bloque del espacio.' }
+    }
+    if (nombreLimpio.length < 2 || nombreLimpio.length > 100) {
+      return { estado: 'error', mensaje: 'El nombre del espacio debe tener entre 2 y 100 caracteres.' }
+    }
+
+    const bloque = await prisma.bloque.findUnique({
+      where: { id: idBloque },
+      select: { id: true },
+    })
+    if (!bloque) {
+      return { estado: 'error', mensaje: 'El bloque indicado no existe.' }
+    }
+
+    const espacio = await prisma.espacio.create({
+      data: { bloqueId: idBloque, nombre: nombreLimpio },
+      select: { id: true, bloqueId: true, nombre: true },
+    })
+
+    await auditarAccion({
+      action: 'espacio.create',
+      targetId: espacio.id,
+      detail: `Espacio "${espacio.nombre}" creado.`,
+    })
+
+    return {
+      estado: 'ok',
+      espacio,
+      mensaje: `Espacio "${espacio.nombre}" creado.`,
+    }
+  } catch (error) {
+    // Colisión de nombre único por bloque (P2002)
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2002'
+    ) {
+      return { estado: 'error', mensaje: 'Ya existe un espacio con ese nombre en este bloque.' }
+    }
+    console.error('Error en crearEspacio:', error)
+    return { estado: 'error', mensaje: 'No fue posible crear el espacio. Intente de nuevo.' }
+  }
+}
+
+/**
+ * Elimina un espacio; se rechaza si tiene equipos registrados, porque
+ * `EquipoElectrico.espacio` usa `onDelete: Cascade` y borrarlos destruiría
+ * datos sin opción de deshacer.
+ */
+export async function eliminarEspacio(id: string): Promise<ResultadoGestion> {
+  try {
+    const auth = await autorizarCarga()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    const idEspacio = String(id ?? '').trim()
+    if (!idEspacio) {
+      return { estado: 'error', mensaje: 'Debe indicar el espacio a eliminar.' }
+    }
+
+    const espacio = await prisma.espacio.findUnique({
+      where: { id: idEspacio },
+      select: { id: true, nombre: true, _count: { select: { equipos: true } } },
+    })
+    if (!espacio) {
+      return { estado: 'error', mensaje: 'El espacio indicado ya no existe.' }
+    }
+    if (espacio._count.equipos > 0) {
+      return {
+        estado: 'error',
+        mensaje:
+          `No se puede eliminar el espacio "${espacio.nombre}": tiene ` +
+          `${espacio._count.equipos === 1 ? '1 equipo' : `${espacio._count.equipos} equipos`} ` +
+          'registrados. Vacíelos primero en Gestión de Equipos Eléctricos.',
+      }
+    }
+
+    await prisma.espacio.delete({ where: { id: espacio.id } })
+
+    await auditarAccion({
+      action: 'espacio.delete',
+      targetId: espacio.id,
+      detail: `Se eliminó el espacio "${espacio.nombre}".`,
+    })
+
+    return {
+      estado: 'completado',
+      eliminadas: 1,
+      lineasBaseEliminadas: 0,
+      mensaje: `Se eliminó el espacio "${espacio.nombre}".`,
+    }
+  } catch (error) {
+    console.error('Error en eliminarEspacio:', error)
+    return { estado: 'error', mensaje: 'No fue posible eliminar el espacio. Intente de nuevo.' }
   }
 }
 

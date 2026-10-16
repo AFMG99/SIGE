@@ -2,10 +2,13 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { expect, within } from 'storybook/test'
 
 import {
+  actualizarEdificacion,
   crearBloque,
   crearEdificacion,
+  crearEspacio,
   eliminarBloque,
   eliminarEdificacion,
+  eliminarEspacio,
 } from '@/features/datos/controllers/edificaciones'
 import { EdificacionesPanel } from '../EdificacionesPanel'
 import { bloquesDemo, edificacionesDemo, espaciosDemo } from '../__fixtures__/catalogo'
@@ -18,9 +21,12 @@ const meta = {
     bloques: bloquesDemo,
     espacios: espaciosDemo,
     crearEdificacion,
+    actualizarEdificacion,
     eliminarEdificacion,
     crearBloque,
     eliminarBloque,
+    crearEspacio,
+    eliminarEspacio,
   },
 } satisfies Meta<typeof EdificacionesPanel>
 
@@ -29,6 +35,11 @@ type Story = StoryObj<typeof meta>
 
 export const Catalogo: Story = {
   name: 'Catálogo completo',
+  play: async ({ canvas }) => {
+    // Chips de área (UPME §7.3): formato es-CO y estado «sin registrar».
+    await expect(canvas.getByText('4.500 m²')).toBeVisible()
+    await expect(canvas.getByText('Sin área registrada')).toBeVisible()
+  },
 }
 
 export const CrearEdificacion: Story = {
@@ -104,5 +115,48 @@ export const EliminarEdificacionVacia: Story = {
       {},
       { timeout: 3000 }
     )
+  },
+}
+
+export const EditarEdificacion: Story = {
+  name: 'Editar el área de una edificación',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const screen = within(canvasElement.ownerDocument.body)
+
+    const tarjeta = canvas
+      .getByText('Administración Principal')
+      .closest('.ui-card') as HTMLElement
+    await userEvent.click(within(tarjeta).getByRole('button', { name: /editar edificación/i }))
+    const dialog = await screen.findByRole('dialog')
+
+    // El tipo viene cargado y deshabilitado: no es editable tras la creación.
+    const tipo = within(dialog).getByLabelText(/tipo/i) as HTMLSelectElement
+    expect(tipo.disabled).toBe(true)
+
+    const area = within(dialog).getByLabelText(/área total/i)
+    await userEvent.clear(area)
+    await userEvent.type(area, '750')
+    await userEvent.click(within(dialog).getByRole('button', { name: /guardar cambios/i }))
+
+    await screen.findByText(/Edificación "Administración Principal" actualizada/, {}, { timeout: 3000 })
+    // En Storybook el panel es stateless (el estado vive en el hook de
+    // DatosContent): la actualización se verifica por el toast del servidor.
+  },
+}
+
+export const AniadirEspacio: Story = {
+  name: 'Añadir un espacio a un bloque',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const screen = within(canvasElement.ownerDocument.body)
+
+    const campo = canvas.getByLabelText(/nuevo espacio en el bloque A-101/i)
+    await userEvent.type(campo, 'Aula 103')
+    // Hay un botón «Añadir espacio» por bloque: se usa el del formulario A-101.
+    const formulario = campo.closest('form') as HTMLElement
+    await userEvent.click(within(formulario).getByRole('button', { name: /añadir espacio/i }))
+
+    await screen.findByText(/Espacio "Aula 103" creado/, {}, { timeout: 3000 })
+    // En Storybook el panel es stateless: la lista no se muta; el alta se
+    // verifica por el toast del servidor.
   },
 }

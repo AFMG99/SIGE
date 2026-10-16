@@ -98,7 +98,7 @@ export default async function DatosPage() {
     }),
     prisma.lineaBaseEnergia.count(),
     prisma.edificacion.findMany({
-      select: { id: true, nombre: true, tipo: true },
+      select: { id: true, nombre: true, tipo: true, area: true },
       orderBy: { nombre: 'asc' },
     }),
     prisma.bloque.findMany({

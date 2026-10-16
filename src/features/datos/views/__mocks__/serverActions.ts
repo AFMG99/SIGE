@@ -22,8 +22,10 @@ import type {
   ResultadoImportacionVariables,
 } from '@/features/datos/models/validations'
 import type {
+  ResultadoActualizacionEdificacion,
   ResultadoCreacionBloque,
   ResultadoCreacionEdificacion,
+  ResultadoCreacionEspacio,
 } from '@/features/datos/controllers/edificaciones'
 import type { DatosNuevoAjuste } from '@/features/datos/controllers/ajustes'
 import type {
@@ -253,13 +255,42 @@ export async function vaciarLineasBase(): Promise<ResultadoGestion> {
 
 export async function crearEdificacion(
   nombre: string,
-  tipo: string
+  tipo: string,
+  area?: number | string
 ): Promise<ResultadoCreacionEdificacion> {
+  const areaNumerica =
+    area === undefined || String(area).trim() === '' ? null : Number(area)
   return {
     estado: 'ok',
-    edificacion: { id: slug(nombre, 'ed'), nombre, tipo },
+    edificacion: {
+      id: slug(nombre, 'ed'),
+      nombre,
+      tipo,
+      area: Number.isFinite(areaNumerica as number) ? (areaNumerica as number) : null,
+    },
     bloqueUnico: null,
     mensaje: `Edificación "${nombre}" creada.`,
+  }
+}
+
+export async function actualizarEdificacion(
+  id: string,
+  datos: { nombre: string; area?: number | string }
+): Promise<ResultadoActualizacionEdificacion> {
+  const areaNumerica =
+    datos.area === undefined || String(datos.area).trim() === ''
+      ? null
+      : Number(datos.area)
+  const edificacion = edificacionesDemo.find((e) => e.id === id)
+  return {
+    estado: 'ok',
+    edificacion: {
+      id,
+      nombre: datos.nombre,
+      tipo: edificacion?.tipo ?? 'OFICINA_PUBLICA',
+      area: Number.isFinite(areaNumerica as number) ? (areaNumerica as number) : null,
+    },
+    mensaje: `Edificación "${datos.nombre}" actualizada.`,
   }
 }
 
@@ -302,6 +333,27 @@ export async function eliminarBloque(id: string): Promise<ResultadoGestion> {
     eliminadas: 1,
     lineasBaseEliminadas: 0,
     mensaje: `Se eliminó el bloque "${etiqueta}"${extras}.`,
+  }
+}
+
+export async function crearEspacio(
+  bloqueId: string,
+  nombre: string
+): Promise<ResultadoCreacionEspacio> {
+  return {
+    estado: 'ok',
+    espacio: { id: slug(nombre, 'esp'), bloqueId, nombre },
+    mensaje: `Espacio "${nombre}" creado.`,
+  }
+}
+
+export async function eliminarEspacio(id: string): Promise<ResultadoGestion> {
+  void id
+  return {
+    estado: 'completado',
+    eliminadas: 1,
+    lineasBaseEliminadas: 0,
+    mensaje: 'Se eliminó el espacio.',
   }
 }
 

@@ -10,9 +10,10 @@ import type { BloqueInfo, EdificacionInfo, EspacioInfo } from '../useCatalogoEdi
  */
 
 export const edificacionesDemo: EdificacionInfo[] = [
-  { id: 'ed-campus-00000001', nombre: 'Campus Bloque A', tipo: 'EDUCATIVO_CAMPUS' },
-  { id: 'ed-oficina-000001', nombre: 'Administración Principal', tipo: 'OFICINA_PUBLICA' },
-  { id: 'ed-vivienda-00001', nombre: 'Vivienda 1', tipo: 'RESIDENCIAL_UNIFAMILIAR' },
+  { id: 'ed-campus-00000001', nombre: 'Campus Bloque A', tipo: 'EDUCATIVO_CAMPUS', area: 4500 },
+  // Sin área (null): edificación preexistente que aún no la registra.
+  { id: 'ed-oficina-000001', nombre: 'Administración Principal', tipo: 'OFICINA_PUBLICA', area: null },
+  { id: 'ed-vivienda-00001', nombre: 'Vivienda 1', tipo: 'RESIDENCIAL_UNIFAMILIAR', area: 120.5 },
 ]
 
 export const bloquesDemo: BloqueInfo[] = [

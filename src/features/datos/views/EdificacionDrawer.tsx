@@ -4,16 +4,25 @@ import { useState, useRef, useEffect, FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { CATALOGO_EDIFICACIONES, tipoEdificacionPorCodigo } from '@/features/datos/models/validations'
 
+/** Valores del formulario: `area` en m² como texto (vacío = sin registrar). */
+export type EdificacionFormData = { nombre: string; tipo: string; area: string }
+
+/** Edificación existente que se está editando (si la hay). */
+export type EdificacionEditable = { id: string; nombre: string; tipo: string; area?: number | null }
+
 interface EdificacionDrawerProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: { nombre: string; tipo: string }) => Promise<void>
+  onSubmit: (data: EdificacionFormData) => Promise<void>
   submitting?: boolean
+  /** Si se pasa, el drawer edita esta edificación en vez de crear una nueva. */
+  edicion?: EdificacionEditable | null
 }
 
-export type EdificacionFormData = { nombre: string; tipo: string }
-
 type FieldKey = keyof EdificacionFormData
+
+/** Convierte el área numérica del registro a texto de formulario. */
+const areaATexto = (area?: number | null): string => (area == null ? '' : String(area))
 
 function validate(form: EdificacionFormData): Partial<Record<FieldKey, string>> {
   const errors: Partial<Record<FieldKey, string>> = {}
@@ -30,28 +39,42 @@ function validate(form: EdificacionFormData): Partial<Record<FieldKey, string>> 
     errors.tipo = 'Seleccione el tipo de edificación'
   }
 
+  const areaLimpia = form.area.trim()
+  if (areaLimpia !== '') {
+    const valor = Number(areaLimpia)
+    if (!Number.isFinite(valor) || valor <= 0) {
+      errors.area = 'El área debe ser un número mayor que cero (en m²)'
+    }
+  }
+
   return errors
 }
 
-export function EdificacionDrawer({ isOpen, onClose, onSubmit, submitting = false }: EdificacionDrawerProps) {
+export function EdificacionDrawer({ isOpen, onClose, onSubmit, submitting = false, edicion = null }: EdificacionDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null)
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
   const [touched, setTouched] = useState<Partial<Record<FieldKey, boolean>>>({})
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const [form, setForm] = useState<EdificacionFormData>({ nombre: '', tipo: '' })
+  const [form, setForm] = useState<EdificacionFormData>({ nombre: '', tipo: '', area: '' })
 
-  // Reset al abrir
+  const modo: 'crear' | 'editar' = edicion ? 'editar' : 'crear'
+
+  // Reset al abrir (con los valores de la edificación en edición si la hay)
   useEffect(() => {
     if (!isOpen) return
     setErrors({})
     setTouched({})
     setSubmitted(false)
     setSubmitError('')
-    setForm({ nombre: '', tipo: '' })
+    setForm({
+      nombre: edicion?.nombre ?? '',
+      tipo: edicion?.tipo ?? '',
+      area: areaATexto(edicion?.area),
+    })
     const firstInput = drawerRef.current?.querySelector<HTMLInputElement>('input')
     firstInput?.focus()
-  }, [isOpen])
+  }, [isOpen, edicion])
 
   // Escape cierra
   useEffect(() => {
@@ -85,9 +108,17 @@ export function EdificacionDrawer({ isOpen, onClose, onSubmit, submitting = fals
     if (Object.keys(found).length > 0) return
 
     try {
-      await onSubmit({ nombre: form.nombre.trim(), tipo: form.tipo })
+      await onSubmit({
+        nombre: form.nombre.trim(),
+        tipo: form.tipo,
+        area: form.area.trim(),
+      })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo crear la edificación'
+      const message = err instanceof Error
+        ? err.message
+        : modo === 'editar'
+          ? 'No se pudo actualizar la edificación'
+          : 'No se pudo crear la edificación'
       setSubmitError(message)
     }
   }
@@ -117,10 +148,12 @@ export function EdificacionDrawer({ isOpen, onClose, onSubmit, submitting = fals
               id="edificacion-drawer-title"
               className="ui-title text-lg"
             >
-              Crear edificación
+              {modo === 'editar' ? 'Editar edificación' : 'Crear edificación'}
             </h2>
             <p className="ui-muted mt-1 text-sm">
-              Defina el nombre y el tipo; el formulario de importación se adapta al tipo elegido.
+              {modo === 'editar'
+                ? 'Actualice el nombre y el área total; el tipo define la estructura y no se puede cambiar.'
+                : 'Defina el nombre, el tipo y el área total en m²; el tipo adapta la estructura de bloques.'}
             </p>
           </div>
           <button
@@ -182,7 +215,7 @@ export function EdificacionDrawer({ isOpen, onClose, onSubmit, submitting = fals
                 setTouched((t) => ({ ...t, tipo: true }))
                 setErrors(validate(form))
               }}
-              disabled={submitting}
+              disabled={submitting || modo === 'editar'}
               aria-invalid={show('tipo') ? 'true' : undefined}
               aria-describedby={show('tipo') ? 'edificacion-tipo-error' : undefined}
               className={inputClass('tipo')}
@@ -199,11 +232,57 @@ export function EdificacionDrawer({ isOpen, onClose, onSubmit, submitting = fals
                 {errors.tipo}
               </p>
             )}
-            {infoTipo && (
+            {modo === 'editar' ? (
               <p className="ui-muted mt-1.5 text-xs">
-                {infoTipo.requiereBloque
-                  ? 'Este tipo requiere bloques: deberá crear al menos uno antes de importar.'
-                  : 'Se creará automáticamente un bloque único para esta edificación.'}
+                El tipo no se puede cambiar tras la creación: define la estructura de bloques
+                y la segmentación de equipos y variables. Cree una edificación nueva si necesita
+                otro tipo.
+              </p>
+            ) : (
+              infoTipo && (
+                <p className="ui-muted mt-1.5 text-xs">
+                  {infoTipo.requiereBloque
+                    ? 'Este tipo requiere bloques: deberá crear al menos uno antes de importar.'
+                    : 'Se creará automáticamente un bloque único para esta edificación.'}
+                </p>
+              )
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="edificacion-area" className="ui-label mb-1.5">
+              Área total (m²)
+            </label>
+            <input
+              id="edificacion-area"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="any"
+              value={form.area}
+              onChange={(e) => update({ area: e.target.value }, 'area')}
+              onBlur={() => {
+                setTouched((t) => ({ ...t, area: true }))
+                setErrors(validate(form))
+              }}
+              disabled={submitting}
+              placeholder="Ej. 1250.5"
+              aria-invalid={show('area') ? 'true' : undefined}
+              aria-describedby={
+                show('area')
+                  ? 'edificacion-area-error'
+                  : 'edificacion-area-help'
+              }
+              className={inputClass('area')}
+            />
+            {show('area') ? (
+              <p id="edificacion-area-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                {errors.area}
+              </p>
+            ) : (
+              <p id="edificacion-area-help" className="ui-muted mt-1 text-xs">
+                Variable relevante de la línea base según la Resolución UPME 0016 de 2024 (§7.3).
+                Puede dejarla en blanco y completarla después.
               </p>
             )}
           </div>
@@ -222,7 +301,11 @@ export function EdificacionDrawer({ isOpen, onClose, onSubmit, submitting = fals
               disabled={submitting}
               className="ui-btn ui-btn-primary"
             >
-              {submitting ? 'Guardando…' : 'Crear edificación'}
+              {submitting
+                ? 'Guardando…'
+                : modo === 'editar'
+                  ? 'Guardar cambios'
+                  : 'Crear edificación'}
             </button>
           </div>
         </form>

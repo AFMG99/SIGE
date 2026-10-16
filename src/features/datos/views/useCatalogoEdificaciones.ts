@@ -4,11 +4,11 @@
  * Catálogo compartido de edificaciones y bloques del módulo Gestión de Datos.
  *
  * Una sola fuente de verdad: vive en `DatosContent` y se pasa por props.
- * La creación/eliminación de EDIFICACIONES es responsabilidad del modo
- * «Edificaciones» de la sección Facturas de energía; los importadores de Equipos y
- * Variables heredan la lista y solo crean/eliminan bloques. Así, lo creado
- * en una sección es visible al instante en las demás (antes cada importador
- * guardaba su propia copia en `useState` y se desincronizaba).
+ * La creación/edición/eliminación de EDIFICACIONES es responsabilidad de la
+ * sección de primer nivel «Edificaciones»; los importadores de Facturas,
+ * Equipos y Variables heredan la lista y solo crean/eliminan bloques. Así,
+ * lo creado en una sección es visible al instante en las demás (antes cada
+ * importador guardaba su propia copia en `useState` y se desincronizaba).
  */
 
 import { useCallback, useState } from 'react'
@@ -16,12 +16,17 @@ import { useRouter } from 'next/navigation'
 import {
   crearBloque as crearBloqueAction,
   crearEdificacion as crearEdificacionAction,
+  crearEspacio as crearEspacioAction,
+  actualizarEdificacion as actualizarEdificacionAction,
   eliminarBloque as eliminarBloqueAction,
   eliminarEdificacion as eliminarEdificacionAction,
+  eliminarEspacio as eliminarEspacioAction,
 } from '@/features/datos/controllers/edificaciones'
 import type {
+  ResultadoActualizacionEdificacion,
   ResultadoCreacionBloque,
   ResultadoCreacionEdificacion,
+  ResultadoCreacionEspacio,
 } from '@/features/datos/controllers/edificaciones'
 import type { ResultadoGestion } from '@/features/datos/models/validations'
 
@@ -29,6 +34,8 @@ export interface EdificacionInfo {
   id: string
   nombre: string
   tipo: string
+  /** Área total en m² (UPME §7.3); ausente o null si aún no está registrada. */
+  area?: number | null
 }
 
 export interface BloqueInfo {
@@ -47,8 +54,15 @@ export interface EspacioInfo {
 /** Crea la edificación (y su bloque único automático si el tipo lo requiere). */
 export type CrearEdificacion = (
   nombre: string,
-  tipo: string
+  tipo: string,
+  area?: number | string
 ) => Promise<ResultadoCreacionEdificacion>
+
+/** Actualiza nombre y área de una edificación (el tipo no es editable). */
+export type ActualizarEdificacion = (
+  id: string,
+  datos: { nombre: string; area?: number | string }
+) => Promise<ResultadoActualizacionEdificacion>
 
 /** Elimina una edificación; se rechaza si tiene datos guardados. */
 export type EliminarEdificacion = (id: string) => Promise<ResultadoGestion>
@@ -65,17 +79,25 @@ export type CrearBloque = (
 /** Elimina un bloque vacío; se rechaza si tiene datos guardados. */
 export type EliminarBloque = (id: string) => Promise<ResultadoGestion>
 
+/** Crea un espacio dentro de un bloque (cantidad de espacios — UPME §7.3). */
+export type CrearEspacio = (bloqueId: string, nombre: string) => Promise<ResultadoCreacionEspacio>
+
+/** Elimina un espacio sin equipos; se rechaza si tiene equipos registrados. */
+export type EliminarEspacio = (id: string) => Promise<ResultadoGestion>
+
 export function useCatalogoEdificaciones(
   edificacionesInicial: EdificacionInfo[],
-  bloquesInicial: BloqueInfo[]
+  bloquesInicial: BloqueInfo[],
+  espaciosInicial: EspacioInfo[]
 ) {
   const router = useRouter()
   const [edificaciones, setEdificaciones] = useState<EdificacionInfo[]>(edificacionesInicial)
   const [bloques, setBloques] = useState<BloqueInfo[]>(bloquesInicial)
+  const [espacios, setEspacios] = useState<EspacioInfo[]>(espaciosInicial)
 
   const crearEdificacion: CrearEdificacion = useCallback(
-    async (nombre, tipo) => {
-      const res = await crearEdificacionAction(nombre, tipo)
+    async (nombre, tipo, area) => {
+      const res = await crearEdificacionAction(nombre, tipo, area)
       if (res.estado === 'ok') {
         const bloqueUnico = res.bloqueUnico
         setEdificaciones((prev) => [...prev, res.edificacion])
@@ -85,6 +107,18 @@ export function useCatalogoEdificaciones(
             { ...bloqueUnico, edificacionId: res.edificacion.id },
           ])
         }
+        router.refresh()
+      }
+      return res
+    },
+    [router]
+  )
+
+  const actualizarEdificacion: ActualizarEdificacion = useCallback(
+    async (id, datos) => {
+      const res = await actualizarEdificacionAction(id, datos)
+      if (res.estado === 'ok') {
+        setEdificaciones((prev) => prev.map((e) => (e.id === id ? res.edificacion : e)))
         router.refresh()
       }
       return res
@@ -129,13 +163,41 @@ export function useCatalogoEdificaciones(
     [router]
   )
 
+  const crearEspacio: CrearEspacio = useCallback(
+    async (bloqueId, nombre) => {
+      const res = await crearEspacioAction(bloqueId, nombre)
+      if (res.estado === 'ok') {
+        setEspacios((prev) => [...prev, res.espacio])
+        router.refresh()
+      }
+      return res
+    },
+    [router]
+  )
+
+  const eliminarEspacio: EliminarEspacio = useCallback(
+    async (id) => {
+      const res = await eliminarEspacioAction(id)
+      if (res.estado === 'completado') {
+        setEspacios((prev) => prev.filter((s) => s.id !== id))
+        router.refresh()
+      }
+      return res
+    },
+    [router]
+  )
+
   return {
     edificaciones,
     bloques,
+    espacios,
     crearEdificacion,
+    actualizarEdificacion,
     eliminarEdificacion,
     crearBloque,
     eliminarBloque,
+    crearEspacio,
+    eliminarEspacio,
   }
 }
 
