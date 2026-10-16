@@ -9,6 +9,7 @@ import type {
   LineaBaseExistente,
   VariablesExistentes,
 } from '@/features/datos/views/existencias'
+import type { EventoInfo } from '@/features/datos/models/eventos'
 
 export default async function DatosPage() {
   const user = await requireModuleAccess('consumption')
@@ -32,6 +33,7 @@ export default async function DatosPage() {
     calendarios,
     rangosCalendario,
     horariosEquipo,
+    eventosCalendario,
     ajustesAgg,
     ajustesRecientes,
     bloquesConAjustes,
@@ -157,6 +159,21 @@ export default async function DatosPage() {
         horaFin: true,
         desde: true,
         hasta: true,
+      },
+    }),
+    prisma.evento.findMany({
+      orderBy: [{ fechaInicio: 'asc' }, { nombre: 'asc' }],
+      select: {
+        id: true,
+        edificacionId: true,
+        tipo: true,
+        nombre: true,
+        descripcion: true,
+        fechaInicio: true,
+        fechaFin: true,
+        bloqueId: true,
+        espacioId: true,
+        equipoId: true,
       },
     }),
     prisma.ajusteEnergetico.aggregate({
@@ -317,6 +334,20 @@ export default async function DatosPage() {
         desde: h.desde ? h.desde.toISOString().slice(0, 10) : null,
         hasta: h.hasta ? h.hasta.toISOString().slice(0, 10) : null,
       }))}
+      eventos={eventosCalendario.map(
+        (ev): EventoInfo => ({
+          id: ev.id,
+          edificacionId: ev.edificacionId,
+          tipo: ev.tipo,
+          nombre: ev.nombre,
+          descripcion: ev.descripcion,
+          fechaInicio: ev.fechaInicio.toISOString().slice(0, 10),
+          fechaFin: ev.fechaFin ? ev.fechaFin.toISOString().slice(0, 10) : null,
+          bloqueId: ev.bloqueId,
+          espacioId: ev.espacioId,
+          equipoId: ev.equipoId,
+        })
+      )}
       facturasExistentes={facturasExistentes}
       equiposExistentes={equiposExistentes}
       variablesExistentes={variablesExistentes}

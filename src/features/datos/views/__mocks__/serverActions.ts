@@ -28,6 +28,7 @@ import type {
   ResultadoCreacionEspacio,
 } from '@/features/datos/controllers/edificaciones'
 import type { ResultadoCalculoGde, Exito } from '@/features/datos/controllers/calendario'
+import type { EventoInfo } from '@/features/datos/models/eventos'
 import type { DatosNuevoAjuste } from '@/features/datos/controllers/ajustes'
 import type {
   CalculoLineaBase,
@@ -469,6 +470,46 @@ export async function crearHorarioEquipo(
 export async function eliminarHorarioEquipo(id: string): Promise<Exito<{ mensaje: string }>> {
   void id
   return { estado: 'ok', mensaje: 'Horario eliminado.' }
+}
+
+// ------------------------------------------------------------
+// Eventos del calendario (Fase 6 — T7, S7/S8)
+// ------------------------------------------------------------
+
+export async function crearEvento(
+  edificacionId: string,
+  datos: {
+    tipo: string
+    nombre: string
+    descripcion?: string | null
+    fechaInicio: string
+    fechaFin?: string | null
+    ambito?: { bloqueId?: string | null; espacioId?: string | null; equipoId?: string | null }
+  }
+): Promise<Exito<{ mensaje: string; evento: EventoInfo }>> {
+  const ambito = datos?.ambito
+  return {
+    estado: 'ok',
+    mensaje: 'Evento creado.',
+    evento: {
+      // Id mágico para que las stories distingan la fila creada por el doble.
+      id: `ev-mock-${slug(datos.nombre, 'ev')}`,
+      edificacionId,
+      tipo: datos.tipo,
+      nombre: datos.nombre,
+      descripcion: datos.descripcion ?? null,
+      fechaInicio: datos.fechaInicio,
+      fechaFin: datos.fechaFin ?? null,
+      bloqueId: ambito?.bloqueId ?? null,
+      espacioId: ambito?.espacioId ?? null,
+      equipoId: ambito?.equipoId ?? null,
+    },
+  }
+}
+
+export async function eliminarEvento(id: string): Promise<Exito<{ mensaje: string }>> {
+  void id
+  return { estado: 'ok', mensaje: 'Evento eliminado del calendario.' }
 }
 
 export async function eliminarEdificacion(id: string): Promise<ResultadoGestion> {

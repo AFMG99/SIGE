@@ -20,6 +20,7 @@ import {
 } from './icons'
 import { EdificacionesPanel } from './EdificacionesPanel'
 import { CalendarioFestivos } from './CalendarioFestivos'
+import { EventosCalendario } from './EventosCalendario'
 import { useCatalogoEdificaciones } from './useCatalogoEdificaciones'
 import type {
   BloqueInfo,
@@ -44,6 +45,7 @@ import type {
   LineaBaseExistente,
   VariablesExistentes,
 } from './existencias'
+import type { EventoInfo } from '../models/eventos'
 import {
   construirPanelAjustes,
   construirPanelEquipos,
@@ -97,6 +99,8 @@ type DatosContentProps = {
   rangos: RangoCalendarioUI[]
   /** Horarios de funcionamiento de equipos por edificación (UPME §7.1/§7.3). */
   horarios: HorarioEquipoInfo[]
+  /** Eventos del calendario por edificación (S7; herencia S8 en T8). */
+  eventos: EventoInfo[]
   facturasExistentes: FacturasExistentes
   equiposExistentes: EquiposExistentes
   variablesExistentes: VariablesExistentes
@@ -116,6 +120,7 @@ export function DatosContent({
   calendarios,
   rangos,
   horarios,
+  eventos,
   facturasExistentes,
   equiposExistentes,
   variablesExistentes,
@@ -444,7 +449,19 @@ export function DatosContent({
               </div>
 
               {vistaEdificaciones === 'calendario' ? (
-                <CalendarioFestivos />
+                <div className="space-y-6">
+                  {/* T7: panel CRUD de eventos (S7/S8) como hermano del calendario;
+                      T8 lo superpondrá a la rejilla, semana y agenda. */}
+                  <EventosCalendario
+                    edificaciones={edificacionesCat}
+                    bloques={bloquesCat}
+                    espacios={espaciosCat}
+                    equipos={equiposExistentes.filas}
+                    eventos={eventos}
+                    puedeCargar={puedeCargar}
+                  />
+                  <CalendarioFestivos />
+                </div>
               ) : !puedeCargar ? (
                 <div className="ui-callout ui-callout-info" role="status">
                   Su rol tiene permisos de <strong>solo lectura</strong> en este módulo. Puede
