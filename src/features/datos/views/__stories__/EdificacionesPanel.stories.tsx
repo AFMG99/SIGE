@@ -174,12 +174,12 @@ export const AniadirEspacio: Story = {
 }
 
 export const CalendarioGde: Story = {
-  name: 'Calendario y GDE con fórmula visible',
+  name: 'Calendario operativo: configuración, interruptor Xe y aviso',
   play: async ({ canvas, canvasElement, userEvent }) => {
     const screen = within(canvasElement.ownerDocument.body)
 
     await userEvent.click(
-      canvas.getByRole('button', { name: /calendario y gde de campus bloque a/i })
+      canvas.getByRole('button', { name: /calendario operativo de campus bloque a/i })
     )
     const dialog = await screen.findByRole('dialog')
 
@@ -203,20 +203,24 @@ export const CalendarioGde: Story = {
     // Rangos del calendario visibles.
     await expect(within(dialog).getByText('09/02/2026 → 13/06/2026')).toBeVisible()
 
-    // Calcular con la fuente climática mockeada.
-    await userEvent.click(within(dialog).getByRole('button', { name: /calcular gde/i }))
-    // Resultado + fórmula sustituida (interpretabilidad — S8).
-    await screen.findByText('41,2 °C·día', {}, { timeout: 3000 })
+    // S4: interruptor «Usar horarios como Xe» con su texto de ayuda exacto.
+    const interruptor = within(dialog).getByRole('switch', { name: /usar horarios como xe/i })
+    expect((interruptor as HTMLInputElement).checked).toBe(false)
     await expect(
-      within(dialog).getByText(/GDE = Σ\(Tp − Tb\)·Xd sobre 20 días operativos/)
+      within(dialog).getByText(
+        'Apagado: Xe = horas de operación (H), comportamiento actual. Encendido: Xe = horas de uso de los horarios vigentes por día.'
+      )
     ).toBeVisible()
-    await expect(within(dialog).getByText('12/02/2026')).toBeVisible()
+    await userEvent.click(interruptor)
+    expect((interruptor as HTMLInputElement).checked).toBe(true)
 
-    // Registro en variables operativas existentes.
-    await userEvent.click(
-      within(dialog).getByRole('button', { name: /registrar en variables operativas/i })
-    )
-    await screen.findByText(/registrada en 2 variables operativas/i, {}, { timeout: 3000 })
+    // S2: el bloque 4 (cálculo de la GDE) ya no vive en el drawer…
+    expect(within(dialog).queryByRole('button', { name: /calcular gde/i })).toBeNull()
+    expect(within(dialog).queryByText(/GDE mensual calculada/i)).toBeNull()
+    // …solo queda el aviso al pie.
+    await expect(
+      within(dialog).getByText('La GDE mensual se calcula desde Variables Operativas.')
+    ).toBeVisible()
   },
 }
 
@@ -226,7 +230,7 @@ export const HorariosEquipos: Story = {
     const screen = within(canvasElement.ownerDocument.body)
 
     await userEvent.click(
-      canvas.getByRole('button', { name: /calendario y gde de campus bloque a/i })
+      canvas.getByRole('button', { name: /calendario operativo de campus bloque a/i })
     )
     const dialog = await screen.findByRole('dialog')
 
@@ -248,7 +252,7 @@ export const HorarioAmbitoEspacio: Story = {
     const screen = within(canvasElement.ownerDocument.body)
 
     await userEvent.click(
-      canvas.getByRole('button', { name: /calendario y gde de campus bloque a/i })
+      canvas.getByRole('button', { name: /calendario operativo de campus bloque a/i })
     )
     const dialog = await screen.findByRole('dialog')
 

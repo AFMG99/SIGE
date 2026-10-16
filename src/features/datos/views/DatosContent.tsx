@@ -547,6 +547,9 @@ export function DatosContent({
                     eliminarBloque={eliminarBloque}
                     onIrAlCatalogo={irAlCatalogo}
                     puedeCargar={puedeCargar}
+                    calendarios={calendarios}
+                    rangos={rangos}
+                    horarios={horarios}
                   />
                 </React.Suspense>
               ) : modoVariables === 'gestion' ? (

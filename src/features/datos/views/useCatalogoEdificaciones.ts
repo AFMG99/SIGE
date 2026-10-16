@@ -50,6 +50,8 @@ export interface CalendarioInfo {
   horaInicioOperacion: number
   horasOperacionDia: number
   temperaturaBase: number
+  /** Opt-in S4: usar las horas de los horarios vigentes como Xe en la GDE. */
+  usarHorariosXe?: boolean | null
 }
 
 /** Rango de fechas con tipo de día (fechas ISO `YYYY-MM-DD`). */

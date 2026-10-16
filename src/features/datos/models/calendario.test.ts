@@ -8,6 +8,8 @@ import {
   TDEA_PLANTILLA,
 } from './calendario'
 import type { RangoCalendarioInfo } from './calendario'
+import { horasDeUsoEnFecha } from './horarios'
+import type { HorarioHorasUso } from './horarios'
 
 /** Rangos de prueba: febrero 2026 (28 días), mes de referencia de las pruebas. */
 const rangosFebrero: RangoCalendarioInfo[] = [
@@ -219,5 +221,120 @@ describe('mapearUbicaciones (geocoding de Open-Meteo)', () => {
     const res = mapearUbicaciones({ results })
     expect(res).toHaveLength(8)
     expect(res[0].nombre).toBe('Ciudad 0')
+  })
+})
+
+// ============================================================
+// Fase 6 — S4: GDE con Xe opt-in (peso normalizado por duración)
+// ============================================================
+
+describe('calcularGde con Xe por horarios (S4)', () => {
+  // Febrero 2026: día 1 = domingo → en 11..28 hay 13 hábiles (11,12,13,
+  // 16..20, 23..27) y 5 fin de semana (14,15,21,22,28).
+  const diasHabiles = ['11', '12', '13', '16', '17', '18', '19', '20', '23', '24', '25', '26', '27']
+  const diasFinDeSemana = ['14', '15', '21', '22', '28']
+  const isoFeb = (dia: string) => `2026-02-${dia}`
+
+  /** 24 horas constantes (°C) para un día. */
+  const dia = (fecha: string, temp: number) => ({ fecha, horas: Array(24).fill(temp) })
+
+  /** Horario fijo LUN–VIE 07:00–13:00 (6 h) sin vigencia (siempre activo). */
+  const horarioLaboral: HorarioHorasUso[] = [
+    { diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'], horaInicio: 7, horaFin: 13 },
+  ]
+
+  /** Mapa fecha→horas de uso calculado con la función pura de horarios. */
+  const mapaUsos = (horarios: HorarioHorasUso[]) =>
+    new Map(
+      [...diasHabiles, ...diasFinDeSemana].map((d) => [
+        isoFeb(d),
+        horasDeUsoEnFecha(horarios, isoFeb(d)),
+      ])
+    )
+
+  it('flag OFF (sin mapa) conserva bit a bit el cálculo legado', () => {
+    // Perfil con pico el día 11: media de 6..17 = 315/12 = 26.25 → 3.25 grados;
+    // los otros 17 días a 27 °C → 4 grados → GDE legado = 3.25 + 68 = 71.25.
+    const horas = Array(24).fill(27)
+    ;[24, 25, 26, 27, 28, 29, 30, 28, 26, 25, 24, 23].forEach((v, i) => {
+      horas[6 + i] = v
+    })
+    const temps = [dia('2026-02-11', 0), ...diasFinDeSemana.concat(diasHabiles.slice(1)).map((d) => dia(isoFeb(d), 27))]
+    temps[0] = { fecha: '2026-02-11', horas }
+
+    const legado = calcularGde({ rangos: rangosFebrero, config, tempsHorarias: temps, mes: 2, ano: 2026 })
+    const conOptOut = calcularGde({
+      rangos: rangosFebrero,
+      config,
+      tempsHorarias: temps,
+      mes: 2,
+      ano: 2026,
+      horasUsoPorFecha: null,
+    })
+
+    // Expectation codificada del legado (equivalencia bit a bit).
+    expect(legado.gde).toBe(71.25)
+    expect(legado.sumaGrados).toBe(71.25)
+    expect(conOptOut.gde).toBe(legado.gde)
+    expect(conOptOut.sumaGrados).toBe(legado.sumaGrados)
+    expect(conOptOut.detalle).toEqual(legado.detalle)
+    // Xe = H fijo: 18 días operativos × 12 h = 216 h; peso exactamente 1.
+    expect(conOptOut.xeTotalHoras).toBe(216)
+    expect(conOptOut.usarHorariosXe).toBe(false)
+    expect(conOptOut.detalle[0].xe).toBe(12)
+  })
+
+  it('flag ON usa las horas de los horarios vigentes por día', () => {
+    // Datos climáticos para los 18 días operativos (constante 27 °C).
+    const temps = [...diasHabiles, ...diasFinDeSemana].map((d) => dia(isoFeb(d), 27))
+    const res = calcularGde({
+      rangos: rangosFebrero,
+      config,
+      tempsHorarias: temps,
+      mes: 2,
+      ano: 2026,
+      horasUsoPorFecha: mapaUsos(horarioLaboral),
+    })
+
+    // Hábiles: xe = 6 h → peso 6/12 = 0.5 → 4 × 0.5 = 2 grados × 13 = 26.
+    expect(res.usarHorariosXe).toBe(true)
+    expect(res.gde).toBe(26)
+    expect(res.xeTotalHoras).toBe(78) // 13 hábiles × 6 h; fin de semana = 0.
+    const porFecha = new Map(res.detalle.map((d) => [d.fecha, d]))
+    expect(porFecha.get('2026-02-11')?.xe).toBe(6) // miércoles
+    expect(porFecha.get('2026-02-14')?.xe).toBe(0) // sábado
+    expect(porFecha.get('2026-02-11')?.grados).toBe(2)
+    expect(porFecha.get('2026-02-14')?.grados).toBe(0)
+    // La fórmula no cambia: Tp sigue midiendo la ventana operativa.
+    expect(porFecha.get('2026-02-11')?.tp).toBe(27)
+  })
+
+  it('flag ON sin horarios registrados aporta 0 (el mes completo no escribe)', () => {
+    const temps = [dia(isoFeb('11'), 27), dia(isoFeb('12'), 27)]
+    const base = { rangos: rangosFebrero, config, tempsHorarias: temps, mes: 2, ano: 2026 }
+    const legado = calcularGde(base)
+    const res = calcularGde({ ...base, horasUsoPorFecha: mapaUsos([]) })
+    expect(legado.gde).toBe(8) // legado: 2 días × 4 grados
+    expect(res.gde).toBe(0)
+    expect(res.xeTotalHoras).toBe(0)
+    // Tp y los contadores no se afectan: solo cambia la fuente de Xe.
+    expect(res.detalle[0].tp).toBe(27)
+    expect(res.diasConTemperatura).toBe(legado.diasConTemperatura)
+  })
+
+  it('recorta a 24 h un mapa con horas por encima del tope', () => {
+    const temps = [dia(isoFeb('11'), 27)]
+    const res = calcularGde({
+      rangos: [{ fechaInicio: '2026-02-11', fechaFin: '2026-02-11', tipoDia: 'LECTIVO' }],
+      config,
+      tempsHorarias: temps,
+      mes: 2,
+      ano: 2026,
+      horasUsoPorFecha: new Map([['2026-02-11', 48]]),
+    })
+    // 48 h → tope 24 → peso 24/12 = 2 → 4 × 2 = 8.
+    expect(res.gde).toBe(8)
+    expect(res.xeTotalHoras).toBe(24)
+    expect(res.detalle[0].xe).toBe(24)
   })
 })

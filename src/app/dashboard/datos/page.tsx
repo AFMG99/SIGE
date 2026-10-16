@@ -129,6 +129,7 @@ export default async function DatosPage() {
         horaInicioOperacion: true,
         horasOperacionDia: true,
         temperaturaBase: true,
+        usarHorariosXe: true,
       },
     }),
     prisma.rangoCalendario.findMany({

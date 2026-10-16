@@ -14,6 +14,7 @@ import {
   calcularGde,
   configCalendarioSchema,
   consultaGdeSchema,
+  mapaXeDelMes,
   rangoCalendarioSchema,
 } from '@/features/datos/models/calendario'
 import type { ConfigCalendario, ResultadoGde } from '@/features/datos/models/calendario'
@@ -323,18 +324,45 @@ export async function calcularGdeMensual(
       consulta.data.ano
     )
 
+    // S4 (opt-in): con el interruptor encendido, Xe sale de las horas de uso
+    // de los horarios vigentes por día; apagado → mapa null = cálculo legado.
+    const rangosIso = rangos.map((r) => ({
+      id: r.id,
+      fechaInicio: r.fechaInicio.toISOString().slice(0, 10),
+      fechaFin: r.fechaFin.toISOString().slice(0, 10),
+      tipoDia: r.tipoDia,
+      nombre: r.nombre,
+    }))
+
+    let horasUsoPorFecha: Map<string, number> | null = null
+    if (edificacion.calendario.usarHorariosXe) {
+      const horarios = await prisma.horarioEquipo.findMany({
+        where: { edificacionId: edificacion.id },
+        select: { diasSemana: true, horaInicio: true, horaFin: true, desde: true, hasta: true },
+      })
+      horasUsoPorFecha = mapaXeDelMes({
+        rangos: rangosIso,
+        config,
+        horarios: horarios.map((h) => ({
+          diasSemana: h.diasSemana,
+          horaInicio: h.horaInicio,
+          horaFin: h.horaFin,
+          desde: h.desde ? h.desde.toISOString().slice(0, 10) : null,
+          hasta: h.hasta ? h.hasta.toISOString().slice(0, 10) : null,
+        })),
+        usarHorariosXe: true,
+        mes: consulta.data.mes,
+        ano: consulta.data.ano,
+      })
+    }
+
     const resultado = calcularGde({
-      rangos: rangos.map((r) => ({
-        id: r.id,
-        fechaInicio: r.fechaInicio.toISOString().slice(0, 10),
-        fechaFin: r.fechaFin.toISOString().slice(0, 10),
-        tipoDia: r.tipoDia,
-        nombre: r.nombre,
-      })),
+      rangos: rangosIso,
       config,
       tempsHorarias,
       mes: consulta.data.mes,
       ano: consulta.data.ano,
+      horasUsoPorFecha,
     })
 
     if (resultado.diasOperativos === 0) {
