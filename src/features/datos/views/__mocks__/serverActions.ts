@@ -22,9 +22,12 @@ import type {
   ResultadoImportacionVariables,
 } from '@/features/datos/models/validations'
 import type {
+  ResultadoActualizacionEdificacion,
   ResultadoCreacionBloque,
   ResultadoCreacionEdificacion,
+  ResultadoCreacionEspacio,
 } from '@/features/datos/controllers/edificaciones'
+import type { ResultadoCalculoGde, Exito } from '@/features/datos/controllers/calendario'
 import type { DatosNuevoAjuste } from '@/features/datos/controllers/ajustes'
 import type {
   CalculoLineaBase,
@@ -253,13 +256,42 @@ export async function vaciarLineasBase(): Promise<ResultadoGestion> {
 
 export async function crearEdificacion(
   nombre: string,
-  tipo: string
+  tipo: string,
+  area?: number | string
 ): Promise<ResultadoCreacionEdificacion> {
+  const areaNumerica =
+    area === undefined || String(area).trim() === '' ? null : Number(area)
   return {
     estado: 'ok',
-    edificacion: { id: slug(nombre, 'ed'), nombre, tipo },
+    edificacion: {
+      id: slug(nombre, 'ed'),
+      nombre,
+      tipo,
+      area: Number.isFinite(areaNumerica as number) ? (areaNumerica as number) : null,
+    },
     bloqueUnico: null,
     mensaje: `Edificación "${nombre}" creada.`,
+  }
+}
+
+export async function actualizarEdificacion(
+  id: string,
+  datos: { nombre: string; area?: number | string }
+): Promise<ResultadoActualizacionEdificacion> {
+  const areaNumerica =
+    datos.area === undefined || String(datos.area).trim() === ''
+      ? null
+      : Number(datos.area)
+  const edificacion = edificacionesDemo.find((e) => e.id === id)
+  return {
+    estado: 'ok',
+    edificacion: {
+      id,
+      nombre: datos.nombre,
+      tipo: edificacion?.tipo ?? 'OFICINA_PUBLICA',
+      area: Number.isFinite(areaNumerica as number) ? (areaNumerica as number) : null,
+    },
+    mensaje: `Edificación "${datos.nombre}" actualizada.`,
   }
 }
 
@@ -303,6 +335,140 @@ export async function eliminarBloque(id: string): Promise<ResultadoGestion> {
     lineasBaseEliminadas: 0,
     mensaje: `Se eliminó el bloque "${etiqueta}"${extras}.`,
   }
+}
+
+export async function crearEspacio(
+  bloqueId: string,
+  nombre: string
+): Promise<ResultadoCreacionEspacio> {
+  return {
+    estado: 'ok',
+    espacio: { id: slug(nombre, 'esp'), bloqueId, nombre },
+    mensaje: `Espacio "${nombre}" creado.`,
+  }
+}
+
+export async function eliminarEspacio(id: string): Promise<ResultadoGestion> {
+  void id
+  return {
+    estado: 'completado',
+    eliminadas: 1,
+    lineasBaseEliminadas: 0,
+    mensaje: 'Se eliminó el espacio.',
+  }
+}
+
+// ------------------------------------------------------------
+// Calendario operativo y GDE (Fase 2)
+// ------------------------------------------------------------
+
+export async function guardarConfigCalendario(
+  edificacionId: string,
+  datos: {
+    horaInicioOperacion: number
+    horasOperacionDia: number
+    temperaturaBase: number
+    lat: number
+    lon: number
+  }
+): Promise<{ estado: 'ok'; mensaje: string } | { estado: 'error'; mensaje: string }> {
+  void edificacionId
+  void datos
+  return { estado: 'ok', mensaje: 'Configuración operativa guardada.' }
+}
+
+export async function agregarRangoCalendario(
+  edificacionId: string,
+  datos: { fechaInicio: string; fechaFin: string; tipoDia: string; nombre?: string }
+): Promise<{ estado: 'ok'; mensaje: string } | { estado: 'error'; mensaje: string }> {
+  void edificacionId
+  void datos
+  return { estado: 'ok', mensaje: 'Rango agregado al calendario.' }
+}
+
+export async function eliminarRangoCalendario(
+  id: string
+): Promise<{ estado: 'ok'; mensaje: string } | { estado: 'error'; mensaje: string }> {
+  void id
+  return { estado: 'ok', mensaje: 'Rango eliminado del calendario.' }
+}
+
+export async function cargarPlantillaCalendario(
+  edificacionId: string
+): Promise<{ estado: 'ok'; mensaje: string } | { estado: 'error'; mensaje: string }> {
+  void edificacionId
+  return {
+    estado: 'ok',
+    mensaje:
+      'Plantilla cargada (7 rangos). Revise y ajuste las fechas si difieren de su caso.',
+  }
+}
+
+/** Resultado determinista para las stories: semestre 2026-1 con Tb = 23 °C. */
+export async function calcularGdeMensual(
+  edificacionId: string,
+  mes: number,
+  ano: number
+): Promise<Exito<ResultadoCalculoGde>> {
+  void edificacionId
+  return {
+    estado: 'ok',
+    resultado: {
+      gde: 41.2,
+      diasOperativos: 20,
+      diasConTemperatura: 18,
+      diasSinTemperatura: 2,
+      sumaGrados: 41.2,
+      detalle: [
+        { fecha: '2026-02-09', tp: 25.4, grados: 2.4 },
+        { fecha: '2026-02-10', tp: 26.1, grados: 3.1 },
+        { fecha: '2026-02-11', tp: 22.8, grados: 0 },
+        { fecha: '2026-02-12', tp: null, grados: 0 },
+        { fecha: '2026-02-13', tp: 27.9, grados: 4.9 },
+      ],
+    },
+    config: { horaInicioOperacion: 6, horasOperacionDia: 12, temperaturaBase: 23 },
+    mes,
+    ano,
+    fuente: 'Open-Meteo (reanálisis ERA5/Copernicus)',
+    mensaje: 'GDE calculada: 41.2 °C·día sobre 20 días operativos.',
+  }
+}
+
+export async function registrarGdeCalculado(
+  edificacionId: string,
+  mes: number,
+  ano: number,
+  gde: number
+): Promise<
+  | { estado: 'ok'; actualizadas: number; sinRegistro: number; mensaje: string }
+  | { estado: 'error'; mensaje: string }
+> {
+  void edificacionId
+  return {
+    estado: 'ok',
+    actualizadas: 2,
+    sinRegistro: 0,
+    mensaje: `GDE ${gde} °C·día (${mes}/${ano}) registrada en 2 variables operativas.`,
+  }
+}
+
+// ------------------------------------------------------------
+// Horarios de funcionamiento de equipos (Fase 3)
+// ------------------------------------------------------------
+
+export async function crearHorarioEquipo(
+  edificacionId: string,
+  datos: { nombre: string; diasSemana: string[]; horaInicio: number; horaFin: number }
+): Promise<Exito<{ mensaje: string }>> {
+  void edificacionId
+  void datos
+  return { estado: 'ok', mensaje: 'Horario agregado.' }
+}
+
+export async function eliminarHorarioEquipo(id: string): Promise<Exito<{ mensaje: string }>> {
+  void id
+  return { estado: 'ok', mensaje: 'Horario eliminado.' }
 }
 
 export async function eliminarEdificacion(id: string): Promise<ResultadoGestion> {

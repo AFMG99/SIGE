@@ -9,7 +9,7 @@ import { DatosContent } from '../DatosContent'
  * first query for their content needs more than the default 1s wait.
  */
 const LAZY_SECTION_TIMEOUT = 5000
-import { bloquesDemo, edificacionesDemo, espaciosDemo } from '../__fixtures__/catalogo'
+import { bloquesDemo, calendariosDemo, edificacionesDemo, espaciosDemo, horariosEquipoDemo, rangosCalendarioDemo } from '../__fixtures__/catalogo'
 import {
   ajustesExistentesDemo,
   equiposExistentesDemo,
@@ -29,6 +29,9 @@ const meta = {
     edificaciones: edificacionesDemo,
     bloques: bloquesDemo,
     espacios: espaciosDemo,
+    calendarios: calendariosDemo,
+    rangos: rangosCalendarioDemo,
+    horarios: horariosEquipoDemo,
     facturasExistentes: facturasExistentesDemo,
     equiposExistentes: equiposExistentesDemo,
     variablesExistentes: variablesExistentesDemo,
@@ -233,5 +236,34 @@ export const AjustesSinCarga: Story = {
     ).toBeVisible()
     await expect(await canvas.findByRole('button', { name: 'Vaciar base de datos' })).toBeVisible()
     await expect(canvas.queryByRole('button', { name: /descargar plantilla/i })).toBeNull()
+  },
+}
+
+export const CalendarioFestivosEnEdificaciones: Story = {
+  name: 'Edificaciones → vista Calendario con festivos',
+  play: async ({ canvas, userEvent }) => {
+    // Sección Edificaciones (sidebar de DATOS_SECTIONS).
+    await userEvent.click(await canvas.findByRole('button', { name: /^edificaciones$/i }))
+    await expect(
+      await canvas.findByRole('heading', { name: /gestión de edificaciones/i })
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: 'Infraestructura', pressed: true })
+    ).toBeVisible()
+
+    // Sub-vista «Calendario» (S11): festivos de Colombia del mes en curso.
+    await userEvent.click(canvas.getByRole('button', { name: 'Calendario' }))
+    await expect(
+      await canvas.findByRole('heading', { name: /calendario de festivos de colombia/i })
+    ).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Mes siguiente' })).toBeVisible()
+    await expect(
+      canvas.getByRole('heading', { name: /^festivos de .+ de \d{4}$/i })
+    ).toBeVisible()
+    // Volver al catálogo.
+    await userEvent.click(canvas.getByRole('button', { name: 'Infraestructura' }))
+    await expect(
+      await canvas.findByRole('button', { name: /nueva edificación/i })
+    ).toBeVisible()
   },
 }

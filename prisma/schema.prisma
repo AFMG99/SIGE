@@ -132,13 +132,98 @@ model Edificacion {
   nombre    String
   // Código del catálogo CATALOGO_EDIFICACIONES (ej. EDUCATIVO_CAMPUS)
   tipo      String
+  // Área total de la edificación en m² — variable relevante de la línea base
+  // (Resolución UPME 0016/2024, §7.3). Nullable: las edificaciones preexistentes
+  // conservan NULL hasta que el usuario la complete (compatibilidad sin migración).
+  area      Float?
+  // Coordenadas de la edificación: necesarias para la fuente climática
+  // (Open-Meteo) que alimenta el cálculo de la GDE.
+  lat       Float?
+  lon       Float?
   createdAt DateTime @default(now())
 
   bloques    Bloque[]
   facturas   FacturaEnergia[]
   lineasBase LineaBaseEnergia[]
+  calendario CalendarioOperativo?
+  horarios   HorarioEquipo[]
 
   @@map("edificaciones")
+}
+
+// Horario de funcionamiento de un grupo de equipos de la edificación
+// (Resolución UPME 0016/2024, §7.1/§7.3: horarios de operación). Días de la
+// semana (códigos LUN..DOM en array de Postgres) + franja horaria diaria.
+// Sin cruce de medianoche: una franja que pasa de 23:00 a 06:00 se registra
+// como dos filas. Validación de dominio en features/datos/models/horarios.ts.
+model HorarioEquipo {
+  id            String   @id @default(cuid())
+  edificacionId String
+  // Ámbito jerárquico (aditivo — S12): todos nulos = horario de la edificación
+  // completa (las filas preexistentes); si no, el nivel activo es el más
+  // específico de la cascada equipo → espacio → bloque → edificación.
+  bloqueId   String?
+  espacioId  String?
+  equipoId   String?
+  nombre     String
+  diasSemana String[]
+  horaInicio Int
+  horaFin    Int
+  // Vigencia (aditiva): nula en filas preexistentes; `hasta` nula = abierta.
+  desde  DateTime? @db.Date
+  hasta  DateTime? @db.Date
+  createdAt DateTime @default(now())
+
+  edificacion Edificacion     @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  bloque      Bloque?         @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  espacio     Espacio?        @relation(fields: [espacioId], references: [id], onDelete: Cascade)
+  equipo      EquipoElectrico? @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+
+  @@index([edificacionId])
+  @@index([bloqueId])
+  @@index([espacioId])
+  @@index([equipoId])
+  @@map("horarios_equipo")
+}
+
+// Calendario operativo configurable por edificación (UPME 0016/2024 §7.1/§7.3:
+// horarios de operación). La configuración fija el horario operativo diario (H)
+// y la temperatura base de climatización (Tb, típicamente 3 °C bajo el confort:
+// 20/23/25 °C); los RangoCalendario describen qué días son operativos.
+model CalendarioOperativo {
+  id                  String   @id @default(cuid())
+  edificacionId       String   @unique
+  // Hora de inicio del día operativo (0-23) y duración en horas (1-24): define
+  // las horas H sobre las que se promedia la temperatura en la fórmula GDE.
+  horaInicioOperacion Int
+  horasOperacionDia   Int
+  // Temperatura base Tb en °C.
+  temperaturaBase     Float
+  createdAt           DateTime @default(now())
+
+  edificacion Edificacion     @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  rangos      RangoCalendario[]
+
+  @@map("calendarios_operativos")
+}
+
+// Rango de fechas con tipo de día (catálogo CATALOGO_TIPOS_DIA): LECTIVO/HABIL
+// son operativos; VACACIONES/FESTIVOS no. Plantillas (p. ej. la del TdeA tomada
+// de docs/calendario-*.pdf) son solo datos iniciales editables — sin fechas
+// fijas en la lógica.
+model RangoCalendario {
+  id           String   @id @default(cuid())
+  calendarioId String
+  fechaInicio  DateTime @db.Date
+  fechaFin     DateTime @db.Date
+  tipoDia      String
+  nombre       String?
+  createdAt    DateTime @default(now())
+
+  calendario CalendarioOperativo @relation(fields: [calendarioId], references: [id], onDelete: Cascade)
+
+  @@index([calendarioId])
+  @@map("rangos_calendario")
 }
 
 model Bloque {
@@ -157,6 +242,7 @@ model Bloque {
   variables  VariableOperativa[]
   lineasBase LineaBaseEnergia[]
   ajustes    AjusteEnergetico[]
+  horarios   HorarioEquipo[]
 
   @@index([edificacionId])
   @@map("bloques")
@@ -170,6 +256,7 @@ model Espacio {
 
   bloque  Bloque   @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
   equipos EquipoElectrico[]
+  horarios HorarioEquipo[]
 
   @@unique([bloqueId, nombre])
   @@map("espacios")
@@ -189,6 +276,7 @@ model EquipoElectrico {
 
   bloque  Bloque  @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
   espacio Espacio @relation(fields: [espacioId], references: [id], onDelete: Cascade)
+  horarios HorarioEquipo[]
 
   @@unique([bloqueId, espacioId, tipo])
   @@index([bloqueId])

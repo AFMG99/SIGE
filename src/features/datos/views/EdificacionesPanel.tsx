@@ -1,56 +1,89 @@
 'use client'
 
 /**
- * Modo «Edificaciones» (sección Facturas de energía): catálogo maestro de la
- * estructura física — edificaciones → bloques → espacios — que segmenta
- * facturas, equipos y variables. Crea y elimina edificaciones y bloques; los
- * espacios nacen con la importación de equipos y no se editan aquí.
+ * Sección «Edificaciones» (nivel principal del módulo de datos): catálogo
+ * maestro de la estructura física — edificaciones → bloques → espacios —
+ * que segmenta facturas, equipos y variables. Crea, edita y elimina
+ * edificaciones; gestiona bloques y espacios (cantidad de espacios, UPME §7.3).
  *
  * El estado vive en `DatosContent` (`useCatalogoEdificaciones`): este panel
  * solo invoca los callbacks y refleja lo que devuelven, de modo que lo creado
- * aquí se ve al instante en Equipos, Variables y Líneas Base.
+ * aquí se ve al instante en Facturas, Equipos, Variables y Líneas Base.
  */
 
-import { useState } from 'react'
+import { useState, FormEvent } from 'react'
 import { tipoEdificacionPorCodigo } from '@/features/datos/models/validations'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { EdificacionDrawer } from './EdificacionDrawer'
-import type { EdificacionFormData } from './EdificacionDrawer'
+import type { EdificacionFormData, EdificacionEditable } from './EdificacionDrawer'
+import { CalendarioGdeDrawer } from './CalendarioGdeDrawer'
 import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
 import type {
+  ActualizarEdificacion,
   BloqueInfo,
+  CalendarioInfo,
   CrearBloque,
   CrearEdificacion,
+  CrearEspacio,
   EdificacionInfo,
   EliminarBloque,
   EliminarEdificacion,
+  EliminarEspacio,
   EspacioInfo,
+  HorarioEquipoInfo,
+  RangoCalendarioUI,
 } from './useCatalogoEdificaciones'
+import type { EquipoExistente } from './existencias'
 
-type ObjetivoBorrado = 'edificacion' | 'bloque' | null
+type ObjetivoBorrado = 'edificacion' | 'bloque' | 'espacio' | null
+
+const formatearArea = (area?: number | null): string =>
+  area == null
+    ? 'Sin área registrada'
+    : `${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(area)} m²`
 
 export function EdificacionesPanel({
   edificaciones,
   bloques,
   espacios,
+  equipos,
+  calendarios,
+  rangos,
+  horarios,
   crearEdificacion,
+  actualizarEdificacion,
   eliminarEdificacion,
   crearBloque,
   eliminarBloque,
+  crearEspacio,
+  eliminarEspacio,
 }: {
   edificaciones: EdificacionInfo[]
   bloques: BloqueInfo[]
   espacios: EspacioInfo[]
+  /** Equipos registrados (ids jerárquicos para el ámbito de horarios, S12). */
+  equipos: EquipoExistente[]
+  /** Configuración operativa (calendario/GDE) por edificación. */
+  calendarios: CalendarioInfo[]
+  /** Rangos de fechas de todos los calendarios. */
+  rangos: RangoCalendarioUI[]
+  /** Horarios de funcionamiento de equipos por edificación. */
+  horarios: HorarioEquipoInfo[]
   crearEdificacion: CrearEdificacion
+  actualizarEdificacion: ActualizarEdificacion
   eliminarEdificacion: EliminarEdificacion
   crearBloque: CrearBloque
   eliminarBloque: EliminarBloque
+  crearEspacio: CrearEspacio
+  eliminarEspacio: EliminarEspacio
 }) {
   const { showToast } = useToast()
 
   const [edifDrawerOpen, setEdifDrawerOpen] = useState(false)
+  /** Edificación en edición; null = modo creación. */
+  const [edifEdicion, setEdifEdicion] = useState<EdificacionEditable | null>(null)
   const [guardandoEdificacion, setGuardandoEdificacion] = useState(false)
   const [bloqueDrawerOpen, setBloqueDrawerOpen] = useState(false)
   const [guardandoBloque, setGuardandoBloque] = useState(false)
@@ -58,23 +91,38 @@ export function EdificacionesPanel({
   const [edificacionNueva, setEdificacionNueva] = useState<EdificacionInfo | null>(null)
 
   const [dialogoBorrado, setDialogoBorrado] = useState<ObjetivoBorrado>(null)
+  /** Edificación con el drawer de calendario/GDE abierto. */
+  const [calEdificacion, setCalEdificacion] = useState<EdificacionInfo | null>(null)
   const [edificacionObjetivo, setEdificacionObjetivo] = useState<EdificacionInfo | null>(null)
   const [bloqueObjetivo, setBloqueObjetivo] = useState<BloqueInfo | null>(null)
+  const [espacioObjetivo, setEspacioObjetivo] = useState<EspacioInfo | null>(null)
   const [borrando, setBorrando] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
 
   const etiquetaTipo = (codigo: string): string => tipoEdificacionPorCodigo(codigo).etiqueta
 
   // ------------------------------------------
-  // Creación (drawers)
+  // Creación y edición (drawers)
   // ------------------------------------------
 
-  /** Submit del EdificacionDrawer: en error lanza para que el drawer muestre la alerta. */
-  const crearDesdeDrawer = async (datos: EdificacionFormData) => {
+  const abrirCreacion = () => {
+    setEdifEdicion(null)
+    setEdifDrawerOpen(true)
+  }
+
+  const abrirEdicion = (e: EdificacionInfo) => {
+    setEdifEdicion({ id: e.id, nombre: e.nombre, tipo: e.tipo, area: e.area })
+    setEdifDrawerOpen(true)
+  }
+
+  /** Submit del EdificacionDrawer (crear o editar): en error lanza para que el drawer muestre la alerta. */
+  const guardarDesdeDrawer = async (datos: EdificacionFormData) => {
     if (guardandoEdificacion) return
     setGuardandoEdificacion(true)
     try {
-      const res = await crearEdificacion(datos.nombre, datos.tipo)
+      const res = edifEdicion
+        ? await actualizarEdificacion(edifEdicion.id, { nombre: datos.nombre, area: datos.area })
+        : await crearEdificacion(datos.nombre, datos.tipo, datos.area)
       if (res.estado === 'error') {
         throw new Error(res.mensaje)
       }
@@ -109,6 +157,23 @@ export function EdificacionesPanel({
     }
   }
 
+  /** Alta rápida de espacio en un bloque (cantidad de espacios — UPME §7.3). */
+  const crearEspacioEnBloque = async (bloqueId: string, e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const form = e.currentTarget
+    const campo = form.elements.namedItem('nombre-espacio') as HTMLInputElement | null
+    const nombre = campo?.value.trim() ?? ''
+    if (!campo || !nombre) return
+    const res = await crearEspacio(bloqueId, nombre)
+    if (res.estado === 'error') {
+      setAviso(res.mensaje)
+      return
+    }
+    setAviso(null)
+    campo.value = ''
+    showToast(res.mensaje, 'success')
+  }
+
   // ------------------------------------------
   // Eliminación (confirmación)
   // ------------------------------------------
@@ -118,6 +183,7 @@ export function EdificacionesPanel({
     setDialogoBorrado(null)
     setEdificacionObjetivo(null)
     setBloqueObjetivo(null)
+    setEspacioObjetivo(null)
   }
 
   const confirmarBorrado = async () => {
@@ -134,6 +200,14 @@ export function EdificacionesPanel({
         showToast(res.mensaje, 'success')
       } else if (dialogoBorrado === 'bloque' && bloqueObjetivo) {
         const res = await eliminarBloque(bloqueObjetivo.id)
+        if (res.estado === 'error') {
+          setDialogoBorrado(null)
+          setAviso(res.mensaje)
+          return
+        }
+        showToast(res.mensaje, 'success')
+      } else if (dialogoBorrado === 'espacio' && espacioObjetivo) {
+        const res = await eliminarEspacio(espacioObjetivo.id)
         if (res.estado === 'error') {
           setDialogoBorrado(null)
           setAviso(res.mensaje)
@@ -182,7 +256,7 @@ export function EdificacionesPanel({
           </div>
           <button
             type="button"
-            onClick={() => setEdifDrawerOpen(true)}
+            onClick={abrirCreacion}
             className="ui-btn ui-btn-primary shrink-0"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -231,6 +305,15 @@ export function EdificacionesPanel({
                   <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                     {info.etiqueta}
                   </span>
+                  <span
+                    className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                      e.area == null
+                        ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                        : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-gray-300'
+                    }`}
+                  >
+                    {formatearArea(e.area)}
+                  </span>
                 </div>
                 <p className="ui-muted mt-1 text-xs">
                   {info.requiereBloque
@@ -239,6 +322,15 @@ export function EdificacionesPanel({
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCalEdificacion(e)}
+                  disabled={borrando}
+                  aria-label={`Calendario y GDE de ${e.nombre}`}
+                  className="ui-btn ui-btn-secondary"
+                >
+                  Calendario y GDE
+                </button>
                 {info.requiereBloque && (
                   <button
                     type="button"
@@ -251,6 +343,15 @@ export function EdificacionesPanel({
                     Nuevo bloque
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => abrirEdicion(e)}
+                  disabled={borrando}
+                  aria-label={`Editar edificación ${e.nombre}`}
+                  className="ui-btn ui-btn-secondary"
+                >
+                  Editar
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -275,34 +376,77 @@ export function EdificacionesPanel({
                 {bloquesDe.map((b) => {
                   const espaciosDe = espacios.filter((s) => s.bloqueId === b.id)
                   return (
-                    <li
-                      key={b.id}
-                      className="flex flex-wrap items-center justify-between gap-3 px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {b.codigo} — {b.nombre}
-                        </p>
-                        <p className="ui-muted text-xs">
-                          {espaciosDe.length === 0
-                            ? 'Sin espacios'
-                            : espaciosDe.length === 1
-                              ? '1 espacio'
-                              : `${espaciosDe.length} espacios`}
-                        </p>
+                    <li key={b.id} className="px-3 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">
+                            {b.codigo} — {b.nombre}
+                          </p>
+                          <p className="ui-muted text-xs">
+                            {espaciosDe.length === 0
+                              ? 'Sin espacios'
+                              : espaciosDe.length === 1
+                                ? '1 espacio'
+                                : `${espaciosDe.length} espacios`}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBloqueObjetivo(b)
+                            setDialogoBorrado('bloque')
+                          }}
+                          disabled={borrando}
+                          aria-label={`Eliminar bloque ${b.codigo}`}
+                          className="ui-btn ui-btn-secondary shrink-0 text-red-600 hover:border-red-400 hover:text-red-700"
+                        >
+                          Eliminar
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setBloqueObjetivo(b)
-                          setDialogoBorrado('bloque')
-                        }}
-                        disabled={borrando}
-                        aria-label={`Eliminar bloque ${b.codigo}`}
-                        className="ui-btn ui-btn-secondary shrink-0 text-red-600 hover:border-red-400 hover:text-red-700"
-                      >
-                        Eliminar
-                      </button>
+
+                      {/* Espacios del bloque: consulta + alta rápida + baja */}
+                      <div className="mt-2 space-y-2">
+                        {espaciosDe.map((s) => (
+                          <div
+                            key={s.id}
+                            className="flex items-center justify-between gap-3 rounded-md bg-gray-50 px-2.5 py-1.5 dark:bg-slate-800/60"
+                          >
+                            <p className="min-w-0 truncate text-xs">{s.nombre}</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEspacioObjetivo(s)
+                                setDialogoBorrado('espacio')
+                              }}
+                              disabled={borrando}
+                              aria-label={`Eliminar espacio ${s.nombre}`}
+                              className="focus-ring shrink-0 rounded text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        ))}
+                        <form
+                          onSubmit={(e2) => void crearEspacioEnBloque(b.id, e2)}
+                          className="flex items-center gap-2"
+                        >
+                          <input
+                            type="text"
+                            name="nombre-espacio"
+                            placeholder="Nombre del espacio (ej. Aula 101)"
+                            maxLength={100}
+                            aria-label={`Nuevo espacio en el bloque ${b.codigo}`}
+                            className="ui-input min-h-10 flex-1 py-1.5 text-xs"
+                          />
+                          <button
+                            type="submit"
+                            disabled={borrando}
+                            className="ui-btn ui-btn-secondary ui-btn-sm shrink-0"
+                          >
+                            Añadir espacio
+                          </button>
+                        </form>
+                      </div>
                     </li>
                   )
                 })}
@@ -312,12 +456,13 @@ export function EdificacionesPanel({
         )
       })}
 
-      {/* Drawers de creación (patrón "Nuevo usuario": panel lateral con portal) */}
+      {/* Drawers de creación/edición (patrón "Nuevo usuario": panel lateral con portal) */}
       <EdificacionDrawer
         isOpen={edifDrawerOpen}
         onClose={() => setEdifDrawerOpen(false)}
-        onSubmit={crearDesdeDrawer}
+        onSubmit={guardarDesdeDrawer}
         submitting={guardandoEdificacion}
+        edicion={edifEdicion}
       />
       <BloqueDrawer
         isOpen={bloqueDrawerOpen}
@@ -325,6 +470,56 @@ export function EdificacionesPanel({
         onSubmit={crearBloqueDesdeDrawer}
         edificacion={edificacionNueva}
         submitting={guardandoBloque}
+      />
+      <CalendarioGdeDrawer
+        isOpen={calEdificacion != null}
+        onClose={() => setCalEdificacion(null)}
+        edificacion={calEdificacion}
+        configInicial={
+          calEdificacion
+            ? calendarios.find((c) => c.edificacionId === calEdificacion.id) ?? null
+            : null
+        }
+        rangosIniciales={
+          calEdificacion
+            ? (() => {
+                const cfg = calendarios.find((c) => c.edificacionId === calEdificacion.id)
+                return cfg ? rangos.filter((r) => r.calendarioId === cfg.id) : []
+              })()
+            : []
+        }
+        horariosIniciales={
+          calEdificacion ? horarios.filter((h) => h.edificacionId === calEdificacion.id) : []
+        }
+        bloques={
+          calEdificacion
+            ? bloques.filter((b) => b.edificacionId === calEdificacion.id)
+            : []
+        }
+        espacios={
+          calEdificacion
+            ? (() => {
+                const ids = new Set(
+                  bloques
+                    .filter((b) => b.edificacionId === calEdificacion.id)
+                    .map((b) => b.id)
+                )
+                return espacios.filter((s) => ids.has(s.bloqueId))
+              })()
+            : []
+        }
+        equipos={
+          calEdificacion
+            ? (() => {
+                const ids = new Set(
+                  bloques
+                    .filter((b) => b.edificacionId === calEdificacion.id)
+                    .map((b) => b.id)
+                )
+                return equipos.filter((q) => ids.has(q.bloqueId))
+              })()
+            : []
+        }
       />
 
       {/* Confirmaciones de borrado */}
@@ -346,6 +541,16 @@ export function EdificacionesPanel({
         description={`Se eliminará el bloque "${
           bloqueObjetivo ? `${bloqueObjetivo.codigo} — ${bloqueObjetivo.nombre}` : ''
         }" y sus espacios vacíos. Si tiene datos guardados, la eliminación se rechazará. Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+      />
+      <ConfirmDialog
+        isOpen={dialogoBorrado === 'espacio'}
+        onClose={cerrarBorrado}
+        onConfirm={() => void confirmarBorrado()}
+        title="Eliminar espacio"
+        description={`Se eliminará el espacio "${
+          espacioObjetivo?.nombre ?? ''
+        }". Si tiene equipos registrados, la eliminación se rechazará. Esta acción no se puede deshacer.`}
         confirmText="Eliminar"
       />
     </div>

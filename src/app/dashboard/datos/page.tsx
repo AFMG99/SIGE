@@ -29,6 +29,9 @@ export default async function DatosPage() {
     edificaciones,
     bloques,
     espacios,
+    calendarios,
+    rangosCalendario,
+    horariosEquipo,
     ajustesAgg,
     ajustesRecientes,
     bloquesConAjustes,
@@ -61,6 +64,8 @@ export default async function DatosPage() {
       take: 50,
       select: {
         id: true,
+        bloqueId: true,
+        espacioId: true,
         tipo: true,
         cantidad: true,
         potenciaNominal: true,
@@ -98,7 +103,7 @@ export default async function DatosPage() {
     }),
     prisma.lineaBaseEnergia.count(),
     prisma.edificacion.findMany({
-      select: { id: true, nombre: true, tipo: true },
+      select: { id: true, nombre: true, tipo: true, area: true, lat: true, lon: true },
       orderBy: { nombre: 'asc' },
     }),
     prisma.bloque.findMany({
@@ -108,6 +113,42 @@ export default async function DatosPage() {
     prisma.espacio.findMany({
       select: { id: true, bloqueId: true, nombre: true },
       orderBy: { nombre: 'asc' },
+    }),
+    prisma.calendarioOperativo.findMany({
+      select: {
+        id: true,
+        edificacionId: true,
+        horaInicioOperacion: true,
+        horasOperacionDia: true,
+        temperaturaBase: true,
+      },
+    }),
+    prisma.rangoCalendario.findMany({
+      orderBy: { fechaInicio: 'asc' },
+      select: {
+        id: true,
+        calendarioId: true,
+        fechaInicio: true,
+        fechaFin: true,
+        tipoDia: true,
+        nombre: true,
+      },
+    }),
+    prisma.horarioEquipo.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        edificacionId: true,
+        bloqueId: true,
+        espacioId: true,
+        equipoId: true,
+        nombre: true,
+        diasSemana: true,
+        horaInicio: true,
+        horaFin: true,
+        desde: true,
+        hasta: true,
+      },
     }),
     prisma.ajusteEnergetico.aggregate({
       _count: true,
@@ -168,6 +209,8 @@ export default async function DatosPage() {
     bloquesConInventario: bloquesConIds.size,
     filas: equiposRecientes.map((r) => ({
       id: r.id,
+      bloqueId: r.bloqueId,
+      espacioId: r.espacioId,
       edificacion: r.bloque.edificacion.nombre,
       bloqueCodigo: r.bloque.codigo,
       bloqueNombre: r.bloque.nombre,
@@ -242,6 +285,28 @@ export default async function DatosPage() {
       edificaciones={edificaciones}
       bloques={bloques}
       espacios={espacios}
+      calendarios={calendarios}
+      rangos={rangosCalendario.map((r) => ({
+        id: r.id,
+        calendarioId: r.calendarioId,
+        fechaInicio: r.fechaInicio.toISOString().slice(0, 10),
+        fechaFin: r.fechaFin.toISOString().slice(0, 10),
+        tipoDia: r.tipoDia,
+        nombre: r.nombre,
+      }))}
+      horarios={horariosEquipo.map((h) => ({
+        id: h.id,
+        edificacionId: h.edificacionId,
+        bloqueId: h.bloqueId,
+        espacioId: h.espacioId,
+        equipoId: h.equipoId,
+        nombre: h.nombre,
+        diasSemana: h.diasSemana,
+        horaInicio: h.horaInicio,
+        horaFin: h.horaFin,
+        desde: h.desde ? h.desde.toISOString().slice(0, 10) : null,
+        hasta: h.hasta ? h.hasta.toISOString().slice(0, 10) : null,
+      }))}
       facturasExistentes={facturasExistentes}
       equiposExistentes={equiposExistentes}
       variablesExistentes={variablesExistentes}

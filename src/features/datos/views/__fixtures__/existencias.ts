@@ -50,6 +50,8 @@ export const equiposExistentesDemo: EquiposExistentes = {
   filas: [
     {
       id: 'eq-campus-a101-01',
+      bloqueId: 'bk-campus-a101-001',
+      espacioId: 'sp-campus-101-0001',
       edificacion: 'Campus Bloque A',
       bloqueCodigo: 'A-101',
       bloqueNombre: 'Ala Norte',
@@ -60,6 +62,8 @@ export const equiposExistentesDemo: EquiposExistentes = {
     },
     {
       id: 'eq-campus-a101-02',
+      bloqueId: 'bk-campus-a101-001',
+      espacioId: 'sp-campus-102-0001',
       edificacion: 'Campus Bloque A',
       bloqueCodigo: 'A-101',
       bloqueNombre: 'Ala Norte',
@@ -70,6 +74,8 @@ export const equiposExistentesDemo: EquiposExistentes = {
     },
     {
       id: 'eq-campus-a101-03',
+      bloqueId: 'bk-campus-a101-001',
+      espacioId: 'sp-campus-101-0001',
       edificacion: 'Campus Bloque A',
       bloqueCodigo: 'A-101',
       bloqueNombre: 'Ala Norte',
@@ -80,6 +86,8 @@ export const equiposExistentesDemo: EquiposExistentes = {
     },
     {
       id: 'eq-campus-a102-01',
+      bloqueId: 'bk-campus-a102-001',
+      espacioId: 'sp-campus-201-0001',
       edificacion: 'Campus Bloque A',
       bloqueCodigo: 'A-102',
       bloqueNombre: 'Ala Sur',
@@ -90,6 +98,8 @@ export const equiposExistentesDemo: EquiposExistentes = {
     },
     {
       id: 'eq-admin-piso1-01',
+      bloqueId: 'bk-admin-piso1-001',
+      espacioId: 'sp-admin-of1-00001',
       edificacion: 'Administración Principal',
       bloqueCodigo: 'ADM-1',
       bloqueNombre: 'Piso 1',
@@ -100,6 +110,8 @@ export const equiposExistentesDemo: EquiposExistentes = {
     },
     {
       id: 'eq-admin-piso1-02',
+      bloqueId: 'bk-admin-piso1-001',
+      espacioId: 'sp-admin-of1-00001',
       edificacion: 'Administración Principal',
       bloqueCodigo: 'ADM-1',
       bloqueNombre: 'Piso 1',

@@ -85,16 +85,26 @@ vi.mock('@/features/datos/controllers/variables', () =>
 vi.mock('@/features/datos/controllers/edificaciones', () =>
   import('@/features/datos/views/__mocks__/serverActions')
 )
+vi.mock('@/features/datos/controllers/calendario', () =>
+  import('@/features/datos/views/__mocks__/serverActions')
+)
+vi.mock('@/features/datos/controllers/horarios', () =>
+  import('@/features/datos/views/__mocks__/serverActions')
+)
 
 // --- componentes bajo prueba ------------------------------------------------
 import {
   bloquesDemo,
+  calendariosDemo,
   edificacionesDemo,
   espaciosDemo,
+  horariosEquipoDemo,
+  rangosCalendarioDemo,
 } from '@/features/datos/views/__fixtures__/catalogo'
 import { AjustesSection } from '@/features/datos/views/AjustesSection'
 import { ComoFunciona } from '@/features/datos/views/ComoFunciona'
 import { EdificacionesPanel } from '@/features/datos/views/EdificacionesPanel'
+import { CalendarioFestivos } from '@/features/datos/views/CalendarioFestivos'
 import { MockFacturaVistaPrevia } from '@/features/datos/views/ComoFuncionaMocks'
 import { DATOS_SECTIONS } from '@/features/datos/views/nav'
 import { DatosContent } from '@/features/datos/views/DatosContent'
@@ -107,10 +117,13 @@ import {
 } from '@/features/datos/views/__fixtures__/existencias'
 import { LineasBasePreguntas } from '@/features/datos/views/LineasBasePreguntas'
 import type {
+  ActualizarEdificacion,
   CrearBloque,
   CrearEdificacion,
+  CrearEspacio,
   EliminarBloque,
   EliminarEdificacion,
+  EliminarEspacio,
 } from '@/features/datos/views/useCatalogoEdificaciones'
 import { UserTable, type AdminUser } from '@/features/users/views/UserTable'
 import { CountryPhoneInput } from '@/features/users/views/CountryPhoneInput'
@@ -180,9 +193,12 @@ const usuarios: AdminUser[] = [
 
 const stubs = {
   crearEdificacion: (async () => ({ ok: true })) as unknown as CrearEdificacion,
+  actualizarEdificacion: (async () => ({ ok: true })) as unknown as ActualizarEdificacion,
   eliminarEdificacion: (async () => ({ ok: true })) as unknown as EliminarEdificacion,
   crearBloque: (async () => ({ ok: true })) as unknown as CrearBloque,
   eliminarBloque: (async () => ({ ok: true })) as unknown as EliminarBloque,
+  crearEspacio: (async () => ({ ok: true })) as unknown as CrearEspacio,
+  eliminarEspacio: (async () => ({ ok: true })) as unknown as EliminarEspacio,
 }
 
 const noop = () => {}
@@ -353,6 +369,10 @@ describe('desborde horizontal', () => {
             edificaciones={edificacionesDemo}
             bloques={bloquesDemo}
             espacios={espaciosDemo}
+            equipos={equiposExistentesDemo.filas}
+            calendarios={calendariosDemo}
+            rangos={rangosCalendarioDemo}
+            horarios={horariosEquipoDemo}
             {...stubs}
           />
         </ToastProvider>
@@ -360,6 +380,18 @@ describe('desborde horizontal', () => {
       await vi.waitFor(() => {
         expect(document.querySelector('dl')).not.toBeNull()
       })
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+    })
+
+    it('CalendarioFestivos: la rejilla mensual no desborda el documento', async () => {
+      render(<CalendarioFestivos mesInicial={7} anoInicial={2026} />)
+      const grid = await vi.waitFor(() => {
+        const el = document.querySelector<HTMLElement>('[role="grid"]')
+        expect(el).not.toBeNull()
+        return el as HTMLElement
+      })
+      // La rejilla (7 columnas) ni la lista de festivos desbordan en 320px.
+      expect(grid.querySelectorAll('[role="gridcell"]').length).toBeGreaterThanOrEqual(31)
       expect(desbordeDocumento()).toBeLessThanOrEqual(1)
     })
 
@@ -842,6 +874,9 @@ const datosArgs = {
   edificaciones: edificacionesDemo,
   bloques: bloquesDemo,
   espacios: espaciosDemo,
+  calendarios: calendariosDemo,
+  rangos: rangosCalendarioDemo,
+  horarios: horariosEquipoDemo,
   facturasExistentes: facturasExistentesDemo,
   equiposExistentes: equiposExistentesDemo,
   variablesExistentes: variablesExistentesDemo,
