@@ -9,6 +9,7 @@ import type {
   LineaBaseExistente,
   VariablesExistentes,
 } from '@/features/datos/views/existencias'
+import type { EventoInfo } from '@/features/datos/models/eventos'
 
 export default async function DatosPage() {
   const user = await requireModuleAccess('consumption')
@@ -32,6 +33,7 @@ export default async function DatosPage() {
     calendarios,
     rangosCalendario,
     horariosEquipo,
+    eventosCalendario,
     ajustesAgg,
     ajustesRecientes,
     bloquesConAjustes,
@@ -73,7 +75,7 @@ export default async function DatosPage() {
           select: {
             codigo: true,
             nombre: true,
-            edificacion: { select: { nombre: true } },
+            edificacion: { select: { id: true, nombre: true } },
           },
         },
         espacio: { select: { nombre: true } },
@@ -103,7 +105,15 @@ export default async function DatosPage() {
     }),
     prisma.lineaBaseEnergia.count(),
     prisma.edificacion.findMany({
-      select: { id: true, nombre: true, tipo: true, area: true, lat: true, lon: true },
+      select: {
+        id: true,
+        nombre: true,
+        tipo: true,
+        area: true,
+        lat: true,
+        lon: true,
+        ubicacionNombre: true,
+      },
       orderBy: { nombre: 'asc' },
     }),
     prisma.bloque.findMany({
@@ -121,6 +131,7 @@ export default async function DatosPage() {
         horaInicioOperacion: true,
         horasOperacionDia: true,
         temperaturaBase: true,
+        usarHorariosXe: true,
       },
     }),
     prisma.rangoCalendario.findMany({
@@ -148,6 +159,29 @@ export default async function DatosPage() {
         horaFin: true,
         desde: true,
         hasta: true,
+      },
+    }),
+    prisma.evento.findMany({
+      orderBy: [{ fechaInicio: 'asc' }, { nombre: 'asc' }],
+      select: {
+        id: true,
+        edificacionId: true,
+        tipo: true,
+        nombre: true,
+        descripcion: true,
+        fechaInicio: true,
+        fechaFin: true,
+        bloqueId: true,
+        espacioId: true,
+        equipoId: true,
+        bloque: { select: { codigo: true, nombre: true } },
+        espacio: { select: { nombre: true } },
+        equipo: {
+          select: {
+            tipo: true,
+            espacio: { select: { nombre: true } },
+          },
+        },
       },
     }),
     prisma.ajusteEnergetico.aggregate({
@@ -209,6 +243,7 @@ export default async function DatosPage() {
     bloquesConInventario: bloquesConIds.size,
     filas: equiposRecientes.map((r) => ({
       id: r.id,
+      edificacionId: r.bloque.edificacion.id,
       bloqueId: r.bloqueId,
       espacioId: r.espacioId,
       edificacion: r.bloque.edificacion.nombre,
@@ -307,6 +342,25 @@ export default async function DatosPage() {
         desde: h.desde ? h.desde.toISOString().slice(0, 10) : null,
         hasta: h.hasta ? h.hasta.toISOString().slice(0, 10) : null,
       }))}
+      eventos={eventosCalendario.map(
+        (ev): EventoInfo => ({
+          id: ev.id,
+          edificacionId: ev.edificacionId,
+          tipo: ev.tipo,
+          nombre: ev.nombre,
+          descripcion: ev.descripcion,
+          fechaInicio: ev.fechaInicio.toISOString().slice(0, 10),
+          fechaFin: ev.fechaFin ? ev.fechaFin.toISOString().slice(0, 10) : null,
+          bloqueId: ev.bloqueId,
+          espacioId: ev.espacioId,
+          equipoId: ev.equipoId,
+          bloqueCodigo: ev.bloque?.codigo,
+          bloqueNombre: ev.bloque?.nombre,
+          espacioNombre: ev.espacio?.nombre,
+          equipoTipo: ev.equipo?.tipo ?? undefined,
+          equipoEspacioNombre: ev.equipo?.espacio?.nombre,
+        })
+      )}
       facturasExistentes={facturasExistentes}
       equiposExistentes={equiposExistentes}
       variablesExistentes={variablesExistentes}

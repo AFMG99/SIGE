@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { expect } from 'storybook/test'
+import { expect, waitFor, within } from 'storybook/test'
 
 import { HeaderPosProvider } from '@/shared/views/nav/NavContext'
 import { DatosContent } from '../DatosContent'
@@ -9,7 +9,7 @@ import { DatosContent } from '../DatosContent'
  * first query for their content needs more than the default 1s wait.
  */
 const LAZY_SECTION_TIMEOUT = 5000
-import { bloquesDemo, calendariosDemo, edificacionesDemo, espaciosDemo, horariosEquipoDemo, rangosCalendarioDemo } from '../__fixtures__/catalogo'
+import { bloquesDemo, calendariosDemo, edificacionesDemo, espaciosDemo, eventosDemo, horariosEquipoDemo, rangosCalendarioDemo } from '../__fixtures__/catalogo'
 import {
   ajustesExistentesDemo,
   equiposExistentesDemo,
@@ -32,6 +32,7 @@ const meta = {
     calendarios: calendariosDemo,
     rangos: rangosCalendarioDemo,
     horarios: horariosEquipoDemo,
+    eventos: eventosDemo,
     facturasExistentes: facturasExistentesDemo,
     equiposExistentes: equiposExistentesDemo,
     variablesExistentes: variablesExistentesDemo,
@@ -264,6 +265,73 @@ export const CalendarioFestivosEnEdificaciones: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Infraestructura' }))
     await expect(
       await canvas.findByRole('button', { name: /nueva edificación/i })
+    ).toBeVisible()
+  },
+}
+
+export const EventosCalendarioEnSubvista: Story = {
+  name: 'Edificaciones → Calendario · panel CRUD de eventos (S7/S8)',
+  play: async ({ canvas, userEvent }) => {
+    // Sub-vista «Calendario»: el panel de eventos es hermano del calendario.
+    await userEvent.click(await canvas.findByRole('button', { name: /^edificaciones$/i }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Calendario' }))
+    await expect(
+      await canvas.findByRole('heading', { name: /eventos del calendario/i })
+    ).toBeVisible()
+    await expect(
+      await canvas.findByRole('heading', { name: /calendario de festivos de colombia/i })
+    ).toBeVisible()
+
+    // Sin edificación seleccionada: estado vacío (el contexto es obligatorio).
+    await expect(await canvas.findByText('Seleccione una edificación')).toBeVisible()
+
+    // Elegir el campus lista sus 5 eventos con badge de nivel (S8).
+    const selector = canvas.getByLabelText(/edificación/i)
+    await userEvent.click(selector)
+    const panel = await waitFor(() => {
+      const abierto = document.querySelector('[role="listbox"]')
+      expect(abierto, 'listbox abierto').not.toBeNull()
+      return abierto as HTMLElement
+    })
+    const opcion = panel.querySelector<HTMLElement>('[data-value="ed-campus-00000001"]')
+    expect(opcion, 'opción del campus').not.toBeNull()
+    await userEvent.click(opcion as HTMLElement)
+
+    await expect(await canvas.findByText('Semana de la infraestructura')).toBeVisible()
+    await expect(await canvas.findByText('Espacio · Aula 101')).toBeVisible()
+    expect(canvas.queryByText('Cierre por auditoría interna')).toBeNull()
+  },
+}
+
+export const HorariosPorEquipoEnSeccion: Story = {
+  name: 'Equipos Eléctricos · trazabilidad de horarios y horas de uso (S3)',
+  play: async ({ canvas, userEvent }) => {
+    // Sección «Equipos Eléctricos» (sidebar de DATOS_SECTIONS). Se acota al
+    // aside: la guía «Cómo funciona» del Resumen repite una pestaña con el
+    // mismo nombre exacto y rompe el getByRole único.
+    const menu = canvas.getByRole('complementary', {
+      name: /menú lateral del módulo de datos/i,
+    })
+    await userEvent.click(
+      await within(menu).findByRole('button', { name: /^equipos eléctricos$/i })
+    )
+
+    // Modo Visualización: panel de datos + trazabilidad por equipo (S3).
+    await userEvent.click(canvas.getByRole('button', { name: /^visualización$/i }))
+    await expect(
+      await canvas.findByRole('heading', { name: 'Horarios aplicables y horas de uso' })
+    ).toBeVisible()
+    // Cada equipo con horarios muestra su resumen anclado a «esta semana».
+    expect(canvas.getAllByText('Horas de uso · esta semana').length).toBeGreaterThan(0)
+    // Los equipos de Administración no tienen horarios en el fixture: estado
+    // vacío por equipo con la puntería al drawer «Calendario operativo».
+    const vacios = await canvas.findAllByText('Este equipo aún no tiene horarios asociados.')
+    expect(vacios.length).toBe(2)
+
+    // La trazabilidad también se lista bajo la tabla del modo Gestión.
+    await userEvent.click(canvas.getByRole('button', { name: /^gestión$/i }))
+    await expect(
+      await canvas.findByRole('heading', { name: 'Horarios aplicables y horas de uso' })
     ).toBeVisible()
   },
 }

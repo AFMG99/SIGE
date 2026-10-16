@@ -20,6 +20,7 @@ import {
 } from './icons'
 import { EdificacionesPanel } from './EdificacionesPanel'
 import { CalendarioFestivos } from './CalendarioFestivos'
+import { EventosCalendario } from './EventosCalendario'
 import { useCatalogoEdificaciones } from './useCatalogoEdificaciones'
 import type {
   BloqueInfo,
@@ -34,6 +35,7 @@ import { VistaDatos } from './VistaDatos'
 import { GestionFacturas } from './GestionFacturas'
 import { GestionEquipos } from './GestionEquipos'
 import { GestionVariables } from './GestionVariables'
+import { HorariosEquipos } from './HorariosEquipos'
 import { SectionSkeleton } from './SectionSkeleton'
 import { EASE, revealBlur, revealUp, staggerContainer } from './motion'
 import type {
@@ -43,6 +45,7 @@ import type {
   LineaBaseExistente,
   VariablesExistentes,
 } from './existencias'
+import type { EventoInfo } from '../models/eventos'
 import {
   construirPanelAjustes,
   construirPanelEquipos,
@@ -96,6 +99,8 @@ type DatosContentProps = {
   rangos: RangoCalendarioUI[]
   /** Horarios de funcionamiento de equipos por edificación (UPME §7.1/§7.3). */
   horarios: HorarioEquipoInfo[]
+  /** Eventos del calendario por edificación (S7; herencia S8 en T8). */
+  eventos: EventoInfo[]
   facturasExistentes: FacturasExistentes
   equiposExistentes: EquiposExistentes
   variablesExistentes: VariablesExistentes
@@ -115,6 +120,7 @@ export function DatosContent({
   calendarios,
   rangos,
   horarios,
+  eventos,
   facturasExistentes,
   equiposExistentes,
   variablesExistentes,
@@ -134,6 +140,12 @@ export function DatosContent({
   const [vistaEdificaciones, setVistaEdificaciones] = React.useState<
     'infraestructura' | 'calendario'
   >('infraestructura')
+  /**
+   * S9: edificación seleccionada en la sub-vista «Calendario» — estado
+   * COMPARTIDO entre el panel CRUD de eventos y el calendario (superposición
+   * de eventos, tipo de día y horas de uso con la misma selección).
+   */
+  const [edificacionCalendario, setEdificacionCalendario] = React.useState('')
   const [vista, setVista] = React.useState<Modo>(puedeCargar ? 'carga' : 'datos')
   const modo: Modo = puedeCargar ? vista : 'datos'
 
@@ -443,7 +455,28 @@ export function DatosContent({
               </div>
 
               {vistaEdificaciones === 'calendario' ? (
-                <CalendarioFestivos />
+                <div className="space-y-6">
+                  {/* T7/T8: panel CRUD de eventos (S7/S8) hermano del calendario;
+                      la selección de edificación es compartida (S9) y superpone
+                      eventos, tipo de día y horas de uso a la rejilla/semana/agenda. */}
+                  <EventosCalendario
+                    edificaciones={edificacionesCat}
+                    bloques={bloquesCat}
+                    espacios={espaciosCat}
+                    equipos={equiposExistentes.filas}
+                    eventos={eventos}
+                    puedeCargar={puedeCargar}
+                    edificacionId={edificacionCalendario}
+                    onEdificacionChange={setEdificacionCalendario}
+                  />
+                  <CalendarioFestivos
+                    edificacionId={edificacionCalendario}
+                    calendarios={calendarios}
+                    rangos={rangos}
+                    horarios={horarios}
+                    eventos={eventos}
+                  />
+                </div>
               ) : !puedeCargar ? (
                 <div className="ui-callout ui-callout-info" role="status">
                   Su rol tiene permisos de <strong>solo lectura</strong> en este módulo. Puede
@@ -511,6 +544,15 @@ export function DatosContent({
               ) : (
                 <VistaDatos {...construirPanelEquipos(equiposExistentes)} />
               )}
+
+              {/* Trazabilidad S3 (solo donde se listan equipos guardados): horarios
+                  aplicables por nivel + horas de uso «esta semana» por equipo. */}
+              {modoEquipos !== 'carga' && (
+                <HorariosEquipos
+                  equipos={equiposExistentes.filas}
+                  horarios={horarios}
+                />
+              )}
             </div>
           )}
 
@@ -547,6 +589,9 @@ export function DatosContent({
                     eliminarBloque={eliminarBloque}
                     onIrAlCatalogo={irAlCatalogo}
                     puedeCargar={puedeCargar}
+                    calendarios={calendarios}
+                    rangos={rangos}
+                    horarios={horarios}
                   />
                 </React.Suspense>
               ) : modoVariables === 'gestion' ? (

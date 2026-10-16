@@ -91,6 +91,9 @@ vi.mock('@/features/datos/controllers/calendario', () =>
 vi.mock('@/features/datos/controllers/horarios', () =>
   import('@/features/datos/views/__mocks__/serverActions')
 )
+vi.mock('@/features/datos/controllers/eventos', () =>
+  import('@/features/datos/views/__mocks__/serverActions')
+)
 
 // --- componentes bajo prueba ------------------------------------------------
 import {
@@ -98,6 +101,7 @@ import {
   calendariosDemo,
   edificacionesDemo,
   espaciosDemo,
+  eventosDemo,
   horariosEquipoDemo,
   rangosCalendarioDemo,
 } from '@/features/datos/views/__fixtures__/catalogo'
@@ -105,6 +109,7 @@ import { AjustesSection } from '@/features/datos/views/AjustesSection'
 import { ComoFunciona } from '@/features/datos/views/ComoFunciona'
 import { EdificacionesPanel } from '@/features/datos/views/EdificacionesPanel'
 import { CalendarioFestivos } from '@/features/datos/views/CalendarioFestivos'
+import { HorariosEquipos } from '@/features/datos/views/HorariosEquipos'
 import { MockFacturaVistaPrevia } from '@/features/datos/views/ComoFuncionaMocks'
 import { DATOS_SECTIONS } from '@/features/datos/views/nav'
 import { DatosContent } from '@/features/datos/views/DatosContent'
@@ -392,6 +397,56 @@ describe('desborde horizontal', () => {
       })
       // La rejilla (7 columnas) ni la lista de festivos desbordan en 320px.
       expect(grid.querySelectorAll('[role="gridcell"]').length).toBeGreaterThanOrEqual(31)
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+    })
+
+    it('CalendarioFestivos: año, semana y agenda tampoco desbordan', async () => {
+      render(<CalendarioFestivos mesInicial={7} anoInicial={2026} />)
+      const boton = (texto: string) => {
+        const el = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+          (b) => b.textContent === texto
+        )
+        expect(el).toBeDefined()
+        return el as HTMLButtonElement
+      }
+      await vi.waitFor(() => expect(boton('12 meses')).toBeTruthy())
+
+      // Vista de año (S5): 12 tarjetas con su mini-rejilla de puntos 6×7.
+      boton('12 meses').click()
+      await vi.waitFor(() => {
+        expect(
+          document.querySelectorAll('[role="group"][aria-label^="Los 12 meses"] button').length
+        ).toBe(12)
+      })
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+
+      // Vista semanal (S6): 7 columnas apiladas por debajo de lg.
+      boton('Semana').click()
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll('time[datetime]').length).toBe(7)
+      })
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+
+      // Vista de agenda (S6): filas por día con contenido.
+      boton('Agenda').click()
+      await vi.waitFor(() => {
+        expect(document.querySelector('ul')).not.toBeNull()
+      })
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+    })
+
+    it('HorariosEquipos: la trazabilidad por equipo no desborda el documento', async () => {
+      render(
+        <HorariosEquipos
+          equipos={equiposExistentesDemo.filas}
+          horarios={horariosEquipoDemo}
+        />
+      )
+      // Badges de nivel por fila: el panel ya renderizó sus tarjetas.
+      await vi.waitFor(() => {
+        expect(document.querySelector('[data-nivel]')).not.toBeNull()
+      })
+      // Filas de horario y chips de días con envoltura: sin desborde a 320px.
       expect(desbordeDocumento()).toBeLessThanOrEqual(1)
     })
 
@@ -877,6 +932,7 @@ const datosArgs = {
   calendarios: calendariosDemo,
   rangos: rangosCalendarioDemo,
   horarios: horariosEquipoDemo,
+  eventos: eventosDemo,
   facturasExistentes: facturasExistentesDemo,
   equiposExistentes: equiposExistentesDemo,
   variablesExistentes: variablesExistentesDemo,

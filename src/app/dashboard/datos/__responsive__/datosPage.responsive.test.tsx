@@ -98,6 +98,9 @@ vi.mock('@/features/datos/controllers/calendario', () =>
 vi.mock('@/features/datos/controllers/horarios', () =>
   import('@/features/datos/views/__mocks__/serverActions')
 )
+vi.mock('@/features/datos/controllers/eventos', () =>
+  import('@/features/datos/views/__mocks__/serverActions')
+)
 
 // --- Backend doubles: authorized session + the full Prisma surface ----------
 const estado = vi.hoisted(() => ({
@@ -163,6 +166,7 @@ vi.mock('@/shared/models/prisma', () => ({
     calendarioOperativo: { findMany: async () => [] },
     rangoCalendario: { findMany: async () => [] },
     horarioEquipo: { findMany: async () => [] },
+    evento: { findMany: async () => [] },
     ajusteEnergetico: {
       aggregate: async () => ({ _count: 0, _avg: { valorAjuste: null } }),
       findMany: async () => [],

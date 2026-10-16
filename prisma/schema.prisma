@@ -140,6 +140,10 @@ model Edificacion {
   // (Open-Meteo) que alimenta el cálculo de la GDE.
   lat       Float?
   lon       Float?
+  // Nombre visible de la ubicación elegida con el geocoding por ciudad/zona
+  // (S1, Fase 6): «Ciudad, Departamento». Nullable (aditivo): las filas con
+  // coordenadas manuales preexistentes conservan NULL hasta volver a guardar.
+  ubicacionNombre String?
   createdAt DateTime @default(now())
 
   bloques    Bloque[]
@@ -147,6 +151,7 @@ model Edificacion {
   lineasBase LineaBaseEnergia[]
   calendario CalendarioOperativo?
   horarios   HorarioEquipo[]
+  eventos    Evento[]
 
   @@map("edificaciones")
 }
@@ -199,6 +204,11 @@ model CalendarioOperativo {
   horasOperacionDia   Int
   // Temperatura base Tb en °C.
   temperaturaBase     Float
+  // Opt-in S4 (Fase 6): usar las horas de uso derivadas de los horarios
+  // vigentes como Xe en el cálculo NUEVO de la GDE (la fórmula no cambia,
+  // solo la fuente de Xe). Apagado por defecto; los resultados históricos
+  // jamás se recalculan ni se sobrescriben retroactivamente.
+  usarHorariosXe      Boolean @default(false)
   createdAt           DateTime @default(now())
 
   edificacion Edificacion     @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
@@ -226,6 +236,39 @@ model RangoCalendario {
   @@map("rangos_calendario")
 }
 
+// Evento del calendario por edificación (S7/S8 — Fase 6): tipo del catálogo
+// CATALOGO_TIPOS_EVENTO (INSTITUCIONAL/ACADEMICO/MANTENIMIENTO/EXCEPCION),
+// nombre, descripción opcional y rango de ocurrencia (`fechaFin` null = día
+// único; el rango ES la vigencia, sin segunda ventana — pin L8). Ámbito
+// jerárquico con la misma cascada que los horarios: todos nulos = edificación
+// completa. Herencia (S8): un evento de un nivel superior se ve en sus
+// niveles inferiores (función pura en features/datos/models/eventos.ts).
+// FKs con Restrict: un evento trazable bloquea el borrado de su objetivo.
+model Evento {
+  id            String   @id @default(cuid())
+  edificacionId String
+  tipo          String
+  nombre        String
+  descripcion   String?
+  fechaInicio   DateTime @db.Date
+  // null = día único (mismo almacenamiento que RangoCalendario: @db.Date).
+  fechaFin      DateTime? @db.Date
+  // Ámbito jerárquico: el nivel activo es el más específico de la cascada.
+  bloqueId   String?
+  espacioId  String?
+  equipoId   String?
+  createdAt  DateTime @default(now())
+
+  edificacion Edificacion      @relation(fields: [edificacionId], references: [id], onDelete: Restrict)
+  bloque      Bloque?          @relation(fields: [bloqueId], references: [id], onDelete: Restrict)
+  espacio     Espacio?         @relation(fields: [espacioId], references: [id], onDelete: Restrict)
+  equipo      EquipoElectrico? @relation(fields: [equipoId], references: [id], onDelete: Restrict)
+
+  @@index([edificacionId])
+  @@index([fechaInicio])
+  @@map("eventos")
+}
+
 model Bloque {
   id                   String   @id @default(cuid())
   codigo               String   @unique
@@ -243,6 +286,7 @@ model Bloque {
   lineasBase LineaBaseEnergia[]
   ajustes    AjusteEnergetico[]
   horarios   HorarioEquipo[]
+  eventos    Evento[]
 
   @@index([edificacionId])
   @@map("bloques")
@@ -257,6 +301,7 @@ model Espacio {
   bloque  Bloque   @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
   equipos EquipoElectrico[]
   horarios HorarioEquipo[]
+  eventos  Evento[]
 
   @@unique([bloqueId, nombre])
   @@map("espacios")
@@ -277,6 +322,7 @@ model EquipoElectrico {
   bloque  Bloque  @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
   espacio Espacio @relation(fields: [espacioId], references: [id], onDelete: Cascade)
   horarios HorarioEquipo[]
+  eventos  Evento[]
 
   @@unique([bloqueId, espacioId, tipo])
   @@index([bloqueId])

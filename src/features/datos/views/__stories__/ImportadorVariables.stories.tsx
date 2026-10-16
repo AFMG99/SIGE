@@ -3,7 +3,13 @@ import { expect, waitFor, within } from 'storybook/test'
 
 import { crearBloque, eliminarBloque } from '@/features/datos/controllers/edificaciones'
 import { ImportadorVariables } from '../ImportadorVariables'
-import { bloquesDemo, edificacionesDemo } from '../__fixtures__/catalogo'
+import {
+  bloquesDemo,
+  calendariosDemo,
+  edificacionesDemo,
+  horariosEquipoDemo,
+  rangosCalendarioDemo,
+} from '../__fixtures__/catalogo'
 import { resultadoVariablesDemo } from '../__fixtures__/resultado'
 import { archivoVariables, elegirListbox, opcionesListbox, subirArchivo } from './ayuda'
 
@@ -17,6 +23,10 @@ const meta = {
     crearBloque,
     eliminarBloque,
     onIrAlCatalogo: () => {},
+    // Cálculo de la GDE (S2): configuración, rangos y horarios del campus.
+    calendarios: calendariosDemo,
+    rangos: rangosCalendarioDemo,
+    horarios: horariosEquipoDemo,
   },
 } satisfies Meta<typeof ImportadorVariables>
 
@@ -38,6 +48,36 @@ async function elegirEdificacion(
 
 export const Paso1Carga: Story = {
   name: 'Paso 1 · Edificación y carga',
+}
+
+export const CalculoGde: Story = {
+  name: 'Cálculo de la GDE: entradas efectivas y botón único (S2)',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const screen = within(canvasElement.ownerDocument.body)
+    await elegirEdificacion(canvas, userEvent)
+
+    // Fórmula visible + entradas efectivas ANTES de guardar.
+    await expect(await canvas.findByText('GDE = Σ (Tp − Tb) · Xe')).toBeVisible()
+    await expect(canvas.getByText('06:00–18:00 (12 h/día)')).toBeVisible()
+    await expect(canvas.getByText('Xe = H (fijo, 12 h)')).toBeVisible()
+    // Periodo por defecto (octubre 2026): fuera de los rangos del fixture.
+    await expect(
+      canvas.getByText(/Configurado · 0 día\(s\) operativo\(s\) en octubre de 2026/)
+    ).toBeVisible()
+
+    // Mes de marzo 2026: dentro del rango lectivo → 31 días operativos.
+    await userEvent.selectOptions(canvas.getByLabelText(/^mes/i), '3')
+    await expect(
+      await canvas.findByText(/31 día\(s\) operativo\(s\) en marzo de 2026/)
+    ).toBeVisible()
+
+    // Un solo botón: calcula en el servidor y registra (mocks deterministas).
+    const boton = await canvas.findByRole('button', { name: /calcular y guardar gde/i })
+    await userEvent.click(boton)
+    await expect(await canvas.findByText('41,2 °C·día', {}, { timeout: 3000 })).toBeVisible()
+    await expect(await canvas.findByText(/Registrada en variables operativas/)).toBeVisible()
+    await screen.findByText(/registrada en 2 variables operativas/i, {}, { timeout: 3000 })
+  },
 }
 
 export const Paso2Mapeo: Story = {

@@ -326,10 +326,10 @@ export function EdificacionesPanel({
                   type="button"
                   onClick={() => setCalEdificacion(e)}
                   disabled={borrando}
-                  aria-label={`Calendario y GDE de ${e.nombre}`}
+                  aria-label={`Calendario operativo de ${e.nombre}`}
                   className="ui-btn ui-btn-secondary"
                 >
-                  Calendario y GDE
+                  Calendario operativo
                 </button>
                 {info.requiereBloque && (
                   <button
