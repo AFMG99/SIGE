@@ -453,6 +453,24 @@ export async function registrarGdeCalculado(
   }
 }
 
+// ------------------------------------------------------------
+// Horarios de funcionamiento de equipos (Fase 3)
+// ------------------------------------------------------------
+
+export async function crearHorarioEquipo(
+  edificacionId: string,
+  datos: { nombre: string; diasSemana: string[]; horaInicio: number; horaFin: number }
+): Promise<Exito<{ mensaje: string }>> {
+  void edificacionId
+  void datos
+  return { estado: 'ok', mensaje: 'Horario agregado.' }
+}
+
+export async function eliminarHorarioEquipo(id: string): Promise<Exito<{ mensaje: string }>> {
+  void id
+  return { estado: 'ok', mensaje: 'Horario eliminado.' }
+}
+
 export async function eliminarEdificacion(id: string): Promise<ResultadoGestion> {
   const edificacion = edificacionesDemo.find((e) => e.id === id)
   const etiqueta = edificacion?.nombre ?? 'seleccionada'

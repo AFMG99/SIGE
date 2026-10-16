@@ -88,6 +88,9 @@ vi.mock('@/features/datos/controllers/edificaciones', () =>
 vi.mock('@/features/datos/controllers/calendario', () =>
   import('@/features/datos/views/__mocks__/serverActions')
 )
+vi.mock('@/features/datos/controllers/horarios', () =>
+  import('@/features/datos/views/__mocks__/serverActions')
+)
 
 // --- componentes bajo prueba ------------------------------------------------
 import {
@@ -95,6 +98,7 @@ import {
   calendariosDemo,
   edificacionesDemo,
   espaciosDemo,
+  horariosEquipoDemo,
   rangosCalendarioDemo,
 } from '@/features/datos/views/__fixtures__/catalogo'
 import { AjustesSection } from '@/features/datos/views/AjustesSection'
@@ -366,6 +370,7 @@ describe('desborde horizontal', () => {
             espacios={espaciosDemo}
             calendarios={calendariosDemo}
             rangos={rangosCalendarioDemo}
+            horarios={horariosEquipoDemo}
             {...stubs}
           />
         </ToastProvider>
@@ -857,6 +862,7 @@ const datosArgs = {
   espacios: espaciosDemo,
   calendarios: calendariosDemo,
   rangos: rangosCalendarioDemo,
+  horarios: horariosEquipoDemo,
   facturasExistentes: facturasExistentesDemo,
   equiposExistentes: equiposExistentesDemo,
   variablesExistentes: variablesExistentesDemo,

@@ -16,6 +16,7 @@ import {
   calendariosDemo,
   edificacionesDemo,
   espaciosDemo,
+  horariosEquipoDemo,
   rangosCalendarioDemo,
 } from '../__fixtures__/catalogo'
 
@@ -28,6 +29,7 @@ const meta = {
     espacios: espaciosDemo,
     calendarios: calendariosDemo,
     rangos: rangosCalendarioDemo,
+    horarios: horariosEquipoDemo,
     crearEdificacion,
     actualizarEdificacion,
     eliminarEdificacion,
@@ -200,5 +202,27 @@ export const CalendarioGde: Story = {
       within(dialog).getByRole('button', { name: /registrar en variables operativas/i })
     )
     await screen.findByText(/registrada en 2 variables operativas/i, {}, { timeout: 3000 })
+  },
+}
+
+export const HorariosEquipos: Story = {
+  name: 'Horarios de equipos: consulta y alta',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const screen = within(canvasElement.ownerDocument.body)
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: /calendario y gde de campus bloque a/i })
+    )
+    const dialog = await screen.findByRole('dialog')
+
+    // Horarios existentes del fixture (S10: consulta desde la sección).
+    await expect(within(dialog).getByText('Iluminación aulas')).toBeVisible()
+    await expect(within(dialog).getByText('Lun–Vie · 06:00–20:00')).toBeVisible()
+
+    // Alta de un horario nuevo (el panel es stateless en Storybook: el alta
+    // se verifica por el toast del servidor, como en el resto de stories).
+    await userEvent.type(within(dialog).getByLabelText(/nombre del grupo/i), 'Laboratorio 201')
+    await userEvent.click(within(dialog).getByRole('button', { name: /agregar horario/i }))
+    await screen.findByText(/Horario agregado/, {}, { timeout: 3000 })
   },
 }

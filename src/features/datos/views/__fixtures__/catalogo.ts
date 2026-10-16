@@ -3,6 +3,7 @@ import type {
   CalendarioInfo,
   EdificacionInfo,
   EspacioInfo,
+  HorarioEquipoInfo,
   RangoCalendarioUI,
 } from '../useCatalogoEdificaciones'
 
@@ -77,5 +78,25 @@ export const rangosCalendarioDemo: RangoCalendarioUI[] = [
     fechaFin: '2026-08-02',
     tipoDia: 'VACACIONES',
     nombre: null,
+  },
+]
+
+/** Horarios de funcionamiento de equipos (UPME §7.1/§7.3). */
+export const horariosEquipoDemo: HorarioEquipoInfo[] = [
+  {
+    id: 'hq-campus-00000001',
+    edificacionId: 'ed-campus-00000001',
+    nombre: 'Iluminación aulas',
+    diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
+    horaInicio: 6,
+    horaFin: 20,
+  },
+  {
+    id: 'hq-campus-00000002',
+    edificacionId: 'ed-campus-00000001',
+    nombre: 'HVAC administración',
+    diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'],
+    horaInicio: 7,
+    horaFin: 19,
   },
 ]
