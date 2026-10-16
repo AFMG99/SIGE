@@ -238,3 +238,32 @@ export const AjustesSinCarga: Story = {
     await expect(canvas.queryByRole('button', { name: /descargar plantilla/i })).toBeNull()
   },
 }
+
+export const CalendarioFestivosEnEdificaciones: Story = {
+  name: 'Edificaciones → vista Calendario con festivos',
+  play: async ({ canvas, userEvent }) => {
+    // Sección Edificaciones (sidebar de DATOS_SECTIONS).
+    await userEvent.click(await canvas.findByRole('button', { name: /^edificaciones$/i }))
+    await expect(
+      await canvas.findByRole('heading', { name: /gestión de edificaciones/i })
+    ).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: 'Infraestructura', pressed: true })
+    ).toBeVisible()
+
+    // Sub-vista «Calendario» (S11): festivos de Colombia del mes en curso.
+    await userEvent.click(canvas.getByRole('button', { name: 'Calendario' }))
+    await expect(
+      await canvas.findByRole('heading', { name: /calendario de festivos de colombia/i })
+    ).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Mes siguiente' })).toBeVisible()
+    await expect(
+      canvas.getByRole('heading', { name: /^festivos de .+ de \d{4}$/i })
+    ).toBeVisible()
+    // Volver al catálogo.
+    await userEvent.click(canvas.getByRole('button', { name: 'Infraestructura' }))
+    await expect(
+      await canvas.findByRole('button', { name: /nueva edificación/i })
+    ).toBeVisible()
+  },
+}

@@ -104,6 +104,7 @@ import {
 import { AjustesSection } from '@/features/datos/views/AjustesSection'
 import { ComoFunciona } from '@/features/datos/views/ComoFunciona'
 import { EdificacionesPanel } from '@/features/datos/views/EdificacionesPanel'
+import { CalendarioFestivos } from '@/features/datos/views/CalendarioFestivos'
 import { MockFacturaVistaPrevia } from '@/features/datos/views/ComoFuncionaMocks'
 import { DATOS_SECTIONS } from '@/features/datos/views/nav'
 import { DatosContent } from '@/features/datos/views/DatosContent'
@@ -378,6 +379,18 @@ describe('desborde horizontal', () => {
       await vi.waitFor(() => {
         expect(document.querySelector('dl')).not.toBeNull()
       })
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+    })
+
+    it('CalendarioFestivos: la rejilla mensual no desborda el documento', async () => {
+      render(<CalendarioFestivos mesInicial={7} anoInicial={2026} />)
+      const grid = await vi.waitFor(() => {
+        const el = document.querySelector<HTMLElement>('[role="grid"]')
+        expect(el).not.toBeNull()
+        return el as HTMLElement
+      })
+      // La rejilla (7 columnas) ni la lista de festivos desbordan en 320px.
+      expect(grid.querySelectorAll('[role="gridcell"]').length).toBeGreaterThanOrEqual(31)
       expect(desbordeDocumento()).toBeLessThanOrEqual(1)
     })
 
