@@ -19,6 +19,7 @@ import {
   IconVistaPrevia,
 } from './icons'
 import { EdificacionesPanel } from './EdificacionesPanel'
+import { CalendarioFestivos } from './CalendarioFestivos'
 import { useCatalogoEdificaciones } from './useCatalogoEdificaciones'
 import type {
   BloqueInfo,
@@ -129,6 +130,10 @@ export function DatosContent({
     ? activeIdCrudo
     : 'resumen'
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
+  /** Sub-vista de Edificaciones: catálogo (infraestructura) o calendario de festivos. */
+  const [vistaEdificaciones, setVistaEdificaciones] = React.useState<
+    'infraestructura' | 'calendario'
+  >('infraestructura')
   const [vista, setVista] = React.useState<Modo>(puedeCargar ? 'carga' : 'datos')
   const modo: Modo = puedeCargar ? vista : 'datos'
 
@@ -400,16 +405,46 @@ export function DatosContent({
           {/* Sección: Edificaciones — catálogo maestro de la estructura física */}
           {activeId === 'edificaciones' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="ui-title text-lg">Gestión de Edificaciones</h2>
-                <p className="ui-muted text-sm">
-                  Administre las edificaciones, bloques y espacios: la estructura que segmenta
-                  facturas, equipos y variables, con las características que exige la línea base
-                  de la Resolución UPME 0016 de 2024.
-                </p>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="ui-title text-lg">Gestión de Edificaciones</h2>
+                  <p className="ui-muted text-sm">
+                    Administre las edificaciones, bloques y espacios: la estructura que segmenta
+                    facturas, equipos y variables, con las características que exige la línea base
+                    de la Resolución UPME 0016 de 2024.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Vistas de edificaciones">
+                  <button
+                    type="button"
+                    aria-pressed={vistaEdificaciones === 'infraestructura'}
+                    onClick={() => setVistaEdificaciones('infraestructura')}
+                    className={`focus-ring min-h-10 cursor-pointer rounded-lg px-3 text-sm font-medium ${
+                      vistaEdificaciones === 'infraestructura'
+                        ? 'bg-emerald-600 text-white'
+                        : 'border border-gray-300 bg-white text-gray-700 hover:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-200'
+                    }`}
+                  >
+                    Infraestructura
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={vistaEdificaciones === 'calendario'}
+                    onClick={() => setVistaEdificaciones('calendario')}
+                    className={`focus-ring min-h-10 cursor-pointer rounded-lg px-3 text-sm font-medium ${
+                      vistaEdificaciones === 'calendario'
+                        ? 'bg-emerald-600 text-white'
+                        : 'border border-gray-300 bg-white text-gray-700 hover:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-200'
+                    }`}
+                  >
+                    Calendario
+                  </button>
+                </div>
               </div>
 
-              {!puedeCargar ? (
+              {vistaEdificaciones === 'calendario' ? (
+                <CalendarioFestivos />
+              ) : !puedeCargar ? (
                 <div className="ui-callout ui-callout-info" role="status">
                   Su rol tiene permisos de <strong>solo lectura</strong> en este módulo. Puede
                   consultar las edificaciones desde las demás secciones, pero no modificarlas aquí.
