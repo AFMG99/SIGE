@@ -32,6 +32,9 @@ export type FacturasExistentes = {
 
 export type EquipoExistente = {
   id: string
+  /** Ids jerárquicos (S12): permiten el selector en cascada de horarios. */
+  bloqueId: string
+  espacioId: string
   edificacion: string
   bloqueCodigo: string
   bloqueNombre: string

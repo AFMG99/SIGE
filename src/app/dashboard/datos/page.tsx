@@ -64,6 +64,8 @@ export default async function DatosPage() {
       take: 50,
       select: {
         id: true,
+        bloqueId: true,
+        espacioId: true,
         tipo: true,
         cantidad: true,
         potenciaNominal: true,
@@ -137,10 +139,15 @@ export default async function DatosPage() {
       select: {
         id: true,
         edificacionId: true,
+        bloqueId: true,
+        espacioId: true,
+        equipoId: true,
         nombre: true,
         diasSemana: true,
         horaInicio: true,
         horaFin: true,
+        desde: true,
+        hasta: true,
       },
     }),
     prisma.ajusteEnergetico.aggregate({
@@ -202,6 +209,8 @@ export default async function DatosPage() {
     bloquesConInventario: bloquesConIds.size,
     filas: equiposRecientes.map((r) => ({
       id: r.id,
+      bloqueId: r.bloqueId,
+      espacioId: r.espacioId,
       edificacion: r.bloque.edificacion.nombre,
       bloqueCodigo: r.bloque.codigo,
       bloqueNombre: r.bloque.nombre,
@@ -285,7 +294,19 @@ export default async function DatosPage() {
         tipoDia: r.tipoDia,
         nombre: r.nombre,
       }))}
-      horarios={horariosEquipo}
+      horarios={horariosEquipo.map((h) => ({
+        id: h.id,
+        edificacionId: h.edificacionId,
+        bloqueId: h.bloqueId,
+        espacioId: h.espacioId,
+        equipoId: h.equipoId,
+        nombre: h.nombre,
+        diasSemana: h.diasSemana,
+        horaInicio: h.horaInicio,
+        horaFin: h.horaFin,
+        desde: h.desde ? h.desde.toISOString().slice(0, 10) : null,
+        hasta: h.hasta ? h.hasta.toISOString().slice(0, 10) : null,
+      }))}
       facturasExistentes={facturasExistentes}
       equiposExistentes={equiposExistentes}
       variablesExistentes={variablesExistentes}

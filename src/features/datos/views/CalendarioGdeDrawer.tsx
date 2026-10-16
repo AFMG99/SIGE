@@ -34,17 +34,23 @@ import {
 } from '@/features/datos/controllers/calendario'
 import { crearHorarioEquipo, eliminarHorarioEquipo } from '@/features/datos/controllers/horarios'
 import {
+  CATALOGO_AMBITOS,
   CATALOGO_DIAS,
   formatearDias,
   formatearFranja,
+  formatearVigencia,
+  type CodigoAmbito,
 } from '@/features/datos/models/horarios'
 import type { ResultadoCalculoGde } from '@/features/datos/controllers/calendario'
 import type {
+  BloqueInfo,
   CalendarioInfo,
   EdificacionInfo,
+  EspacioInfo,
   HorarioEquipoInfo,
   RangoCalendarioUI,
 } from './useCatalogoEdificaciones'
+import type { EquipoExistente } from './existencias'
 
 const MESES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -70,6 +76,10 @@ interface CalendarioGdeDrawerProps {
   rangosIniciales: RangoCalendarioUI[]
   /** Horarios de equipos ya registrados en esta edificación. */
   horariosIniciales: HorarioEquipoInfo[]
+  /** Estructura jerárquica de la edificación (S12: ámbito de los horarios). */
+  bloques: BloqueInfo[]
+  espacios: EspacioInfo[]
+  equipos: EquipoExistente[]
 }
 
 const ANO_BASE = new Date().getFullYear()
@@ -82,6 +92,9 @@ export function CalendarioGdeDrawer({
   configInicial,
   rangosIniciales,
   horariosIniciales,
+  bloques,
+  espacios,
+  equipos,
 }: CalendarioGdeDrawerProps) {
   const router = useRouter()
   const { showToast } = useToast()
@@ -113,6 +126,14 @@ export function CalendarioGdeDrawer({
     diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'] as string[],
     horaInicio: '7',
     horaFin: '19',
+    // Ámbito jerárquico (S12): nivel + ids seleccionados en cascada.
+    nivel: 'EDIFICACION' as CodigoAmbito,
+    bloqueId: '',
+    espacioId: '',
+    equipoId: '',
+    // Vigencia: `desde` recomendada, `hasta` abierta si queda vacía.
+    desde: '',
+    hasta: '',
   })
   const [horarioEliminando, setHorarioEliminando] = useState<HorarioEquipoInfo | null>(null)
 
@@ -142,6 +163,12 @@ export function CalendarioGdeDrawer({
       diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
       horaInicio: '7',
       horaFin: '19',
+      nivel: 'EDIFICACION',
+      bloqueId: '',
+      espacioId: '',
+      equipoId: '',
+      desde: '',
+      hasta: '',
     })
     const first = drawerRef.current?.querySelector<HTMLInputElement>('input, select')
     first?.focus()
@@ -255,6 +282,34 @@ export function CalendarioGdeDrawer({
     }))
   }
 
+  // Cambiar de nivel o de bloque reinicia la selección dependiente (cascada).
+  const cambiarNivel = (nivel: CodigoAmbito) => {
+    setHorarioForm((f) => ({ ...f, nivel, bloqueId: '', espacioId: '', equipoId: '' }))
+  }
+  const cambiarBloque = (bloqueId: string) => {
+    setHorarioForm((f) => ({ ...f, bloqueId, espacioId: '', equipoId: '' }))
+  }
+  const cambiarEspacio = (espacioId: string) => {
+    setHorarioForm((f) => ({ ...f, espacioId, equipoId: '' }))
+  }
+
+  /** Etiqueta del ámbito de un horario ya guardado (chip en la lista). */
+  const etiquetaAmbito = (h: HorarioEquipoInfo): string => {
+    if (h.equipoId) {
+      const eq = equipos.find((e) => e.id === h.equipoId)
+      return eq ? `Equipo · ${eq.tipo} (${eq.espacio})` : 'Equipo'
+    }
+    if (h.espacioId) {
+      const sp = espacios.find((s) => s.id === h.espacioId)
+      return sp ? `Espacio · ${sp.nombre}` : 'Espacio'
+    }
+    if (h.bloqueId) {
+      const bk = bloques.find((b) => b.id === h.bloqueId)
+      return bk ? `Bloque · ${bk.codigo}` : 'Bloque'
+    }
+    return 'Edificación completa'
+  }
+
   const agregarHorario = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
@@ -268,11 +323,43 @@ export function CalendarioGdeDrawer({
       fallo('La hora final debe ser posterior a la inicial (sin cruce de medianoche).')
       return
     }
+    // Validación del ámbito antes de ir al servidor (el servidor también valida).
+    if (horarioForm.nivel !== 'EDIFICACION' && !horarioForm.bloqueId) {
+      fallo('Seleccione el bloque del ámbito.')
+      return
+    }
+    if (horarioForm.nivel !== 'EDIFICACION' && horarioForm.nivel !== 'BLOQUE' && !horarioForm.espacioId) {
+      fallo('Seleccione el espacio del ámbito.')
+      return
+    }
+    if (horarioForm.nivel === 'EQUIPO' && !horarioForm.equipoId) {
+      fallo('Seleccione el equipo del ámbito.')
+      return
+    }
+    if (horarioForm.desde && horarioForm.hasta && horarioForm.hasta < horarioForm.desde) {
+      fallo('La fecha final de vigencia debe ser posterior o igual a la inicial.')
+      return
+    }
+    const ambito =
+      horarioForm.nivel === 'EDIFICACION'
+        ? {}
+        : horarioForm.nivel === 'BLOQUE'
+          ? { bloqueId: horarioForm.bloqueId }
+          : horarioForm.nivel === 'ESPACIO'
+            ? { bloqueId: horarioForm.bloqueId, espacioId: horarioForm.espacioId }
+            : {
+                bloqueId: horarioForm.bloqueId,
+                espacioId: horarioForm.espacioId,
+                equipoId: horarioForm.equipoId,
+              }
     const res = await crearHorarioEquipo(edificacion.id, {
       nombre: horarioForm.nombre,
       diasSemana: horarioForm.diasSemana,
       horaInicio: ini,
       horaFin: fin,
+      ambito,
+      desde: horarioForm.desde || null,
+      hasta: horarioForm.hasta || null,
     })
     if (res.estado === 'error') {
       fallo(res.mensaje)
@@ -286,6 +373,12 @@ export function CalendarioGdeDrawer({
       diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
       horaInicio: '7',
       horaFin: '19',
+      nivel: 'EDIFICACION',
+      bloqueId: '',
+      espacioId: '',
+      equipoId: '',
+      desde: '',
+      hasta: '',
     })
   }
 
@@ -639,6 +732,115 @@ export function CalendarioGdeDrawer({
               </div>
 
               <fieldset>
+                <legend className="ui-label mb-1.5">Ámbito (nivel jerárquico)</legend>
+                <div className="flex flex-wrap gap-1.5">
+                  {CATALOGO_AMBITOS.map((a) => (
+                    <button
+                      key={a.codigo}
+                      type="button"
+                      onClick={() => cambiarNivel(a.codigo)}
+                      aria-pressed={horarioForm.nivel === a.codigo}
+                      className={`focus-ring min-h-10 rounded-lg border px-2.5 text-xs font-medium ${
+                        horarioForm.nivel === a.codigo
+                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                          : 'border-gray-300 bg-white text-gray-600 hover:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-300'
+                      }`}
+                    >
+                      {a.etiqueta}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              {horarioForm.nivel !== 'EDIFICACION' && (
+                <div>
+                  <label htmlFor="horario-bloque" className="ui-label mb-1.5">Bloque</label>
+                  <select
+                    id="horario-bloque"
+                    className="ui-input"
+                    value={horarioForm.bloqueId}
+                    onChange={(e) => cambiarBloque(e.target.value)}
+                  >
+                    <option value="">Seleccione un bloque…</option>
+                    {bloques.map((b) => (
+                      <option key={b.id} value={b.id}>{b.codigo} — {b.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {(horarioForm.nivel === 'ESPACIO' || horarioForm.nivel === 'EQUIPO') && (
+                <div>
+                  <label htmlFor="horario-espacio" className="ui-label mb-1.5">Espacio / aula</label>
+                  <select
+                    id="horario-espacio"
+                    className="ui-input"
+                    value={horarioForm.espacioId}
+                    onChange={(e) => cambiarEspacio(e.target.value)}
+                  >
+                    <option value="">Seleccione un espacio…</option>
+                    {espacios
+                      .filter((s) => s.bloqueId === horarioForm.bloqueId)
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>{s.nombre}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {horarioForm.nivel === 'EQUIPO' && (
+                <div>
+                  <label htmlFor="horario-equipo" className="ui-label mb-1.5">Equipo</label>
+                  <select
+                    id="horario-equipo"
+                    className="ui-input"
+                    value={horarioForm.equipoId}
+                    onChange={(e) =>
+                      setHorarioForm((f) => ({ ...f, equipoId: e.target.value }))
+                    }
+                  >
+                    <option value="">Seleccione un equipo…</option>
+                    {equipos
+                      .filter((q) => q.espacioId === horarioForm.espacioId)
+                      .map((q) => (
+                        <option key={q.id} value={q.id}>{q.tipo} · ×{q.cantidad}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              <fieldset>
+                <legend className="ui-label mb-1.5">Vigencia</legend>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="horario-desde" className="ui-label mb-1.5">Vigente desde</label>
+                    <input
+                      id="horario-desde"
+                      type="date"
+                      className="ui-input"
+                      value={horarioForm.desde}
+                      onChange={(e) => setHorarioForm((f) => ({ ...f, desde: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="horario-hasta" className="ui-label mb-1.5">
+                      Vigente hasta (opcional)
+                    </label>
+                    <input
+                      id="horario-hasta"
+                      type="date"
+                      className="ui-input"
+                      value={horarioForm.hasta}
+                      onChange={(e) => setHorarioForm((f) => ({ ...f, hasta: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <p className="ui-muted mt-1 text-xs">
+                  Deje «hasta» vacío para una vigencia abierta.
+                </p>
+              </fieldset>
+
+              <fieldset>
                 <legend className="ui-label mb-1.5">Días de la semana</legend>
                 <div className="flex flex-wrap gap-1.5">
                   {CATALOGO_DIAS.map((d) => {
@@ -709,6 +911,9 @@ export function CalendarioGdeDrawer({
                       <p className="truncate text-sm">{h.nombre}</p>
                       <p className="ui-muted text-xs">
                         {formatearDias(h.diasSemana)} · {formatearFranja(h.horaInicio, h.horaFin)}
+                      </p>
+                      <p className="ui-muted text-xs">
+                        {etiquetaAmbito(h)} · {formatearVigencia(h.desde ?? null, h.hasta ?? null)}
                       </p>
                     </div>
                     <button

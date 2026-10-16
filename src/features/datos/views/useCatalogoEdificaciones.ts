@@ -64,12 +64,19 @@ export interface RangoCalendarioUI {
 export interface HorarioEquipoInfo {
   id: string
   edificacionId: string
+  /** Ámbito jerárquico (S12): vacío/null = edificación completa. */
+  bloqueId?: string | null
+  espacioId?: string | null
+  equipoId?: string | null
   nombre: string
   /** Códigos de día: LUN..DOM (CATALOGO_DIAS). */
   diasSemana: string[]
   /** Hora de inicio (0-23) y final (1-24), sin cruce de medianoche. */
   horaInicio: number
   horaFin: number
+  /** Vigencia (fechas ISO `YYYY-MM-DD`); `hasta` null = abierta. */
+  desde?: string | null
+  hasta?: string | null
 }
 
 export interface BloqueInfo {

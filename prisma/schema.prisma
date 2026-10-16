@@ -159,15 +159,30 @@ model Edificacion {
 model HorarioEquipo {
   id            String   @id @default(cuid())
   edificacionId String
-  nombre        String
-  diasSemana    String[]
-  horaInicio    Int
-  horaFin       Int
-  createdAt     DateTime @default(now())
+  // Ámbito jerárquico (aditivo — S12): todos nulos = horario de la edificación
+  // completa (las filas preexistentes); si no, el nivel activo es el más
+  // específico de la cascada equipo → espacio → bloque → edificación.
+  bloqueId   String?
+  espacioId  String?
+  equipoId   String?
+  nombre     String
+  diasSemana String[]
+  horaInicio Int
+  horaFin    Int
+  // Vigencia (aditiva): nula en filas preexistentes; `hasta` nula = abierta.
+  desde  DateTime? @db.Date
+  hasta  DateTime? @db.Date
+  createdAt DateTime @default(now())
 
-  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  edificacion Edificacion     @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  bloque      Bloque?         @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  espacio     Espacio?        @relation(fields: [espacioId], references: [id], onDelete: Cascade)
+  equipo      EquipoElectrico? @relation(fields: [equipoId], references: [id], onDelete: Cascade)
 
   @@index([edificacionId])
+  @@index([bloqueId])
+  @@index([espacioId])
+  @@index([equipoId])
   @@map("horarios_equipo")
 }
 
@@ -227,6 +242,7 @@ model Bloque {
   variables  VariableOperativa[]
   lineasBase LineaBaseEnergia[]
   ajustes    AjusteEnergetico[]
+  horarios   HorarioEquipo[]
 
   @@index([edificacionId])
   @@map("bloques")
@@ -240,6 +256,7 @@ model Espacio {
 
   bloque  Bloque   @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
   equipos EquipoElectrico[]
+  horarios HorarioEquipo[]
 
   @@unique([bloqueId, nombre])
   @@map("espacios")
@@ -259,6 +276,7 @@ model EquipoElectrico {
 
   bloque  Bloque  @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
   espacio Espacio @relation(fields: [espacioId], references: [id], onDelete: Cascade)
+  horarios HorarioEquipo[]
 
   @@unique([bloqueId, espacioId, tipo])
   @@index([bloqueId])
