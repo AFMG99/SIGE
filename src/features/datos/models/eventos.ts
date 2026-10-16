@@ -145,13 +145,26 @@ export function nivelDeEvento(e: EventoConAmbito): CodigoAmbito {
  * Nunca cruza a otra edificación (el `edificacionId` siempre debe coincidir)
  * y un contexto parcial (p. ej. solo edificación) no ve los niveles por
  * debajo de su alcance. Conserva el orden de entrada. Sin coincidencias: `[]`.
+ *
+ * `opciones.incluirDescendencia` (S9, solo el calendario): un contexto de
+ * edificación ve TODO su árbol (bloques, espacios y equipos), porque los ids
+ * de ámbito siempre pertenecen a esa misma edificación (FK). Default `false`:
+ * el contrato S8 de contextos parciales queda intacto.
  */
+export interface OpcionesVisibilidadEvento {
+  incluirDescendencia?: boolean
+}
+
 export function eventosVisiblesPara<T extends EventoConAmbito>(
   eventos: T[],
-  contexto: ContextoEvento
+  contexto: ContextoEvento,
+  opciones: OpcionesVisibilidadEvento = {}
 ): T[] {
   return eventos.filter((evento) => {
     if (evento.edificacionId !== contexto.edificacionId) return false
+    const sinNivel =
+      !contexto.bloqueId && !contexto.espacioId && !contexto.equipoId
+    if (sinNivel && opciones.incluirDescendencia) return true
     const nivel = nivelDeEvento(evento)
     if (nivel === 'EQUIPO') return !!contexto.equipoId && evento.equipoId === contexto.equipoId
     if (nivel === 'ESPACIO') return !!contexto.espacioId && evento.espacioId === contexto.espacioId
@@ -207,4 +220,36 @@ export interface EventoInfo {
   bloqueId?: string | null
   espacioId?: string | null
   equipoId?: string | null
+  /**
+   * Nombres del objetivo del ámbito (S9 — query extendida en `page.tsx`):
+   * solo display (badges/agenda). Ausentes en fixtures antiguos → fallback.
+   */
+  bloqueCodigo?: string | null
+  bloqueNombre?: string | null
+  espacioNombre?: string | null
+  equipoTipo?: string | null
+  equipoEspacioNombre?: string | null
+}
+
+/**
+ * Etiqueta del ámbito para badges y agenda (S9): nivel + nombre del objetivo,
+ * resuelto en `page.tsx` con la query extendida. Sin nombres resueltos cae al
+ * nombre del nivel (mismo comportamiento que antes de la query extendida).
+ */
+export function etiquetaAmbitoDeEvento(ev: EventoInfo): string {
+  const nivel = nivelDeEvento(ev)
+  if (nivel === 'EQUIPO') {
+    return ev.equipoTipo
+      ? `Equipo · ${ev.equipoTipo}${ev.equipoEspacioNombre ? ` (${ev.equipoEspacioNombre})` : ''}`
+      : 'Equipo'
+  }
+  if (nivel === 'ESPACIO') {
+    return ev.espacioNombre ? `Espacio · ${ev.espacioNombre}` : 'Espacio'
+  }
+  if (nivel === 'BLOQUE') {
+    return ev.bloqueNombre
+      ? `Bloque · ${ev.bloqueCodigo ? `${ev.bloqueCodigo} — ` : ''}${ev.bloqueNombre}`
+      : 'Bloque'
+  }
+  return 'Edificación completa'
 }

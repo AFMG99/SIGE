@@ -2,7 +2,7 @@
 
 /**
  * Vista «Calendario» de la sección Edificaciones (Fase 4, slice mínimo — S11;
- * ampliada en la Fase 6 con S5/S6).
+ * ampliada en la Fase 6 con S5/S6 y el contexto de edificación de S9).
  *
  * Tres vistas navegables —«Mes» (rejilla + lista), «Semana» (lunes→domingo
  * alrededor de un ancla) y «Agenda» (lista cronológica del mes)— más la vista
@@ -11,11 +11,34 @@
  * de `models/festivos.ts` (Ley Emiliani, Pascua y la Ley 2578/2026): sin
  * requests ni API externas, cero impacto en el tiempo de respuesta del
  * despliegue serverless en Vercel. Semana de lunes a domingo.
+ *
+ * Con contexto de edificación (S9, selección COMPARTIDA con el panel de
+ * eventos) se superponen: eventos visibles de todo el árbol (herencia S8),
+ * chip de tipo de día de los rangos — MISMA regla que la GDE, el último
+ * rango que cubre gana —, resumen «N días lectivos · M festivos · K eventos»
+ * (solo display; no consume nadie más) y horas de uso por día en la vista
+ * semanal. Sin selección el calendario sigue siendo de festivos, con una
+ * pista de contexto.
  */
 
 import { useState } from 'react'
-import { anclaDeSemana, isoDeHoy, sumarDiasIso } from '../models/calendarioVista'
+import {
+  anclaDeSemana,
+  eventosPorFecha,
+  isoDeHoy,
+  puntoDeTipoEvento,
+  sumarDiasIso,
+  type EventoAgenda,
+  type ItemFechaEvento,
+} from '../models/calendarioVista'
 import { festivosDelMes, type Festivo } from '../models/festivos'
+import { chipTipoDia, tipoDiaEnFecha } from '../models/calendario'
+import { etiquetaAmbitoDeEvento, eventosVisiblesPara, type EventoInfo } from '../models/eventos'
+import type {
+  CalendarioInfo,
+  HorarioEquipoInfo,
+  RangoCalendarioUI,
+} from './useCatalogoEdificaciones'
 import { CalendarioVistaAgenda } from './CalendarioVistaAgenda'
 import { CalendarioVistaAno } from './CalendarioVistaAno'
 import { CalendarioVistaSemana } from './CalendarioVistaSemana'
@@ -46,9 +69,31 @@ interface CalendarioFestivosProps {
   mesInicial?: number
   /** Año de arranque; por defecto, el año actual. */
   anoInicial?: number
+  /**
+   * Edificación seleccionada (S9): contexto COMPARTIDO con el panel de
+   * eventos (el `useState` vive en el wrapper de `DatosContent`). Vacío =
+   * solo festivos nacionales + la pista de contexto.
+   */
+  edificacionId?: string
+  /** Configuración operativa por edificación (mapea cada rango a su edificio). */
+  calendarios?: CalendarioInfo[]
+  /** Rangos con tipo de día de todos los calendarios. */
+  rangos?: RangoCalendarioUI[]
+  /** Horarios por edificación (badge «N h» en la vista semanal). */
+  horarios?: HorarioEquipoInfo[]
+  /** Eventos de todas las edificaciones (la herencia S8 se aplica en cliente). */
+  eventos?: EventoInfo[]
 }
 
-export function CalendarioFestivos({ mesInicial, anoInicial }: CalendarioFestivosProps = {}) {
+export function CalendarioFestivos({
+  mesInicial,
+  anoInicial,
+  edificacionId = '',
+  calendarios = [],
+  rangos = [],
+  horarios = [],
+  eventos = [],
+}: CalendarioFestivosProps = {}) {
   const [ref, setRef] = useState(() => {
     const d = new Date()
     return {
@@ -69,6 +114,47 @@ export function CalendarioFestivos({ mesInicial, anoInicial }: CalendarioFestivo
   // Rejilla: lunes primero ((getUTCDay() + 6) % 7) y días del mes vía UTC.
   const diasPrevios = (new Date(Date.UTC(ano, mes - 1, 1)).getUTCDay() + 6) % 7
   const diasEnMes = new Date(Date.UTC(ano, mes, 0)).getUTCDate()
+
+  // ---------------- Contexto de edificación (S9) ----------------
+  // Sin selección el calendario es exactamente el de festivos (S6).
+  const conContexto = edificacionId !== ''
+  const calendarioDeEdif = calendarios.find((c) => c.edificacionId === edificacionId) ?? null
+  const rangosDeEdif = calendarioDeEdif
+    ? rangos.filter((r) => r.calendarioId === calendarioDeEdif.id)
+    : []
+  const horariosDeEdif = conContexto
+    ? horarios.filter((h) => h.edificacionId === edificacionId)
+    : []
+  // Herencia S8 a la vista del calendario: TODO el árbol de la edificación
+  // (bloques, espacios y equipos), no solo el ámbito edificación.
+  const eventosVisibles = conContexto
+    ? eventosVisiblesPara(eventos, { edificacionId }, { incluirDescendencia: true })
+    : []
+  const mapaEventos: Map<string, ItemFechaEvento[]> = conContexto
+    ? eventosPorFecha(eventosVisibles)
+    : new Map()
+  const eventosAgenda: EventoAgenda[] = conContexto
+    ? eventosVisibles.map((ev) => ({ ...ev, ambito: etiquetaAmbitoDeEvento(ev) }))
+    : []
+
+  // Resumen del mes (S9): días cuyo tipo resuelto es LECTIVO + festivos +
+  // eventos que tocan el mes. SOLO display: nada más consume esta derivación
+  // (guardrail L8: `RegistroCli.dias_lectivos` no cambia de fuente).
+  let diasLectivosMes = 0
+  if (conContexto) {
+    for (let d = 1; d <= diasEnMes; d++) {
+      if (tipoDiaEnFecha(rangosDeEdif, celdaFecha(ano, mes, d)) === 'LECTIVO') {
+        diasLectivosMes++
+      }
+    }
+  }
+  const primerDiaMes = `${ano}-${pad(mes)}-01`
+  const ultimoDiaMes = `${ano}-${pad(mes)}-${pad(diasEnMes)}`
+  const eventosDelMes = eventosVisibles.filter((ev) => {
+    const fin = ev.fechaFin && ev.fechaFin > ev.fechaInicio ? ev.fechaFin : ev.fechaInicio
+    return ev.fechaInicio <= ultimoDiaMes && fin >= primerDiaMes
+  })
+  const plural = (n: number, uno: string, muchos: string) => `${n} ${n === 1 ? uno : muchos}`
 
   // Navegación de mes/año: mantiene la vista actual y ancla la semana al
   // nuevo mes referido (S6: la coherencia vale en las tres vistas).
@@ -217,6 +303,22 @@ export function CalendarioFestivos({ mesInicial, anoInicial }: CalendarioFestivo
         </div>
       </div>
 
+      {/* Pista de contexto (S9): sin edificación el calendario es festivos-only */}
+      {!conContexto && (
+        <div className="ui-callout ui-callout-info mt-3" role="status">
+          Selecciona una edificación para ver eventos, tipo de día y horas de uso.
+        </div>
+      )}
+
+      {/* Resumen del mes (S9, solo display): lectivos de los rangos + festivos + eventos */}
+      {conContexto && (
+        <p className="ui-muted mt-3 text-xs">
+          {plural(diasLectivosMes, 'día lectivo', 'días lectivos')} ·{' '}
+          {plural(festivos.length, 'festivo', 'festivos')} ·{' '}
+          {plural(eventosDelMes.length, 'evento', 'eventos')}
+        </p>
+      )}
+
       {/* Vista de año (S5): 12 tarjetas con mini-rejilla de puntos y salto al mes */}
       {vista === 'ano' && (
         <CalendarioVistaAno
@@ -227,17 +329,22 @@ export function CalendarioFestivos({ mesInicial, anoInicial }: CalendarioFestivo
         />
       )}
 
-      {/* Vista semanal (S6): lunes→domingo alrededor del ancla */}
+      {/* Vista semanal (S6): lunes→domingo alrededor del ancla (+ contexto S9) */}
       {vista === 'semana' && (
         <CalendarioVistaSemana
           ancla={anclaEfectiva}
           hoy={hoy}
           onNavegarSemana={navegarSemana}
+          rangos={rangosDeEdif}
+          horarios={horariosDeEdif}
+          eventosPorFecha={mapaEventos}
         />
       )}
 
-      {/* Vista de agenda (S6): lista cronológica del mes referido */}
-      {vista === 'agenda' && <CalendarioVistaAgenda ano={ano} mes={mes} hoy={hoy} />}
+      {/* Vista de agenda (S6): lista cronológica del mes (+ eventos S9) */}
+      {vista === 'agenda' && (
+        <CalendarioVistaAgenda ano={ano} mes={mes} hoy={hoy} eventos={eventosAgenda} />
+      )}
 
       {/* Rejilla mensual: filas de 7 celdas (lunes primero, semana completa) */}
       {vista === 'mes' && (
@@ -276,13 +383,29 @@ export function CalendarioFestivos({ mesInicial, anoInicial }: CalendarioFestivo
                   const festivo = porFecha.get(fecha)
                   const esHoy = fecha === hoy
                   const finDeSemana = i >= 5
+                  // S9: tipo de día de los rangos (chip/subrayado) y eventos (dots).
+                  const tipoDia = conContexto ? tipoDiaEnFecha(rangosDeEdif, fecha) : null
+                  const chip = tipoDia ? chipTipoDia(tipoDia) : null
+                  const eventosDelDia = conContexto ? (mapaEventos.get(fecha) ?? []) : []
+                  // Nombre accesible completo: festivo, tipo de día y cantidad de eventos.
+                  const etiquetas = [`${dia} de ${MESES[mes - 1]}`]
+                  if (festivo) etiquetas.push(`festivo: ${festivo.nombre}`)
+                  if (chip) etiquetas.push(`día ${chip.etiqueta.toLowerCase()}`)
+                  if (eventosDelDia.length > 0) {
+                    etiquetas.push(
+                      `${eventosDelDia.length} ${eventosDelDia.length === 1 ? 'evento' : 'eventos'}`
+                    )
+                  }
+                  const titulos = [festivo?.nombre, ...eventosDelDia.map((e) => e.nombre)]
+                    .filter((t): t is string => Boolean(t))
+                    .join(' · ')
                   return (
                     <div
                       key={fecha}
                       role="gridcell"
                       aria-current={esHoy ? 'date' : undefined}
-                      aria-label={`${dia} de ${MESES[mes - 1]}${festivo ? `, festivo: ${festivo.nombre}` : ''}`}
-                      title={festivo?.nombre}
+                      aria-label={etiquetas.join(', ')}
+                      title={titulos || undefined}
                       className={[
                         'flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-1',
                         finDeSemana && !festivo
@@ -306,6 +429,27 @@ export function CalendarioFestivos({ mesInicial, anoInicial }: CalendarioFestivo
                       {festivo && (
                         <span className="hidden w-full truncate text-center text-[10px] font-medium leading-tight text-emerald-700 dark:text-emerald-400 sm:block">
                           {festivo.nombre}
+                        </span>
+                      )}
+                      {/* Subrayado del tipo de día (decorativo; el tipo también va en aria-label) */}
+                      {chip && (
+                        <span
+                          className={`h-1 w-5 shrink-0 rounded-full ${chip.punto}`}
+                          aria-hidden="true"
+                        />
+                      )}
+                      {/* Puntos de los eventos: máximo 3 (el resto en title/aria-label) */}
+                      {eventosDelDia.length > 0 && (
+                        <span
+                          className="flex shrink-0 items-center justify-center gap-0.5"
+                          aria-hidden="true"
+                        >
+                          {eventosDelDia.slice(0, 3).map((ev) => (
+                            <span
+                              key={ev.id}
+                              className={`h-1.5 w-1.5 rounded-full ${puntoDeTipoEvento(ev.tipo)}`}
+                            />
+                          ))}
                         </span>
                       )}
                     </div>

@@ -4,8 +4,12 @@ import {
   calcularGde,
   configCalendarioSchema,
   CATALOGO_TIPOS_DIA,
+  chipTipoDia,
+  CHIPS_TIPOS_DIA,
   mapearUbicaciones,
   TDEA_PLANTILLA,
+  tipoDiaEnFecha,
+  tipoDiaEsOperativo,
 } from './calendario'
 import type { RangoCalendarioInfo } from './calendario'
 import { horasDeUsoEnFecha } from './horarios'
@@ -336,5 +340,68 @@ describe('calcularGde con Xe por horarios (S4)', () => {
     expect(res.gde).toBe(8)
     expect(res.xeTotalHoras).toBe(24)
     expect(res.detalle[0].xe).toBe(24)
+  })
+})
+
+// ============================================================
+// Fase 6, slice 6c — S9: tipo de día en el calendario
+// ============================================================
+
+describe('tipoDiaEnFecha (S9 — superposición en el calendario)', () => {
+  it('devuelve null cuando ningún rango cubre la fecha', () => {
+    expect(tipoDiaEnFecha([], '2026-02-15')).toBeNull()
+    expect(tipoDiaEnFecha(rangosFebrero, '2026-03-05')).toBeNull()
+    expect(tipoDiaEnFecha(rangosFebrero, '2025-12-31')).toBeNull()
+  })
+
+  it('los límites del rango son inclusivos en ambos extremos', () => {
+    expect(tipoDiaEnFecha(rangosFebrero, '2026-02-10')).toBe('VACACIONES')
+    expect(tipoDiaEnFecha(rangosFebrero, '2026-02-11')).toBe('LECTIVO')
+    expect(tipoDiaEnFecha(rangosFebrero, '2026-02-28')).toBe('LECTIVO')
+  })
+
+  it('el último rango que cubre la fecha gana (misma regla que la GDE)', () => {
+    const solapados: RangoCalendarioInfo[] = [
+      { id: 'a', fechaInicio: '2026-03-01', fechaFin: '2026-03-31', tipoDia: 'LECTIVO' },
+      { id: 'b', fechaInicio: '2026-03-15', fechaFin: '2026-03-20', tipoDia: 'VACACIONES' },
+      { id: 'c', fechaInicio: '2026-03-18', fechaFin: '2026-03-18', tipoDia: 'FESTIVO' },
+    ]
+    expect(tipoDiaEnFecha(solapados, '2026-03-10')).toBe('LECTIVO')
+    expect(tipoDiaEnFecha(solapados, '2026-03-16')).toBe('VACACIONES')
+    expect(tipoDiaEnFecha(solapados, '2026-03-18')).toBe('FESTIVO')
+    expect(tipoDiaEnFecha(solapados, '2026-03-21')).toBe('LECTIVO')
+  })
+
+  it('mapea LECTIVO/VACACIONES/FESTIVO sin cambiar la operatividad de la GDE', () => {
+    const marzo: RangoCalendarioInfo[] = [
+      { id: 'r1', fechaInicio: '2026-03-01', fechaFin: '2026-03-31', tipoDia: 'LECTIVO' },
+      { id: 'r2', fechaInicio: '2026-03-20', fechaFin: '2026-03-20', tipoDia: 'FESTIVO' },
+    ]
+    expect(tipoDiaEsOperativo(tipoDiaEnFecha(marzo, '2026-03-10') as string)).toBe(true)
+    expect(tipoDiaEsOperativo(tipoDiaEnFecha(marzo, '2026-03-20') as string)).toBe(false)
+    expect(tipoDiaEsOperativo(tipoDiaEnFecha(rangosFebrero, '2026-02-05') as string)).toBe(false)
+    // La GDE sigue contando exactamente lo mismo que antes de la extracción.
+    expect(diasOperativosDelMes(marzo, 3, 2026)).toBe(30)
+    expect(diasOperativosDelMes(rangosFebrero, 2, 2026)).toBe(18)
+  })
+})
+
+describe('CHIPS_TIPOS_DIA (S9 — chips del calendario)', () => {
+  it('cubre los cuatro tipos del catálogo con etiqueta corta y color de marca AA', () => {
+    expect(CHIPS_TIPOS_DIA.map((c) => c.codigo)).toEqual([
+      'LECTIVO', 'HABIL', 'VACACIONES', 'FESTIVO',
+    ])
+    CHIPS_TIPOS_DIA.forEach((c) => {
+      expect(c.etiqueta.length).toBeGreaterThan(0)
+      expect(c.punto).toMatch(/^bg-/)
+      // Regla dura del repo: emerald-500 nunca en elementos con significado.
+      expect(c.punto).not.toContain('emerald-500')
+    })
+  })
+
+  it('chipTipoDia resuelve por código y devuelve null para uno desconocido', () => {
+    expect(chipTipoDia('LECTIVO')?.etiqueta).toBe('Lectivo')
+    expect(chipTipoDia('VACACIONES')?.etiqueta).toBe('Vacaciones')
+    expect(chipTipoDia('OTRO')).toBeNull()
   })
 })

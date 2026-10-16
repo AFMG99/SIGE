@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   CATALOGO_TIPOS_EVENTO,
+  etiquetaAmbitoDeEvento,
   eventoSchema,
   eventosVisiblesPara,
   formatearRangoEvento,
   nivelDeEvento,
   type EventoConAmbito,
+  type EventoInfo,
 } from './eventos'
 
 // ============================================================
@@ -220,5 +222,93 @@ describe('formatearRangoEvento', () => {
 
   it('rango entre años: incluye ambos años', () => {
     expect(formatearRangoEvento('2025-12-30', '2026-01-02')).toBe('30 dic 2025 – 2 ene 2026')
+  })
+})
+
+// ============================================================
+// S9 — el calendario (contexto de edificación) ve TODO su árbol
+// ============================================================
+
+describe('eventosVisiblesPara con incluirDescendencia (S9 — calendario)', () => {
+  it('la edificación seleccionada ve todos los eventos de su árbol', () => {
+    const visibles = ids(
+      eventosVisiblesPara(EVENTOS, { edificacionId: 'ed-1' }, { incluirDescendencia: true })
+    )
+    expect(visibles.sort()).toEqual(['e-bloque', 'e-ed', 'e-equipo', 'e-espacio', 'e-hermano'])
+  })
+
+  it('sin la opción el contrato S8 no cambia (solo el evento de edificación)', () => {
+    expect(ids(eventosVisiblesPara(EVENTOS, { edificacionId: 'ed-1' }))).toEqual(['e-ed'])
+  })
+
+  it('jamás cruza de edificación y no altera contextos más específicos', () => {
+    expect(
+      ids(eventosVisiblesPara(EVENTOS, { edificacionId: 'ed-2' }, { incluirDescendencia: true }))
+    ).toEqual(['e-otra'])
+    const enBloque = ids(
+      eventosVisiblesPara(
+        EVENTOS,
+        { edificacionId: 'ed-1', bloqueId: 'bk-a' },
+        { incluirDescendencia: true }
+      )
+    )
+    expect(enBloque.sort()).toEqual(['e-bloque', 'e-ed'])
+  })
+})
+
+// ============================================================
+// S9 — etiqueta del ámbito con los nombres resueltos en page.tsx
+// ============================================================
+
+describe('etiquetaAmbitoDeEvento (S9 — badge con nombre del objetivo)', () => {
+  const base: EventoInfo = {
+    id: 'ev-1',
+    edificacionId: 'ed-1',
+    tipo: 'INSTITUCIONAL',
+    nombre: 'Evento de prueba',
+    descripcion: null,
+    fechaInicio: '2026-06-01',
+    fechaFin: null,
+    bloqueId: null,
+    espacioId: null,
+    equipoId: null,
+  }
+
+  it('usa los nombres del objetivo cuando el evento los trae (query extendida)', () => {
+    expect(etiquetaAmbitoDeEvento(base)).toBe('Edificación completa')
+    expect(
+      etiquetaAmbitoDeEvento({
+        ...base,
+        bloqueId: 'bk-1',
+        bloqueCodigo: 'A-101',
+        bloqueNombre: 'Ala Norte',
+      })
+    ).toBe('Bloque · A-101 — Ala Norte')
+    expect(
+      etiquetaAmbitoDeEvento({
+        ...base,
+        bloqueId: 'bk-1',
+        espacioId: 'sp-1',
+        espacioNombre: 'Aula 101',
+      })
+    ).toBe('Espacio · Aula 101')
+    expect(
+      etiquetaAmbitoDeEvento({
+        ...base,
+        bloqueId: 'bk-1',
+        espacioId: 'sp-1',
+        equipoId: 'eq-1',
+        equipoTipo: 'HVAC',
+        equipoEspacioNombre: 'Aula 101',
+      })
+    ).toBe('Equipo · HVAC (Aula 101)')
+  })
+
+  it('cae al nombre del nivel cuando el evento no trae nombres resueltos', () => {
+    expect(etiquetaAmbitoDeEvento({ ...base, bloqueId: 'bk-1' })).toBe('Bloque')
+    expect(etiquetaAmbitoDeEvento({ ...base, bloqueId: 'bk-1', espacioId: 'sp-1' })).toBe('Espacio')
+    expect(
+      etiquetaAmbitoDeEvento({ ...base, bloqueId: 'bk-1', espacioId: 'sp-1', equipoId: 'eq-1' })
+    ).toBe('Equipo')
   })
 })

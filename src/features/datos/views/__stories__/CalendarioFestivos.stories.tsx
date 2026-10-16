@@ -2,6 +2,12 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { expect, within } from 'storybook/test'
 
 import { CalendarioFestivos } from '../CalendarioFestivos'
+import {
+  calendariosDemo,
+  eventosDemo,
+  horariosEquipoDemo,
+  rangosCalendarioDemo,
+} from '../__fixtures__/catalogo'
 
 const meta = {
   component: CalendarioFestivos,
@@ -16,6 +22,12 @@ export const Julio2026: Story = {
   args: { mesInicial: 7, anoInicial: 2026 },
   play: async ({ canvas, userEvent }) => {
     await expect(canvas.getByText('julio de 2026')).toBeVisible()
+
+    // Sin edificación (S9): pista de contexto visible y nada de contexto superpuesto.
+    await expect(
+      canvas.getByText('Selecciona una edificación para ver eventos, tipo de día y horas de uso.')
+    ).toBeVisible()
+    expect(canvas.queryByText(/festivos · /)).toBeNull()
 
     // Lista del mes con los dos festivos oficiales (Chiquinquirá — Ley
     // 2578/2026 — y el 20 de julio). La rejilla también los muestra, pero
@@ -185,5 +197,79 @@ export const AgendaVacia: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Agenda' }))
     await expect(canvas.getByText('Agenda de febrero de 2026')).toBeVisible()
     await expect(canvas.getByText('Sin eventos en este mes.')).toBeVisible()
+  },
+}
+
+/**
+ * Rango del período 2026-2 (story-only): los fixtures compartidos cubren
+ * 2026-1 y vacaciones, y «octubre fuera de rangos» sostiene otras stories.
+ */
+const RANGO_2026_2 = {
+  id: 'rg-story-periodo-2026-2',
+  calendarioId: 'cal-campus-0000001',
+  fechaInicio: '2026-08-03',
+  fechaFin: '2026-12-18',
+  tipoDia: 'LECTIVO',
+  nombre: 'Período académico 2026-2',
+}
+
+export const ContextoDeEdificacion: Story = {
+  name: 'S9 · Con edificación: eventos, tipo de día y horas de uso',
+  args: {
+    mesInicial: 11,
+    anoInicial: 2026,
+    edificacionId: 'ed-campus-00000001',
+    calendarios: calendariosDemo,
+    rangos: [...rangosCalendarioDemo, RANGO_2026_2],
+    horarios: horariosEquipoDemo,
+    eventos: eventosDemo,
+  },
+  play: async ({ canvas, userEvent }) => {
+    // Resumen del mes (solo display): 30 días lectivos (rango 2026-2),
+    // 2 festivos nacionales (2 y 16 nov) y 3 eventos del árbol del campus.
+    await expect(
+      await canvas.findByText('30 días lectivos · 2 festivos · 3 eventos')
+    ).toBeVisible()
+    // Hay contexto: la pista de festivos-only no aparece.
+    expect(
+      canvas.queryByText('Selecciona una edificación para ver eventos, tipo de día y horas de uso.')
+    ).toBeNull()
+
+    // Celda 14 nov: día lectivo + el evento de nivel equipo (herencia S8).
+    const celda14 = canvas.getByLabelText(/14 de noviembre/)
+    expect(celda14.getAttribute('aria-label')).toContain('día lectivo')
+    expect(celda14.getAttribute('aria-label')).toContain('1 evento')
+    // Celda 16 nov: festivo de Cartagena + evento de la semana institucional.
+    const celda16 = canvas.getByLabelText(/16 de noviembre/)
+    expect(celda16.getAttribute('aria-label')).toContain('festivo: Independencia de Cartagena')
+    expect(celda16.getAttribute('aria-label')).toContain('1 evento')
+    // El evento de la otra edificación jamás se superpone.
+    const celda3 = canvas.getByLabelText(/^3 de noviembre,/)
+    expect(celda3.getAttribute('aria-label')).not.toContain('evento')
+
+    // Vista semanal (lun 9 – dom 15 nov): chip de tipo + badge de horas.
+    await userEvent.click(canvas.getByRole('button', { name: 'Semana' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Semana ›' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Semana ›' }))
+    await expect(canvas.getByText('2026-11-09')).toBeVisible()
+    await expect(canvas.getByText('2026-11-15')).toBeVisible()
+    expect(canvas.getAllByText('Lectivo')).toHaveLength(7)
+    await expect(canvas.getByText('Corte de suministro al HVAC')).toBeVisible()
+    // Sábado 14: HVAC administración (7–19) ∪ Aula 101 (8–14) = 12 h unidas.
+    await expect(canvas.getByText('12 h')).toBeVisible()
+
+    // Agenda: festivos + eventos expandidos por rango, con badge de ámbito.
+    await userEvent.click(canvas.getByRole('button', { name: 'Agenda' }))
+    await expect(canvas.getByText('Agenda de noviembre de 2026')).toBeVisible()
+    await expect(canvas.getByText('Todos los Santos')).toBeVisible()
+    await expect(canvas.getByText('Corte de suministro al HVAC')).toBeVisible()
+    await expect(canvas.getByText('Equipo · HVAC (Aula 101)')).toBeVisible()
+    await expect(canvas.getByText('Independencia de Cartagena')).toBeVisible()
+    // Evento multía (16–20 nov) expandido a un renglón por día (badge por fila).
+    expect(canvas.getAllByText('Semana de la infraestructura')).toHaveLength(5)
+    expect(canvas.getAllByText('Edificación completa')).toHaveLength(5)
+    await expect(canvas.getByText('Sustentación de tesis')).toBeVisible()
+    await expect(canvas.getByText('Espacio · Aula 101')).toBeVisible()
+    expect(canvas.queryByText('Cierre por auditoría interna')).toBeNull()
   },
 }

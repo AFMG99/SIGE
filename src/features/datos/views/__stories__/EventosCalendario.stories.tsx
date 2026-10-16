@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { expect, fireEvent, userEvent, waitFor, within } from 'storybook/test'
 
@@ -20,11 +21,27 @@ const meta = {
     equipos: equiposExistentesDemo.filas,
     eventos: eventosDemo,
     puedeCargar: true,
+    edificacionId: '',
+    onEdificacionChange: () => {},
   },
+  // El panel es CONTROLADO (T8): la selección vive en el wrapper (en la app,
+  // en DatosContent). Las stories lo simulan con estado interno para que el
+  // play siga eligiendo la edificación por el listbox.
+  render: (args) => <ConEdificacion {...args} />,
 } satisfies Meta<typeof EventosCalendario>
 
 export default meta
 type Story = StoryObj<typeof meta>
+
+/** Estado de la selección de edificación (doble del wrapper de la app). */
+function ConEdificacion(
+  props: Omit<Parameters<typeof EventosCalendario>[0], 'edificacionId' | 'onEdificacionChange'> & {
+    edificacionId?: string
+  }
+) {
+  const [id, setId] = useState(props.edificacionId ?? '')
+  return <EventosCalendario {...props} edificacionId={id} onEdificacionChange={setId} />
+}
 
 type UserEventClic = {
   click: (el: HTMLElement) => Promise<unknown>

@@ -140,6 +140,12 @@ export function DatosContent({
   const [vistaEdificaciones, setVistaEdificaciones] = React.useState<
     'infraestructura' | 'calendario'
   >('infraestructura')
+  /**
+   * S9: edificación seleccionada en la sub-vista «Calendario» — estado
+   * COMPARTIDO entre el panel CRUD de eventos y el calendario (superposición
+   * de eventos, tipo de día y horas de uso con la misma selección).
+   */
+  const [edificacionCalendario, setEdificacionCalendario] = React.useState('')
   const [vista, setVista] = React.useState<Modo>(puedeCargar ? 'carga' : 'datos')
   const modo: Modo = puedeCargar ? vista : 'datos'
 
@@ -450,8 +456,9 @@ export function DatosContent({
 
               {vistaEdificaciones === 'calendario' ? (
                 <div className="space-y-6">
-                  {/* T7: panel CRUD de eventos (S7/S8) como hermano del calendario;
-                      T8 lo superpondrá a la rejilla, semana y agenda. */}
+                  {/* T7/T8: panel CRUD de eventos (S7/S8) hermano del calendario;
+                      la selección de edificación es compartida (S9) y superpone
+                      eventos, tipo de día y horas de uso a la rejilla/semana/agenda. */}
                   <EventosCalendario
                     edificaciones={edificacionesCat}
                     bloques={bloquesCat}
@@ -459,8 +466,16 @@ export function DatosContent({
                     equipos={equiposExistentes.filas}
                     eventos={eventos}
                     puedeCargar={puedeCargar}
+                    edificacionId={edificacionCalendario}
+                    onEdificacionChange={setEdificacionCalendario}
                   />
-                  <CalendarioFestivos />
+                  <CalendarioFestivos
+                    edificacionId={edificacionCalendario}
+                    calendarios={calendarios}
+                    rangos={rangos}
+                    horarios={horarios}
+                    eventos={eventos}
+                  />
                 </div>
               ) : !puedeCargar ? (
                 <div className="ui-callout ui-callout-info" role="status">

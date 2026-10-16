@@ -1,17 +1,24 @@
 'use client'
 
 /**
- * Vista «Agenda» del calendario (S6, Fase 6).
+ * Vista «Agenda» del calendario (S6, Fase 6; ampliada en S9 con los eventos
+ * del árbol de la edificación seleccionada).
  *
  * Lista cronológica del mes referido: una fila por día con contenido, con la
- * fecha corta, el título, el detalle y el badge de origen. Hoy la agenda se
- * alimenta de `itemsDeAgenda` (festivos nacionales del catálogo puro); los
- * eventos institucionales/académicos/mantenimiento (T7) y los días lectivos
- * (T8) se añadirán al mismo modelo de items sin tocar el agrupado por día.
- * Cálculo en cliente, sin requests.
+ * fecha corta, el título, el detalle y el badge de origen. La agenda se
+ * alimenta de `itemsDeAgenda`: festivos nacionales del catálogo puro + los
+ * eventos visibles (S9, herencia S8 ya aplicada por el llamador), expandidos
+ * sobre cada día de su rango; un mismo día agrupa festivo y eventos. Las
+ * filas de evento muestran el punto de color de su tipo, la descripción como
+ * detalle y el badge de ámbito (nivel + objetivo). Cálculo en cliente, sin
+ * requests.
  */
 
-import { itemsDeAgenda, type ItemAgenda } from '../models/calendarioVista'
+import {
+  itemsDeAgenda,
+  type EventoAgenda,
+  type ItemAgenda,
+} from '../models/calendarioVista'
 
 const DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
 
@@ -23,6 +30,11 @@ const MES_CORTO = [
 /** Día de la semana civil (0=domingo) de una fecha ISO, vía UTC. */
 const diaDeLaSemana = (iso: string): number =>
   new Date(Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)))).getUTCDay()
+
+const PUNTO_TIPO = 'inline-block h-2.5 w-2.5 shrink-0 rounded-full'
+
+const BADGE_AMBITO =
+  'inline-flex max-w-full shrink-0 items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-300'
 
 interface DiaAgenda {
   fecha: string
@@ -36,10 +48,17 @@ interface CalendarioVistaAgendaProps {
   mes: number
   /** Fecha de hoy `YYYY-MM-DD`; resalta su fila si cae en el mes referido. */
   hoy: string
+  /** Eventos visibles del contexto (S9); vacío = solo festivos. */
+  eventos?: EventoAgenda[]
 }
 
-export function CalendarioVistaAgenda({ ano, mes, hoy }: CalendarioVistaAgendaProps) {
-  const items = itemsDeAgenda(ano, mes)
+export function CalendarioVistaAgenda({
+  ano,
+  mes,
+  hoy,
+  eventos = [],
+}: CalendarioVistaAgendaProps) {
+  const items = itemsDeAgenda(ano, mes, eventos)
 
   // Agrupado por día conservando el orden cronológico de los items.
   const dias: DiaAgenda[] = []
@@ -91,11 +110,28 @@ export function CalendarioVistaAgenda({ ano, mes, hoy }: CalendarioVistaAgendaPr
                   </span>
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
-                  {dia.items.map((item) => (
-                    <div key={item.titulo} className="flex items-start justify-between gap-2">
+                  {dia.items.map((item, idx) => (
+                    <div
+                      key={`${item.tipo}-${item.titulo}-${idx}`}
+                      className="flex items-start justify-between gap-2"
+                    >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-emerald-800 dark:text-emerald-300">
-                          {item.titulo}
+                        <p
+                          className={[
+                            'flex items-center gap-1.5 text-sm font-medium',
+                            item.tipo === 'EVENTO'
+                              ? 'text-gray-800 dark:text-gray-100'
+                              : 'text-emerald-800 dark:text-emerald-300',
+                          ].join(' ')}
+                        >
+                          {item.tipo === 'EVENTO' && (
+                            <span
+                              className={`${PUNTO_TIPO} ${item.punto ?? 'bg-uv-mid'}`}
+                              role="img"
+                              aria-label={`Tipo ${item.etiquetaTipo ?? 'evento'}`}
+                            />
+                          )}
+                          <span className="min-w-0 break-words">{item.titulo}</span>
                         </p>
                         {item.detalle && <p className="ui-muted text-xs">{item.detalle}</p>}
                       </div>
@@ -103,6 +139,9 @@ export function CalendarioVistaAgenda({ ano, mes, hoy }: CalendarioVistaAgendaPr
                         <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium uppercase text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                           {item.origen}
                         </span>
+                      )}
+                      {item.ambito && (
+                        <span className={BADGE_AMBITO}>{item.ambito}</span>
                       )}
                     </div>
                   ))}

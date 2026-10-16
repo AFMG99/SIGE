@@ -174,6 +174,14 @@ export default async function DatosPage() {
         bloqueId: true,
         espacioId: true,
         equipoId: true,
+        bloque: { select: { codigo: true, nombre: true } },
+        espacio: { select: { nombre: true } },
+        equipo: {
+          select: {
+            tipo: true,
+            espacio: { select: { nombre: true } },
+          },
+        },
       },
     }),
     prisma.ajusteEnergetico.aggregate({
@@ -346,6 +354,11 @@ export default async function DatosPage() {
           bloqueId: ev.bloqueId,
           espacioId: ev.espacioId,
           equipoId: ev.equipoId,
+          bloqueCodigo: ev.bloque?.codigo,
+          bloqueNombre: ev.bloque?.nombre,
+          espacioNombre: ev.espacio?.nombre,
+          equipoTipo: ev.equipo?.tipo ?? undefined,
+          equipoEspacioNombre: ev.equipo?.espacio?.nombre,
         })
       )}
       facturasExistentes={facturasExistentes}

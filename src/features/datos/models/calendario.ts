@@ -36,6 +36,30 @@ export const CATALOGO_TIPOS_DIA: TipoDiaInfo[] = [
 export const tipoDiaEsOperativo = (codigo: string): boolean =>
   CATALOGO_TIPOS_DIA.find((t) => t.codigo === codigo)?.operativo ?? false
 
+/**
+ * Apariencia del chip de tipo de día en el calendario (S9): etiqueta corta
+ * (la del catálogo es larga, para los selects) y punto de color decorativo
+ * por tipo. El texto de los chips es neutro; el color vive solo en el punto
+ * (tokens de marca AA; nunca `emerald-500`, regla dura del repo).
+ */
+export interface ChipTipoDiaInfo {
+  codigo: string
+  etiqueta: string
+  /** Clase del punto de color decorativo (`aria-hidden` en el render). */
+  punto: string
+}
+
+export const CHIPS_TIPOS_DIA: ChipTipoDiaInfo[] = [
+  { codigo: 'LECTIVO', etiqueta: 'Lectivo', punto: 'bg-uv-forest' },
+  { codigo: 'HABIL', etiqueta: 'Hábil', punto: 'bg-uv-turquoise' },
+  { codigo: 'VACACIONES', etiqueta: 'Vacaciones', punto: 'bg-uv-yellow' },
+  { codigo: 'FESTIVO', etiqueta: 'Festivo', punto: 'bg-uv-deep' },
+]
+
+/** Chip de un tipo de día; `null` para un código fuera del catálogo. */
+export const chipTipoDia = (codigo: string): ChipTipoDiaInfo | null =>
+  CHIPS_TIPOS_DIA.find((c) => c.codigo === codigo) ?? null
+
 // ============================================================
 // Tipos
 // ============================================================
@@ -109,17 +133,25 @@ const iso = (ano: number, mes: number, dia: number): string =>
 // Núcleo de cálculo
 // ============================================================
 
-/** Diagnóstico estructural de un mes: prioriza el último rango que lo cubre. */
-function operativoEnFecha(rangos: RangoFechas[], fechaIso: string): boolean | null {
-  let visto = false
-  let operativo = false
+/**
+ * Tipo de día que cubre una fecha (S9 — superposición en el calendario): el
+ * ÚLTIMO rango que la cubre gana, la MISMA regla que usa el cálculo de la GDE.
+ * Sin cobertura: `null`. Función pura, sin I/O ni Prisma.
+ */
+export function tipoDiaEnFecha(rangos: RangoFechas[], fechaIso: string): string | null {
+  let tipo: string | null = null
   for (const r of rangos) {
     if (r.fechaInicio <= fechaIso && fechaIso <= r.fechaFin) {
-      visto = true
-      operativo = tipoDiaEsOperativo(r.tipoDia)
+      tipo = r.tipoDia
     }
   }
-  return visto ? operativo : null
+  return tipo
+}
+
+/** Diagnóstico estructural de un mes: prioriza el último rango que lo cubre. */
+function operativoEnFecha(rangos: RangoFechas[], fechaIso: string): boolean | null {
+  const tipo = tipoDiaEnFecha(rangos, fechaIso)
+  return tipo === null ? null : tipoDiaEsOperativo(tipo)
 }
 
 /**

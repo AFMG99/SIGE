@@ -11,9 +11,11 @@
  * Requiere contexto de edificación: sin selección no se listan ni se crean
  * eventos. La herencia (S8) vive en `eventosVisiblesPara` (models); aquí se
  * lista el árbol de la edificación seleccionada con el nivel de cada fila.
- * Los eventos NO se superponen todavía a la rejilla del calendario: esa
- * visualización es T8. Todo dato entra por props y las mutaciones son server
- * actions con revalidación en servidor.
+ * La selección de edificación es CONTROLADA desde T8 (S9): el `useState`
+ * vive en el wrapper de la sub-vista «Calendario» de `DatosContent` y lo
+ * comparten el panel y el calendario (eventos + tipo de día + horas de uso
+ * superpuestos con la MISMA selección). Todo dato entra por props y las
+ * mutaciones son server actions con revalidación en servidor.
  */
 
 import { useEffect, useState, type FormEvent } from 'react'
@@ -43,6 +45,10 @@ type EventosCalendarioProps = {
   eventos: EventoInfo[]
   /** Sin permiso de carga se ocultan el formulario y las acciones de gestión. */
   puedeCargar: boolean
+  /** Edificación seleccionada (compartida con el calendario; '' = ninguna). */
+  edificacionId: string
+  /** Cambia la edificación seleccionada (estado en el wrapper del calendario). */
+  onEdificacionChange: (id: string) => void
 }
 
 const NIVEL_ETIQUETA: Record<CodigoAmbito, string> = {
@@ -78,12 +84,13 @@ export function EventosCalendario({
   equipos,
   eventos,
   puedeCargar,
+  edificacionId,
+  onEdificacionChange,
 }: EventosCalendarioProps) {
   const router = useRouter()
   const { showToast } = useToast()
 
-  /** Contexto de edificación: sin selección no hay lista ni formulario. */
-  const [edificacionId, setEdificacionId] = useState('')
+  /** Edificación CONTROLADA por el wrapper (compartida con el calendario). */
   const [eventosEstado, setEventosEstado] = useState<EventoInfo[]>(eventos)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [form, setForm] = useState(FORM_INICIAL)
@@ -259,9 +266,11 @@ export function EventosCalendario({
           id="eventos-edificacion"
           value={edificacionId}
           onChange={(v) => {
-            setEdificacionId(v)
+            onEdificacionChange(v)
             setError('')
             setMostrarForm(false)
+            // La cascada del formulario pertenece a la edificación anterior.
+            setForm(FORM_INICIAL)
           }}
           placeholder="— Seleccione una edificación —"
           options={edificaciones.map((e) => ({ value: e.id, label: e.nombre }))}
@@ -510,8 +519,8 @@ export function EventosCalendario({
               {eventosDeEdificacion.length === 1
                 ? '1 evento registrado en'
                 : `${eventosDeEdificacion.length} eventos registrados en`}{' '}
-              «{edificacion.nombre}». Los eventos de niveles superiores se muestran al
-              superponerlos al calendario.
+              «{edificacion.nombre}». Todos (incluidos los de niveles inferiores) se
+              superponen al calendario según su herencia.
             </p>
           )}
         </>

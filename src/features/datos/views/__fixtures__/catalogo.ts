@@ -195,6 +195,8 @@ export const eventosDemo: EventoInfo[] = [
     bloqueId: 'bk-campus-a101-001',
     espacioId: 'sp-campus-101-0001',
     equipoId: null,
+    // Nombres resueltos del ámbito (S9: query extendida en page.tsx).
+    espacioNombre: 'Aula 101',
   },
   // Nivel bloque: solo el bloque A-102.
   {
@@ -208,6 +210,8 @@ export const eventosDemo: EventoInfo[] = [
     bloqueId: 'bk-campus-a102-001',
     espacioId: null,
     equipoId: null,
+    bloqueCodigo: 'A-102',
+    bloqueNombre: 'Ala Sur',
   },
   // Nivel equipo: solo el HVAC del Aula 101.
   {
@@ -221,6 +225,8 @@ export const eventosDemo: EventoInfo[] = [
     bloqueId: 'bk-campus-a101-001',
     espacioId: 'sp-campus-101-0001',
     equipoId: 'eq-campus-a101-01',
+    equipoTipo: 'HVAC',
+    equipoEspacioNombre: 'Aula 101',
   },
   // Vencido por fecha (trazabilidad, S8): nivel edificación en 2025.
   {
