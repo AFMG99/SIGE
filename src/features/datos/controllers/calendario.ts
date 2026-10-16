@@ -7,11 +7,9 @@
 import { prisma } from '@/shared/models/prisma'
 import { auditarAccion } from '@/features/datos/controllers/auditoria'
 import { autorizarCarga } from '@/features/datos/controllers/edificaciones'
+import { obtenerTempsHorarias } from '@/features/datos/controllers/clima'
 import {
   ClimaFuenteError,
-  obtenerTempsHorarias,
-} from '@/features/datos/controllers/clima'
-import {
   TDEA_PLANTILLA,
   calcularGde,
   configCalendarioSchema,
@@ -38,6 +36,8 @@ export async function guardarConfigCalendario(
     temperaturaBase: number
     lat: number
     lon: number
+    /** Nombre visible de la ubicación elegida por ciudad/zona (S1). */
+    ubicacionNombre?: string | null
   }
 ): Promise<Exito<{ mensaje: string }>> {
   try {
@@ -63,19 +63,33 @@ export async function guardarConfigCalendario(
       return { estado: 'error', mensaje: 'La edificación indicada no existe.' }
     }
 
+    // El create/upsert nombra cada campo a mano: `parseo.data` también trae
+    // lat/lon/ubicacionNombre, que son columnas de EDIFICACION, no del
+    // calendario operativo (el spread anterior fallaba en la primera creación).
     await prisma.$transaction([
       prisma.calendarioOperativo.upsert({
         where: { edificacionId: id },
-        create: { edificacionId: id, ...parseo.data },
+        create: {
+          edificacionId: id,
+          horaInicioOperacion: parseo.data.horaInicioOperacion,
+          horasOperacionDia: parseo.data.horasOperacionDia,
+          temperaturaBase: parseo.data.temperaturaBase,
+          usarHorariosXe: parseo.data.usarHorariosXe,
+        },
         update: {
           horaInicioOperacion: parseo.data.horaInicioOperacion,
           horasOperacionDia: parseo.data.horasOperacionDia,
           temperaturaBase: parseo.data.temperaturaBase,
+          usarHorariosXe: parseo.data.usarHorariosXe,
         },
       }),
       prisma.edificacion.update({
         where: { id },
-        data: { lat: parseo.data.lat, lon: parseo.data.lon },
+        data: {
+          lat: parseo.data.lat,
+          lon: parseo.data.lon,
+          ubicacionNombre: parseo.data.ubicacionNombre,
+        },
       }),
     ])
 

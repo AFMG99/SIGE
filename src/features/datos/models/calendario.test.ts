@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   diasOperativosDelMes,
   calcularGde,
+  configCalendarioSchema,
   CATALOGO_TIPOS_DIA,
+  mapearUbicaciones,
   TDEA_PLANTILLA,
 } from './calendario'
 import type { RangoCalendarioInfo } from './calendario'
@@ -100,5 +102,122 @@ describe('calcularGde', () => {
     // Febrero 2026 con la plantilla: lectivo desde el 09/02 (inicio real del período).
     const dias = diasOperativosDelMes(TDEA_PLANTILLA.rangos, 2, 2026)
     expect(dias).toBe(20) // 9 al 28 de febrero
+  })
+})
+
+// ============================================================
+// Fase 6 — configuración operativa: ubicación (S1) + Xe opt-in (S4)
+// ============================================================
+
+describe('configCalendarioSchema (ubicación e interruptor Xe)', () => {
+  const base = {
+    horaInicioOperacion: 6,
+    horasOperacionDia: 12,
+    temperaturaBase: 23,
+    lat: 6.2477,
+    lon: -75.5662,
+  }
+
+  it('acepta la configuración mínima con defaults (Xe apagado, sin nombre)', () => {
+    const res = configCalendarioSchema.safeParse(base)
+    expect(res.success).toBe(true)
+    if (!res.success) return
+    expect(res.data.usarHorariosXe).toBe(false)
+    expect(res.data.ubicacionNombre).toBe(null)
+  })
+
+  it('recorta el nombre de ubicación y conserva el interruptor Xe encendido', () => {
+    const res = configCalendarioSchema.safeParse({
+      ...base,
+      ubicacionNombre: '  Medellín, Antioquia  ',
+      usarHorariosXe: true,
+    })
+    expect(res.success).toBe(true)
+    if (!res.success) return
+    expect(res.data.ubicacionNombre).toBe('Medellín, Antioquia')
+    expect(res.data.usarHorariosXe).toBe(true)
+  })
+
+  it('rechaza un interruptor no booleano y un nombre demasiado largo', () => {
+    expect(configCalendarioSchema.safeParse({ ...base, usarHorariosXe: 'si' }).success).toBe(false)
+    expect(
+      configCalendarioSchema.safeParse({ ...base, ubicacionNombre: 'x'.repeat(161) }).success
+    ).toBe(false)
+  })
+})
+
+// ============================================================
+// Fase 6 — geocoding Open-Meteo: mapeo puro de resultados (S1)
+// ============================================================
+
+describe('mapearUbicaciones (geocoding de Open-Meteo)', () => {
+  it('mapea los campos y normaliza los ausentes a null', () => {
+    const res = mapearUbicaciones({
+      results: [
+        {
+          name: 'Medellín',
+          latitude: 6.2477,
+          longitude: -75.5662,
+          admin1: 'Antioquia',
+          country: 'Colombia',
+          timezone: 'America/Bogota',
+        },
+        { name: 'Envigado', latitude: 6.1696, longitude: -75.5736 },
+      ],
+    })
+    expect(res).toHaveLength(2)
+    expect(res[0]).toEqual({
+      nombre: 'Medellín',
+      admin1: 'Antioquia',
+      pais: 'Colombia',
+      lat: 6.2477,
+      lon: -75.5662,
+      timezone: 'America/Bogota',
+    })
+    expect(res[1]).toEqual({
+      nombre: 'Envigado',
+      admin1: null,
+      pais: null,
+      lat: 6.1696,
+      lon: -75.5736,
+      timezone: null,
+    })
+  })
+
+  it('filtra entradas sin nombre, sin coordenadas o fuera de rango', () => {
+    const res = mapearUbicaciones({
+      results: [
+        { name: '   ', latitude: 1, longitude: 2 },
+        { name: 'Sin lat', longitude: -75 },
+        { name: 'Sin lon', latitude: 6 },
+        { name: 'Lat no numérico', latitude: 'x', longitude: 2 },
+        { name: 'Lat fuera de rango', latitude: 120, longitude: 0 },
+        { name: 'Lon fuera de rango', latitude: 6, longitude: -200 },
+        { name: 'Válida', latitude: 6, longitude: -75 },
+        'garbage',
+        null,
+        42,
+      ],
+    })
+    expect(res).toHaveLength(1)
+    expect(res[0].nombre).toBe('Válida')
+  })
+
+  it('devuelve una lista vacía ante payloads sin resultados', () => {
+    expect(mapearUbicaciones({})).toEqual([])
+    expect(mapearUbicaciones(null)).toEqual([])
+    expect(mapearUbicaciones({ results: null })).toEqual([])
+    expect(mapearUbicaciones({ results: [] })).toEqual([])
+  })
+
+  it('limita el listado a 8 aunque la fuente devuelva más', () => {
+    const results = Array.from({ length: 12 }, (_, i) => ({
+      name: `Ciudad ${i}`,
+      latitude: 6 + i * 0.01,
+      longitude: -75,
+    }))
+    const res = mapearUbicaciones({ results })
+    expect(res).toHaveLength(8)
+    expect(res[0].nombre).toBe('Ciudad 0')
   })
 })

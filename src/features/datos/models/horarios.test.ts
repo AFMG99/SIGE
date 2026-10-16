@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   CATALOGO_DIAS,
   horarioEquipoSchema,
+  horasDeUsoEnFecha,
   formatearDias,
   formatearFranja,
   claveAmbito,
   hayConflictoHorario,
   formatearVigencia,
   type HorarioComparable,
+  type HorarioHorasUso,
 } from './horarios'
 
 describe('CATALOGO_DIAS', () => {
@@ -213,5 +215,72 @@ describe('formatearVigencia (presentación)', () => {
     expect(formatearVigencia('2026-08-01', null)).toBe('Desde 01/08/2026')
     expect(formatearVigencia(null, '2027-06-30')).toBe('Hasta 30/06/2027')
     expect(formatearVigencia('2026-08-01', '2026-12-15')).toBe('01/08/2026 → 15/12/2026')
+  })
+})
+
+// ============================================================
+// Fase 6 — horas de uso por fecha (S4: origen de Xe en la GDE)
+// ============================================================
+
+describe('horasDeUsoEnFecha (unión de franjas con vigencia)', () => {
+  // 2026-10-19 es lunes y 2026-10-20 martes (2026-10-16 es viernes).
+  const lunes = '2026-10-19'
+  const martes = '2026-10-20'
+
+  const h = (extra: Partial<HorarioHorasUso> = {}): HorarioHorasUso => ({
+    diasSemana: ['LUN'],
+    horaInicio: 8,
+    horaFin: 18,
+    desde: null,
+    hasta: null,
+    ...extra,
+  })
+
+  it('sin horarios devuelve 0', () => {
+    expect(horasDeUsoEnFecha([], lunes)).toBe(0)
+  })
+
+  it('un horario 08–18 en su día devuelve 10', () => {
+    expect(horasDeUsoEnFecha([h()], lunes)).toBe(10)
+  })
+
+  it('franjas solapadas 08–12 y 10–14 suman 6 (unión, sin doble conteo)', () => {
+    expect(
+      horasDeUsoEnFecha([h({ horaFin: 12 }), h({ horaInicio: 10, horaFin: 14 })], lunes)
+    ).toBe(6)
+  })
+
+  it('franjas contiguas 08–12 y 12–16 suman 8 una sola vez', () => {
+    expect(
+      horasDeUsoEnFecha([h({ horaFin: 12 }), h({ horaInicio: 12, horaFin: 16 })], lunes)
+    ).toBe(8)
+  })
+
+  it('la vigencia es inclusiva en el día inicial y en el final', () => {
+    expect(horasDeUsoEnFecha([h({ desde: lunes, hasta: lunes })], lunes)).toBe(10)
+    expect(horasDeUsoEnFecha([h({ desde: '2026-10-05', hasta: lunes })], lunes)).toBe(10)
+    expect(horasDeUsoEnFecha([h({ desde: lunes, hasta: '2026-10-26' })], lunes)).toBe(10)
+  })
+
+  it('fuera de la vigencia devuelve 0 (extremos nulos = infinito)', () => {
+    expect(horasDeUsoEnFecha([h({ hasta: '2026-10-12' })], lunes)).toBe(0)
+    expect(horasDeUsoEnFecha([h({ desde: '2026-10-26' })], lunes)).toBe(0)
+    expect(horasDeUsoEnFecha([h({ desde: null, hasta: null })], lunes)).toBe(10)
+  })
+
+  it('los días fuera de diasSemana no aportan horas', () => {
+    expect(horasDeUsoEnFecha([h()], martes)).toBe(0)
+    expect(
+      horasDeUsoEnFecha([h({ diasSemana: ['DOM'], horaInicio: 9, horaFin: 13 })], '2026-10-18')
+    ).toBe(4)
+  })
+
+  it('nunca supera las 24 horas de un día', () => {
+    expect(
+      horasDeUsoEnFecha(
+        [h({ horaInicio: 0, horaFin: 24 }), h({ horaInicio: 8, horaFin: 12 })],
+        lunes
+      )
+    ).toBe(24)
   })
 })

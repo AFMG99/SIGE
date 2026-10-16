@@ -149,6 +149,73 @@ export interface HorarioComparable {
 }
 
 /**
+ * Campos de un horario que necesita el cálculo de horas de uso (S4): el
+ * dominio puro no conoce Prisma ni la UI; la fila de BD y
+ * `HorarioEquipoInfo` cumplen esta forma estructuralmente.
+ */
+export interface HorarioHorasUso {
+  /** Códigos de día: LUN..DOM (CATALOGO_DIAS). */
+  diasSemana: string[]
+  /** Hora de inicio (0-23) y final (1-24), sin cruce de medianoche. */
+  horaInicio: number
+  horaFin: number
+  /** Vigencia (`YYYY-MM-DD`); null en un extremo = infinito pasado/futuro. */
+  desde?: string | null
+  hasta?: string | null
+}
+
+/** Código de día (LUN..DOM) de una fecha ISO, en zona UTC. */
+const codigoDiaDeFecha = (fechaIso: string): string | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaIso)) return null
+  const dow = new Date(`${fechaIso}T00:00:00Z`).getUTCDay() // 0 = domingo
+  return ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'][dow] ?? null
+}
+
+/**
+ * Horas de uso (0-24) en una fecha concreta: unión de las franjas de los
+ * horarios vigentes ese día. Solo cuentan los horarios cuya vigencia contiene
+ * la fecha (desde ≤ fecha ≤ hasta, inclusiva por día, misma convención que
+ * `hayConflictoHorario`) y cuyo `diasSemana` incluye el día de la semana de la
+ * fecha. Las franjas solapadas o contiguas se consolidan (unión): el solape
+ * nunca se cuenta dos veces. Función pura, sin I/O ni Prisma; una fecha mal
+ * formada aporta 0 (fail-safe: mejor no sumar de más).
+ */
+export function horasDeUsoEnFecha(
+  horarios: HorarioHorasUso[],
+  fechaIso: string
+): number {
+  const codigo = codigoDiaDeFecha(fechaIso)
+  if (!codigo) return 0
+
+  const franjas: [number, number][] = []
+  for (const h of horarios) {
+    if (!h.diasSemana.includes(codigo)) continue
+    if (h.desde && fechaIso < h.desde) continue
+    if (h.hasta && fechaIso > h.hasta) continue
+    franjas.push([h.horaInicio, h.horaFin])
+  }
+  if (franjas.length === 0) return 0
+
+  franjas.sort((a, b) => a[0] - b[0])
+  let total = 0
+  let inicio = franjas[0][0]
+  let fin = franjas[0][1]
+  for (let i = 1; i < franjas.length; i++) {
+    const [ini, finI] = franjas[i]
+    if (ini > fin) {
+      total += fin - inicio
+      inicio = ini
+      fin = finI
+    } else if (finI > fin) {
+      fin = finI
+    }
+  }
+  total += fin - inicio
+
+  return Math.min(24, Math.max(0, total))
+}
+
+/**
  * Conflicto (S12): mismo edificio + mismo ámbito + al menos un día en común +
  * franjas horarias que se solapan (semicerradas: [inicio, fin)) + vigencias
  * que se solapan (inclusive por día: vigencia [desde, hasta] con extremos

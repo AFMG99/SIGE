@@ -187,6 +187,19 @@ export const CalendarioGde: Story = {
     const tb = within(dialog).getByLabelText(/tb \(°c\)/i) as HTMLInputElement
     expect(tb.value).toBe('23')
 
+    // S1: sin campos manuales de lat/lon; la ubicación viene elegida por
+    // ciudad/zona y se muestra como chip con sus coordenadas resueltas.
+    expect(within(dialog).queryByLabelText(/latitud/i)).toBeNull()
+    expect(within(dialog).queryByLabelText(/longitud/i)).toBeNull()
+    await expect(within(dialog).getByText('Medellín, Antioquia')).toBeVisible()
+    await expect(within(dialog).getByText('6,2477, -75,5662')).toBeVisible()
+
+    // «Cambiar» abre la búsqueda por ciudad o zona (solo UI: no se dispara
+    // la red en Storybook).
+    await userEvent.click(within(dialog).getByRole('button', { name: /^cambiar$/i }))
+    await expect(within(dialog).getByLabelText(/ciudad o zona/i)).toBeVisible()
+    await expect(within(dialog).getByRole('button', { name: /buscar ubicación/i })).toBeVisible()
+
     // Rangos del calendario visibles.
     await expect(within(dialog).getByText('09/02/2026 → 13/06/2026')).toBeVisible()
 

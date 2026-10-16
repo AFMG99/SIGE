@@ -17,7 +17,16 @@ import type {
  */
 
 export const edificacionesDemo: EdificacionInfo[] = [
-  { id: 'ed-campus-00000001', nombre: 'Campus Bloque A', tipo: 'EDUCATIVO_CAMPUS', area: 4500 },
+  {
+    id: 'ed-campus-00000001',
+    nombre: 'Campus Bloque A',
+    tipo: 'EDUCATIVO_CAMPUS',
+    area: 4500,
+    // Ubicación elegida por ciudad/zona (S1): chip visible en el drawer.
+    lat: 6.2477,
+    lon: -75.5662,
+    ubicacionNombre: 'Medellín, Antioquia',
+  },
   // Sin área (null): edificación preexistente que aún no la registra.
   { id: 'ed-oficina-000001', nombre: 'Administración Principal', tipo: 'OFICINA_PUBLICA', area: null },
   { id: 'ed-vivienda-00001', nombre: 'Vivienda 1', tipo: 'RESIDENCIAL_UNIFAMILIAR', area: 120.5 },

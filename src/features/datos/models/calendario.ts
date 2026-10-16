@@ -224,6 +224,19 @@ export const configCalendarioSchema = z.object({
   temperaturaBase: z.number().min(10).max(40),
   lat: z.number().min(-90).max(90),
   lon: z.number().min(-180).max(180),
+  // Nombre visible de la ubicación elegida por ciudad/zona (S1 — geocoding
+  // Open-Meteo): «Ciudad, Departamento». Vacío/nulo = solo coordenadas
+  // (edificaciones preexistentes con lat/lon manuales).
+  ubicacionNombre: z
+    .string()
+    .trim()
+    .max(160, 'El nombre de la ubicación no puede superar los 160 caracteres')
+    .nullish()
+    .transform((v) => (v && v.trim() ? v : null)),
+  // Opt-in S4 (Fase 6): usar las horas de uso derivadas de los horarios
+  // vigentes como Xe en el cálculo nuevo de la GDE. Apagado por defecto;
+  // los resultados históricos jamás se recalculan.
+  usarHorariosXe: z.boolean().default(false),
 })
 
 export const consultaGdeSchema = z.object({
@@ -264,4 +277,74 @@ export const TDEA_PLANTILLA: {
     { fechaInicio: '2027-02-08', fechaFin: '2027-06-12', tipoDia: 'LECTIVO', nombre: 'Período académico 2027-1' },
     { fechaInicio: '2027-06-13', fechaFin: '2027-08-01', tipoDia: 'VACACIONES', nombre: 'Vacaciones e intersemestral 2027-1' },
   ],
+}
+
+// ============================================================
+// Ubicación por ciudad/zona (S1): contrato y mapeo puro
+// ============================================================
+//
+// Vive en `models/` (no en `controllers/clima.ts`) porque `'use server'`
+// exige que TODOS los exports de ese módulo sean funciones async: la clase de
+// error y el mapeador puro del geocoding no lo son. Aquí son valores normales,
+// compartidos por la server action, el controlador del calendario y los tests.
+
+/** Error amigable de la fuente climática/geocoding (Open-Meteo). */
+export class ClimaFuenteError extends Error {
+  constructor(mensaje: string) {
+    super(mensaje)
+    this.name = 'ClimaFuenteError'
+  }
+}
+
+/** Resultado de búsqueda de ubicación listo para la UI (nombres en `es`). */
+export interface UbicacionEncontrada {
+  nombre: string
+  admin1: string | null
+  pais: string | null
+  lat: number
+  lon: number
+  timezone: string | null
+}
+
+export type ResultadoBusquedaUbicacion =
+  | { estado: 'ok'; ubicaciones: UbicacionEncontrada[] }
+  | { estado: 'error'; mensaje: string }
+
+/** Tope de resultados mostrados (el endpoint ya se limita a `count=8`). */
+export const LIMITE_UBICACIONES = 8
+
+/**
+ * Mapea el payload del geocoding de Open-Meteo a un listado limpio y puro
+ * (sin red ni Prisma): filtra entradas sin nombre o con coordenadas ausentes,
+ * no numéricas o fuera de rango, y limita el listado a 8. Ante cualquier
+ * payload irreconocible devuelve `[]` (la action traduce eso a «sin
+ * coincidencias»).
+ */
+export function mapearUbicaciones(json: unknown): UbicacionEncontrada[] {
+  const resultados = (json as { results?: unknown } | null | undefined)?.results
+  if (!Array.isArray(resultados)) return []
+
+  const ubicaciones: UbicacionEncontrada[] = []
+  for (const crudo of resultados) {
+    if (ubicaciones.length >= LIMITE_UBICACIONES) break
+    if (!crudo || typeof crudo !== 'object') continue
+
+    const r = crudo as Record<string, unknown>
+    const nombre = typeof r.name === 'string' ? r.name.trim() : ''
+    const lat = r.latitude
+    const lon = r.longitude
+    if (!nombre) continue
+    if (typeof lat !== 'number' || !Number.isFinite(lat) || Math.abs(lat) > 90) continue
+    if (typeof lon !== 'number' || !Number.isFinite(lon) || Math.abs(lon) > 180) continue
+
+    ubicaciones.push({
+      nombre,
+      admin1: typeof r.admin1 === 'string' && r.admin1.trim() ? r.admin1.trim() : null,
+      pais: typeof r.country === 'string' && r.country.trim() ? r.country.trim() : null,
+      lat,
+      lon,
+      timezone: typeof r.timezone === 'string' && r.timezone ? r.timezone : null,
+    })
+  }
+  return ubicaciones
 }

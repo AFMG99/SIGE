@@ -39,6 +39,8 @@ export interface EdificacionInfo {
   /** Coordenadas para la fuente climática (GDE); null si aún no están. */
   lat?: number | null
   lon?: number | null
+  /** Nombre visible de la ubicación elegida por ciudad/zona (S1, geocoding). */
+  ubicacionNombre?: string | null
 }
 
 /** Configuración operativa de la edificación (horario H y Tb — UPME §7.1/§7.3). */

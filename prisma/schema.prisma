@@ -140,6 +140,10 @@ model Edificacion {
   // (Open-Meteo) que alimenta el cálculo de la GDE.
   lat       Float?
   lon       Float?
+  // Nombre visible de la ubicación elegida con el geocoding por ciudad/zona
+  // (S1, Fase 6): «Ciudad, Departamento». Nullable (aditivo): las filas con
+  // coordenadas manuales preexistentes conservan NULL hasta volver a guardar.
+  ubicacionNombre String?
   createdAt DateTime @default(now())
 
   bloques    Bloque[]
@@ -199,6 +203,11 @@ model CalendarioOperativo {
   horasOperacionDia   Int
   // Temperatura base Tb en °C.
   temperaturaBase     Float
+  // Opt-in S4 (Fase 6): usar las horas de uso derivadas de los horarios
+  // vigentes como Xe en el cálculo NUEVO de la GDE (la fórmula no cambia,
+  // solo la fuente de Xe). Apagado por defecto; los resultados históricos
+  // jamás se recalculan ni se sobrescriben retroactivamente.
+  usarHorariosXe      Boolean @default(false)
   createdAt           DateTime @default(now())
 
   edificacion Edificacion     @relation(fields: [edificacionId], references: [id], onDelete: Cascade)

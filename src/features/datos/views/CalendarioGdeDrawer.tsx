@@ -5,7 +5,9 @@
  *
  * Cuatro bloques, en orden (UPME 0016/2024 §7.1/§7.3):
  * 1. Configuración operativa: horario diario H, temperatura base Tb y
- *    coordenadas (requeridas por la fuente climática).
+ *    ubicación elegida por ciudad/zona (geocoding Open-Meteo, S1): las
+ *    lat/lon son el contrato interno hacia la fuente climática, nunca las
+ *    escribe el usuario a mano.
  * 2. Rangos del calendario: días operativos vs. no operativos; plantilla TdeA
  *    como datos iniciales editables (sin fechas fijas en la lógica).
  * 3. Horarios de funcionamiento de equipos: días de la semana + franja horaria
@@ -32,6 +34,8 @@ import {
   guardarConfigCalendario,
   registrarGdeCalculado,
 } from '@/features/datos/controllers/calendario'
+import { buscarUbicacion } from '@/features/datos/controllers/clima'
+import type { UbicacionEncontrada } from '@/features/datos/models/calendario'
 import { crearHorarioEquipo, eliminarHorarioEquipo } from '@/features/datos/controllers/horarios'
 import {
   CATALOGO_AMBITOS,
@@ -66,6 +70,10 @@ const fechaCorta = (iso: string): string => {
 }
 
 const hora = (h: number): string => `${String(h).padStart(2, '0')}:00`
+
+/** Coordenada en es-CO con hasta 4 decimales: `6,2477`. */
+const coord = (n: number): string =>
+  new Intl.NumberFormat('es-CO', { maximumFractionDigits: 4 }).format(n)
 
 interface CalendarioGdeDrawerProps {
   isOpen: boolean
@@ -104,8 +112,18 @@ export function CalendarioGdeDrawer({
   const [horaInicio, setHoraInicio] = useState('8')
   const [horasDia, setHorasDia] = useState('12')
   const [tb, setTb] = useState('23')
-  const [lat, setLat] = useState('')
-  const [lon, setLon] = useState('')
+  // Ubicación por ciudad/zona (S1): el usuario elige una ciudad y nunca
+  // escribe lat/lon; esas coordenadas son el contrato interno hacia la
+  // fuente climática y viajan ya resueltas al servidor.
+  const [ubicacion, setUbicacion] = useState<{
+    nombre: string | null
+    lat: number
+    lon: number
+  } | null>(null)
+  const [busquedaAbierta, setBusquedaAbierta] = useState(true)
+  const [consulta, setConsulta] = useState('')
+  const [buscandoUbicacion, setBuscandoUbicacion] = useState(false)
+  const [resultadosUbicacion, setResultadosUbicacion] = useState<UbicacionEncontrada[] | null>(null)
   const [guardandoConfig, setGuardandoConfig] = useState(false)
   const [config, setConfig] = useState<CalendarioInfo | null>(configInicial)
 
@@ -156,8 +174,19 @@ export function CalendarioGdeDrawer({
     setHoraInicio(configInicial ? String(configInicial.horaInicioOperacion) : '8')
     setHorasDia(configInicial ? String(configInicial.horasOperacionDia) : '12')
     setTb(configInicial ? String(configInicial.temperaturaBase) : '23')
-    setLat(edificacion?.lat != null ? String(edificacion.lat) : '')
-    setLon(edificacion?.lon != null ? String(edificacion.lon) : '')
+    const conUbicacion =
+      edificacion?.lat != null && edificacion?.lon != null
+        ? {
+            nombre: edificacion.ubicacionNombre ?? null,
+            lat: edificacion.lat,
+            lon: edificacion.lon,
+          }
+        : null
+    setUbicacion(conUbicacion)
+    setBusquedaAbierta(conUbicacion == null)
+    setConsulta('')
+    setBuscandoUbicacion(false)
+    setResultadosUbicacion(null)
     setHorarioForm({
       nombre: '',
       diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
@@ -193,16 +222,17 @@ export function CalendarioGdeDrawer({
     e.preventDefault()
     if (guardandoConfig) return
     setError('')
+    if (!ubicacion) {
+      fallo('Busque y seleccione la ubicación (ciudad o zona) de la edificación.')
+      return
+    }
     const datos = {
       horaInicioOperacion: Number(horaInicio),
       horasOperacionDia: Number(horasDia),
       temperaturaBase: Number(tb),
-      lat: Number(lat),
-      lon: Number(lon),
-    }
-    if (lat.trim() === '' || lon.trim() === '' || Number.isNaN(datos.lat) || Number.isNaN(datos.lon)) {
-      fallo('Ingrese las coordenadas (latitud y longitud) de la edificación.')
-      return
+      lat: ubicacion.lat,
+      lon: ubicacion.lon,
+      ubicacionNombre: ubicacion.nombre,
     }
     setGuardandoConfig(true)
     try {
@@ -223,6 +253,45 @@ export function CalendarioGdeDrawer({
     } finally {
       setGuardandoConfig(false)
     }
+  }
+
+  // ------------------------- Ubicación (ciudad/zona, S1) -------------------
+
+  /** Busca ciudades/zonas en el geocoding server-side (bajo demanda, S1).
+   *  Sin `FormEvent`: el bloque de configuración ya es un `<form>` y anidar
+   *  forms es HTML inválido — el input dispara con Enter y el botón con click. */
+  const buscarUbicacionEnFuente = async () => {
+    if (buscandoUbicacion) return
+    setError('')
+    const texto = consulta.trim()
+    if (texto.length < 3) {
+      fallo('Escriba al menos 3 caracteres para buscar la ciudad o zona.')
+      return
+    }
+    setBuscandoUbicacion(true)
+    try {
+      const res = await buscarUbicacion(texto)
+      if (res.estado === 'error') {
+        fallo(res.mensaje)
+        return
+      }
+      setResultadosUbicacion(res.ubicaciones)
+    } finally {
+      setBuscandoUbicacion(false)
+    }
+  }
+
+  /** Elige un resultado: fija nombre + lat/lon pendientes de «Guardar». */
+  const seleccionarUbicacion = (u: UbicacionEncontrada) => {
+    setUbicacion({
+      nombre: u.admin1 ? `${u.nombre}, ${u.admin1}` : u.nombre,
+      lat: u.lat,
+      lon: u.lon,
+    })
+    setResultadosUbicacion(null)
+    setConsulta('')
+    setBusquedaAbierta(false)
+    setError('')
   }
 
   // ------------------------- Rangos -------------------------
@@ -530,49 +599,102 @@ export function CalendarioGdeDrawer({
               Horario diario: {hora(Number(horaInicio))}–{hora(horaFin)} ({horasDia} h)
             </p>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label htmlFor="cfg-tb" className="ui-label mb-1.5">Tb (°C)</label>
-                <input
-                  id="cfg-tb"
-                  type="number"
-                  min={10}
-                  max={40}
-                  step="any"
-                  className="ui-input"
-                  value={tb}
-                  onChange={(e) => setTb(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="cfg-lat" className="ui-label mb-1.5">Latitud</label>
-                <input
-                  id="cfg-lat"
-                  type="number"
-                  step="any"
-                  placeholder="Ej. 6.2477"
-                  className="ui-input"
-                  value={lat}
-                  onChange={(e) => setLat(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="cfg-lon" className="ui-label mb-1.5">Longitud</label>
-                <input
-                  id="cfg-lon"
-                  type="number"
-                  step="any"
-                  placeholder="Ej. -75.5662"
-                  className="ui-input"
-                  value={lon}
-                  onChange={(e) => setLon(e.target.value)}
-                />
-              </div>
+            <div>
+              <label htmlFor="cfg-tb" className="ui-label mb-1.5">Tb (°C)</label>
+              <input
+                id="cfg-tb"
+                type="number"
+                min={10}
+                max={40}
+                step="any"
+                className="ui-input"
+                value={tb}
+                onChange={(e) => setTb(e.target.value)}
+              />
+              <p className="ui-muted mt-1 text-xs">
+                La temperatura base Tb se define por tipo de edificación (típicamente 3 °C bajo el
+                confort: 20 / 23 / 25 °C según la resolución).
+              </p>
             </div>
-            <p className="ui-muted text-xs">
-              La temperatura base Tb se define por tipo de edificación (típicamente 3 °C bajo el
-              confort: 20 / 23 / 25 °C según la resolución).
-            </p>
+
+            {/* S1: ubicación por ciudad/zona (geocoding) — nunca lat/lon manual */}
+            <div>
+              <span className="ui-label mb-1.5" id="cfg-ubicacion-legend">
+                Ubicación
+              </span>
+              {ubicacion && !busquedaAbierta ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex min-h-10 items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-sm text-emerald-800 dark:bg-slate-800 dark:text-emerald-300">
+                    <span className="font-medium">{ubicacion.nombre ?? 'Ubicación seleccionada'}</span>
+                    <span className="text-xs opacity-70">
+                      {coord(ubicacion.lat)}, {coord(ubicacion.lon)}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn-secondary ui-btn-sm focus-ring"
+                    onClick={() => setBusquedaAbierta(true)}
+                  >
+                    Cambiar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="grow min-w-[12rem]">
+                    <label htmlFor="cfg-ubicacion" className="ui-label mb-1.5">
+                      Ciudad o zona
+                    </label>
+                    <input
+                      id="cfg-ubicacion"
+                      className="ui-input focus-ring"
+                      value={consulta}
+                      onChange={(e) => setConsulta(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void buscarUbicacionEnFuente()
+                        }
+                      }}
+                      placeholder="Medellín"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn-secondary focus-ring"
+                    onClick={() => void buscarUbicacionEnFuente()}
+                    disabled={buscandoUbicacion || consulta.trim().length < 3}
+                  >
+                    {buscandoUbicacion ? 'Buscando…' : 'Buscar ubicación'}
+                  </button>
+                </div>
+              )}
+
+              {resultadosUbicacion && resultadosUbicacion.length > 0 && (
+                <ul className="mt-2 overflow-hidden rounded-xl border border-slate-200 divide-y divide-slate-200 dark:border-slate-700 dark:divide-slate-700">
+                  {resultadosUbicacion.map((r) => (
+                    <li key={`${r.lat},${r.lon}`}>
+                      <button
+                        type="button"
+                        className="flex min-h-10 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50 focus-ring dark:hover:bg-slate-800"
+                        onClick={() => seleccionarUbicacion(r)}
+                      >
+                        <span className="font-medium">{r.nombre}</span>
+                        <span className="ui-muted text-xs">
+                          {[r.admin1, r.pais].filter(Boolean).join(', ')}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {resultadosUbicacion && resultadosUbicacion.length === 0 && !buscandoUbicacion && (
+                <p className="ui-empty mt-2">
+                  Sin coincidencias. Pruebe con otro nombre de ciudad o zona.
+                </p>
+              )}
+            </div>
 
             <button type="submit" disabled={guardandoConfig} className="ui-btn ui-btn-primary">
               {guardandoConfig ? 'Guardando…' : hayConfig ? 'Actualizar configuración' : 'Guardar configuración'}
