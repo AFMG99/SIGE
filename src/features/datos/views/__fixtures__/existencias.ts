@@ -50,6 +50,7 @@ export const equiposExistentesDemo: EquiposExistentes = {
   filas: [
     {
       id: 'eq-campus-a101-01',
+      edificacionId: 'ed-campus-00000001',
       bloqueId: 'bk-campus-a101-001',
       espacioId: 'sp-campus-101-0001',
       edificacion: 'Campus Bloque A',
@@ -62,6 +63,7 @@ export const equiposExistentesDemo: EquiposExistentes = {
     },
     {
       id: 'eq-campus-a101-02',
+      edificacionId: 'ed-campus-00000001',
       bloqueId: 'bk-campus-a101-001',
       espacioId: 'sp-campus-102-0001',
       edificacion: 'Campus Bloque A',
@@ -74,6 +76,7 @@ export const equiposExistentesDemo: EquiposExistentes = {
     },
     {
       id: 'eq-campus-a101-03',
+      edificacionId: 'ed-campus-00000001',
       bloqueId: 'bk-campus-a101-001',
       espacioId: 'sp-campus-101-0001',
       edificacion: 'Campus Bloque A',
@@ -86,6 +89,7 @@ export const equiposExistentesDemo: EquiposExistentes = {
     },
     {
       id: 'eq-campus-a102-01',
+      edificacionId: 'ed-campus-00000001',
       bloqueId: 'bk-campus-a102-001',
       espacioId: 'sp-campus-201-0001',
       edificacion: 'Campus Bloque A',
@@ -98,6 +102,7 @@ export const equiposExistentesDemo: EquiposExistentes = {
     },
     {
       id: 'eq-admin-piso1-01',
+      edificacionId: 'ed-oficina-000001',
       bloqueId: 'bk-admin-piso1-001',
       espacioId: 'sp-admin-of1-00001',
       edificacion: 'Administración Principal',
@@ -110,6 +115,7 @@ export const equiposExistentesDemo: EquiposExistentes = {
     },
     {
       id: 'eq-admin-piso1-02',
+      edificacionId: 'ed-oficina-000001',
       bloqueId: 'bk-admin-piso1-001',
       espacioId: 'sp-admin-of1-00001',
       edificacion: 'Administración Principal',

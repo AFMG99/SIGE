@@ -2,12 +2,20 @@ import { describe, expect, it } from 'vitest'
 import {
   CATALOGO_DIAS,
   horarioEquipoSchema,
+  horariosAplicablesAEquipo,
+  horasDeUsoEnFecha,
   formatearDias,
   formatearFranja,
+  formatearVigencia,
+  formatearVigenciaCorta,
   claveAmbito,
   hayConflictoHorario,
-  formatearVigencia,
+  lunesDeSemana,
+  resumenHorasUsoDeSemana,
+  type ContextoEquipo,
   type HorarioComparable,
+  type HorarioConAmbito,
+  type HorarioHorasUso,
 } from './horarios'
 
 describe('CATALOGO_DIAS', () => {
@@ -213,5 +221,275 @@ describe('formatearVigencia (presentación)', () => {
     expect(formatearVigencia('2026-08-01', null)).toBe('Desde 01/08/2026')
     expect(formatearVigencia(null, '2027-06-30')).toBe('Hasta 30/06/2027')
     expect(formatearVigencia('2026-08-01', '2026-12-15')).toBe('01/08/2026 → 15/12/2026')
+  })
+})
+
+// ============================================================
+// Fase 6 — horas de uso por fecha (S4: origen de Xe en la GDE)
+// ============================================================
+
+describe('horasDeUsoEnFecha (unión de franjas con vigencia)', () => {
+  // 2026-10-19 es lunes y 2026-10-20 martes (2026-10-16 es viernes).
+  const lunes = '2026-10-19'
+  const martes = '2026-10-20'
+
+  const h = (extra: Partial<HorarioHorasUso> = {}): HorarioHorasUso => ({
+    diasSemana: ['LUN'],
+    horaInicio: 8,
+    horaFin: 18,
+    desde: null,
+    hasta: null,
+    ...extra,
+  })
+
+  it('sin horarios devuelve 0', () => {
+    expect(horasDeUsoEnFecha([], lunes)).toBe(0)
+  })
+
+  it('un horario 08–18 en su día devuelve 10', () => {
+    expect(horasDeUsoEnFecha([h()], lunes)).toBe(10)
+  })
+
+  it('franjas solapadas 08–12 y 10–14 suman 6 (unión, sin doble conteo)', () => {
+    expect(
+      horasDeUsoEnFecha([h({ horaFin: 12 }), h({ horaInicio: 10, horaFin: 14 })], lunes)
+    ).toBe(6)
+  })
+
+  it('franjas contiguas 08–12 y 12–16 suman 8 una sola vez', () => {
+    expect(
+      horasDeUsoEnFecha([h({ horaFin: 12 }), h({ horaInicio: 12, horaFin: 16 })], lunes)
+    ).toBe(8)
+  })
+
+  it('la vigencia es inclusiva en el día inicial y en el final', () => {
+    expect(horasDeUsoEnFecha([h({ desde: lunes, hasta: lunes })], lunes)).toBe(10)
+    expect(horasDeUsoEnFecha([h({ desde: '2026-10-05', hasta: lunes })], lunes)).toBe(10)
+    expect(horasDeUsoEnFecha([h({ desde: lunes, hasta: '2026-10-26' })], lunes)).toBe(10)
+  })
+
+  it('fuera de la vigencia devuelve 0 (extremos nulos = infinito)', () => {
+    expect(horasDeUsoEnFecha([h({ hasta: '2026-10-12' })], lunes)).toBe(0)
+    expect(horasDeUsoEnFecha([h({ desde: '2026-10-26' })], lunes)).toBe(0)
+    expect(horasDeUsoEnFecha([h({ desde: null, hasta: null })], lunes)).toBe(10)
+  })
+
+  it('los días fuera de diasSemana no aportan horas', () => {
+    expect(horasDeUsoEnFecha([h()], martes)).toBe(0)
+    expect(
+      horasDeUsoEnFecha([h({ diasSemana: ['DOM'], horaInicio: 9, horaFin: 13 })], '2026-10-18')
+    ).toBe(4)
+  })
+
+  it('nunca supera las 24 horas de un día', () => {
+    expect(
+      horasDeUsoEnFecha(
+        [h({ horaInicio: 0, horaFin: 24 }), h({ horaInicio: 8, horaFin: 12 })],
+        lunes
+      )
+    ).toBe(24)
+  })
+})
+
+// ============================================================
+// Fase 6 — trazabilidad de horarios por equipo (S3)
+// ============================================================
+
+describe('horariosAplicablesAEquipo (S3: qué horarios aplican a un equipo)', () => {
+  const contexto: ContextoEquipo = {
+    edificacionId: 'edi-1',
+    bloqueId: 'blo-1',
+    espacioId: 'esp-1',
+    equipoId: 'eq-1',
+  }
+
+  const fila = (
+    extra: Partial<HorarioConAmbito> & { nombre?: string } = {}
+  ): HorarioConAmbito & { nombre: string } => ({
+    nombre: 'Horario',
+    edificacionId: 'edi-1',
+    bloqueId: null,
+    espacioId: null,
+    equipoId: null,
+    ...extra,
+  })
+
+  it('coincide solo por id exacto en cada nivel (ids equivocados no aplican)', () => {
+    const horarios = [
+      fila({ nombre: 'bloque equivocado', bloqueId: 'blo-OTRO' }),
+      fila({ nombre: 'espacio equivocado', bloqueId: 'blo-1', espacioId: 'esp-OTRO' }),
+      fila({
+        nombre: 'equipo equivocado',
+        bloqueId: 'blo-1',
+        espacioId: 'esp-1',
+        equipoId: 'eq-OTRO',
+      }),
+      fila({ nombre: 'edificación equivocada', edificacionId: 'edi-OTRA' }),
+    ]
+    expect(horariosAplicablesAEquipo(horarios, contexto)).toEqual([])
+  })
+
+  it('un horario de equipo ajeno no aplica aunque su cascada coincida', () => {
+    const horarios = [fila({ bloqueId: 'blo-1', espacioId: 'esp-1', equipoId: 'eq-2' })]
+    expect(horariosAplicablesAEquipo(horarios, contexto)).toEqual([])
+  })
+
+  it('los cuatro niveles coinciden con su id exacto', () => {
+    const horarios = [
+      fila({ nombre: 'por edificación' }),
+      fila({ nombre: 'por bloque', bloqueId: 'blo-1' }),
+      fila({ nombre: 'por espacio', bloqueId: 'blo-1', espacioId: 'esp-1' }),
+      fila({
+        nombre: 'por equipo',
+        bloqueId: 'blo-1',
+        espacioId: 'esp-1',
+        equipoId: 'eq-1',
+      }),
+    ]
+    const aplicables = horariosAplicablesAEquipo(horarios, contexto)
+    expect(aplicables).toHaveLength(4)
+    // Los cuatro niveles casan con su id exacto (el orden lo fija la prueba
+    // de especificidad; aquí importa que aparecen las cuatro filas).
+    expect(aplicables.map((a) => a.nivel).sort()).toEqual([
+      'BLOQUE',
+      'EDIFICACION',
+      'EQUIPO',
+      'ESPACIO',
+    ])
+    expect(aplicables.map((a) => a.horario.nombre).sort()).toEqual([
+      'por bloque',
+      'por edificación',
+      'por equipo',
+      'por espacio',
+    ])
+  })
+
+  it('ordena por especificidad: equipo → espacio → bloque → edificación', () => {
+    const horarios = [
+      fila({ nombre: 'edificación' }),
+      fila({ nombre: 'equipo', bloqueId: 'blo-1', espacioId: 'esp-1', equipoId: 'eq-1' }),
+      fila({ nombre: 'bloque', bloqueId: 'blo-1' }),
+      fila({ nombre: 'espacio', bloqueId: 'blo-1', espacioId: 'esp-1' }),
+    ]
+    const aplicables = horariosAplicablesAEquipo(horarios, contexto)
+    expect(aplicables.map((a) => a.nivel)).toEqual([
+      'EQUIPO',
+      'ESPACIO',
+      'BLOQUE',
+      'EDIFICACION',
+    ])
+    expect(aplicables.map((a) => a.horario.nombre)).toEqual([
+      'equipo',
+      'espacio',
+      'bloque',
+      'edificación',
+    ])
+  })
+
+  it('sin coincidencias devuelve []', () => {
+    expect(horariosAplicablesAEquipo([], contexto)).toEqual([])
+  })
+})
+
+describe('lunesDeSemana (ancla de la semana en curso)', () => {
+  it('normaliza cualquier día de la semana a su lunes', () => {
+    expect(lunesDeSemana('2026-10-16')).toBe('2026-10-12') // viernes
+    expect(lunesDeSemana('2026-10-19')).toBe('2026-10-19') // ya es lunes
+    expect(lunesDeSemana('2026-10-18')).toBe('2026-10-12') // domingo
+  })
+})
+
+describe('resumenHorasUsoDeSemana (S3: horas de uso «esta semana»)', () => {
+  // 2026-10-19 es lunes y 2026-10-25 el domingo de esa misma semana.
+  const lunes = '2026-10-19'
+
+  const h = (extra: Partial<HorarioHorasUso> = {}): HorarioHorasUso => ({
+    diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
+    horaInicio: 8,
+    horaFin: 18,
+    desde: null,
+    hasta: null,
+    ...extra,
+  })
+
+  it('devuelve los 7 días de la semana (lunes a domingo) con sus fechas', () => {
+    const r = resumenHorasUsoDeSemana([], lunes)
+    expect(r.dias.map((d) => d.codigo)).toEqual(['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM'])
+    expect(r.dias.map((d) => d.fecha)).toEqual([
+      '2026-10-19',
+      '2026-10-20',
+      '2026-10-21',
+      '2026-10-22',
+      '2026-10-23',
+      '2026-10-24',
+      '2026-10-25',
+    ])
+    expect(r.total).toBe(0)
+  })
+
+  it('un horario vigente aporta sus horas por día y el total semanal', () => {
+    const r = resumenHorasUsoDeSemana([h()], lunes)
+    expect(r.dias.map((d) => d.horas)).toEqual([10, 10, 10, 10, 10, 0, 0])
+    expect(r.total).toBe(50)
+  })
+
+  it('la vigencia que termina a mitad de semana cuenta solo los días cubiertos', () => {
+    const r = resumenHorasUsoDeSemana([h({ hasta: '2026-10-21' })], lunes)
+    expect(r.dias.map((d) => d.horas)).toEqual([10, 10, 10, 0, 0, 0, 0])
+    expect(r.total).toBe(30)
+  })
+
+  it('la vigencia fuera de la semana lo excluye del resumen pero no de la aplicabilidad', () => {
+    const contexto: ContextoEquipo = {
+      edificacionId: 'edi-1',
+      bloqueId: 'blo-1',
+      espacioId: 'esp-1',
+      equipoId: 'eq-1',
+    }
+    const vencido: HorarioConAmbito & HorarioHorasUso & { nombre: string } = {
+      nombre: 'Vencido',
+      edificacionId: 'edi-1',
+      bloqueId: null,
+      espacioId: null,
+      equipoId: null,
+      diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
+      horaInicio: 8,
+      horaFin: 18,
+      desde: null,
+      hasta: '2026-10-11', // termina el domingo anterior a la semana ancla
+    }
+
+    // Trazabilidad: el horario aplicable se muestra aunque esté vencido…
+    const aplicables = horariosAplicablesAEquipo([vencido], contexto)
+    expect(aplicables).toHaveLength(1)
+
+    // …pero no aporta horas al resumen de la semana en curso.
+    const r = resumenHorasUsoDeSemana(
+      aplicables.map((a) => a.horario),
+      lunes
+    )
+    expect(r.dias.every((d) => d.horas === 0)).toBe(true)
+    expect(r.total).toBe(0)
+  })
+
+  it('dos horarios aplicables solapados se unen sin doble conteo', () => {
+    const r = resumenHorasUsoDeSemana(
+      [
+        h({ diasSemana: ['LUN'], horaInicio: 8, horaFin: 12 }),
+        h({ diasSemana: ['LUN'], horaInicio: 10, horaFin: 14 }),
+      ],
+      lunes
+    )
+    expect(r.dias[0].horas).toBe(6)
+    expect(r.total).toBe(6)
+  })
+})
+
+describe('formatearVigenciaCorta (S3: desde–hasta o «abierta»)', () => {
+  it('formatea el rango acotado y los extremos abiertos', () => {
+    expect(formatearVigenciaCorta('2026-08-01', '2026-12-15')).toBe('01/08/2026 – 15/12/2026')
+    expect(formatearVigenciaCorta('2026-08-01', null)).toBe('01/08/2026 – abierta')
+    expect(formatearVigenciaCorta(null, '2027-06-30')).toBe('abierta – 30/06/2027')
+    expect(formatearVigenciaCorta(null, null)).toBe('abierta')
   })
 })

@@ -34,6 +34,7 @@ import { VistaDatos } from './VistaDatos'
 import { GestionFacturas } from './GestionFacturas'
 import { GestionEquipos } from './GestionEquipos'
 import { GestionVariables } from './GestionVariables'
+import { HorariosEquipos } from './HorariosEquipos'
 import { SectionSkeleton } from './SectionSkeleton'
 import { EASE, revealBlur, revealUp, staggerContainer } from './motion'
 import type {
@@ -511,6 +512,15 @@ export function DatosContent({
               ) : (
                 <VistaDatos {...construirPanelEquipos(equiposExistentes)} />
               )}
+
+              {/* Trazabilidad S3 (solo donde se listan equipos guardados): horarios
+                  aplicables por nivel + horas de uso «esta semana» por equipo. */}
+              {modoEquipos !== 'carga' && (
+                <HorariosEquipos
+                  equipos={equiposExistentes.filas}
+                  horarios={horarios}
+                />
+              )}
             </div>
           )}
 
@@ -547,6 +557,9 @@ export function DatosContent({
                     eliminarBloque={eliminarBloque}
                     onIrAlCatalogo={irAlCatalogo}
                     puedeCargar={puedeCargar}
+                    calendarios={calendarios}
+                    rangos={rangos}
+                    horarios={horarios}
                   />
                 </React.Suspense>
               ) : modoVariables === 'gestion' ? (

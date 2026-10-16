@@ -1,17 +1,20 @@
 'use client'
 
 /**
- * Drawer «Calendario y GDE» de una edificación (sección Edificaciones).
+ * Drawer «Calendario operativo» de una edificación (sección Edificaciones).
  *
- * Cuatro bloques, en orden (UPME 0016/2024 §7.1/§7.3):
- * 1. Configuración operativa: horario diario H, temperatura base Tb y
- *    coordenadas (requeridas por la fuente climática).
+ * Tres bloques, en orden (UPME 0016/2024 §7.1/§7.3):
+ * 1. Configuración operativa: horario diario H, temperatura base Tb,
+ *    interruptor «Usar horarios como Xe» (S4) y ubicación elegida por
+ *    ciudad/zona (geocoding Open-Meteo, S1): las lat/lon son el contrato
+ *    interno hacia la fuente climática, nunca las escribe el usuario a mano.
  * 2. Rangos del calendario: días operativos vs. no operativos; plantilla TdeA
  *    como datos iniciales editables (sin fechas fijas en la lógica).
  * 3. Horarios de funcionamiento de equipos: días de la semana + franja horaria
  *    por grupo de equipos, editables sin depender de la configuración.
- * 4. GDE mensual calculada con la fórmula de la resolución, mostrando la
- *    fórmula con los valores sustituidos junto al resultado (interpretabilidad).
+ *
+ * El cálculo de la GDE vive ahora en la sección «Variables Operativas»
+ * («Cálculo de la GDE»); este drawer solo deja el aviso al pie.
  */
 
 import { useEffect, useRef, useState, FormEvent } from 'react'
@@ -26,12 +29,12 @@ import {
 } from '@/features/datos/models/calendario'
 import {
   agregarRangoCalendario,
-  calcularGdeMensual,
   cargarPlantillaCalendario,
   eliminarRangoCalendario,
   guardarConfigCalendario,
-  registrarGdeCalculado,
 } from '@/features/datos/controllers/calendario'
+import { buscarUbicacion } from '@/features/datos/controllers/clima'
+import type { UbicacionEncontrada } from '@/features/datos/models/calendario'
 import { crearHorarioEquipo, eliminarHorarioEquipo } from '@/features/datos/controllers/horarios'
 import {
   CATALOGO_AMBITOS,
@@ -41,7 +44,6 @@ import {
   formatearVigencia,
   type CodigoAmbito,
 } from '@/features/datos/models/horarios'
-import type { ResultadoCalculoGde } from '@/features/datos/controllers/calendario'
 import type {
   BloqueInfo,
   CalendarioInfo,
@@ -52,20 +54,16 @@ import type {
 } from './useCatalogoEdificaciones'
 import type { EquipoExistente } from './existencias'
 
-const MESES = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-]
-
-const num = (n: number): string =>
-  new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(n)
-
 const fechaCorta = (iso: string): string => {
   const [a, m, d] = iso.split('-')
   return `${d}/${m}/${a}`
 }
 
 const hora = (h: number): string => `${String(h).padStart(2, '0')}:00`
+
+/** Coordenada en es-CO con hasta 4 decimales: `6,2477`. */
+const coord = (n: number): string =>
+  new Intl.NumberFormat('es-CO', { maximumFractionDigits: 4 }).format(n)
 
 interface CalendarioGdeDrawerProps {
   isOpen: boolean
@@ -81,9 +79,6 @@ interface CalendarioGdeDrawerProps {
   espacios: EspacioInfo[]
   equipos: EquipoExistente[]
 }
-
-const ANO_BASE = new Date().getFullYear()
-const ANOS = [ANO_BASE - 1, ANO_BASE, ANO_BASE + 1, ANO_BASE + 2]
 
 export function CalendarioGdeDrawer({
   isOpen,
@@ -104,8 +99,22 @@ export function CalendarioGdeDrawer({
   const [horaInicio, setHoraInicio] = useState('8')
   const [horasDia, setHorasDia] = useState('12')
   const [tb, setTb] = useState('23')
-  const [lat, setLat] = useState('')
-  const [lon, setLon] = useState('')
+  // Ubicación por ciudad/zona (S1): el usuario elige una ciudad y nunca
+  // escribe lat/lon; esas coordenadas son el contrato interno hacia la
+  // fuente climática y viajan ya resueltas al servidor.
+  const [ubicacion, setUbicacion] = useState<{
+    nombre: string | null
+    lat: number
+    lon: number
+  } | null>(null)
+  const [busquedaAbierta, setBusquedaAbierta] = useState(true)
+  const [consulta, setConsulta] = useState('')
+  const [buscandoUbicacion, setBuscandoUbicacion] = useState(false)
+  const [resultadosUbicacion, setResultadosUbicacion] = useState<UbicacionEncontrada[] | null>(null)
+  // S4: interruptor «Usar horarios como Xe» (se guarda con la configuración).
+  const [usarHorariosXe, setUsarHorariosXe] = useState(
+    configInicial?.usarHorariosXe ?? false
+  )
   const [guardandoConfig, setGuardandoConfig] = useState(false)
   const [config, setConfig] = useState<CalendarioInfo | null>(configInicial)
 
@@ -137,27 +146,33 @@ export function CalendarioGdeDrawer({
   })
   const [horarioEliminando, setHorarioEliminando] = useState<HorarioEquipoInfo | null>(null)
 
-  // GDE
-  const [mes, setMes] = useState(new Date().getMonth() + 1)
-  const [ano, setAno] = useState(ANO_BASE)
-  const [calculando, setCalculando] = useState(false)
-  const [registro, setRegistro] = useState(false)
-  const [resultado, setResultado] = useState<ResultadoCalculoGde | null>(null)
+  // Error global del drawer (configuración, rangos, horarios).
   const [error, setError] = useState('')
 
   // Re-inicializa desde props al abrir
   useEffect(() => {
     if (!isOpen) return
     setConfig(configInicial)
+    setUsarHorariosXe(configInicial?.usarHorariosXe ?? false)
     setRangos(rangosIniciales)
     setHorarios(horariosIniciales)
-    setResultado(null)
     setError('')
     setHoraInicio(configInicial ? String(configInicial.horaInicioOperacion) : '8')
     setHorasDia(configInicial ? String(configInicial.horasOperacionDia) : '12')
     setTb(configInicial ? String(configInicial.temperaturaBase) : '23')
-    setLat(edificacion?.lat != null ? String(edificacion.lat) : '')
-    setLon(edificacion?.lon != null ? String(edificacion.lon) : '')
+    const conUbicacion =
+      edificacion?.lat != null && edificacion?.lon != null
+        ? {
+            nombre: edificacion.ubicacionNombre ?? null,
+            lat: edificacion.lat,
+            lon: edificacion.lon,
+          }
+        : null
+    setUbicacion(conUbicacion)
+    setBusquedaAbierta(conUbicacion == null)
+    setConsulta('')
+    setBuscandoUbicacion(false)
+    setResultadosUbicacion(null)
     setHorarioForm({
       nombre: '',
       diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
@@ -193,16 +208,18 @@ export function CalendarioGdeDrawer({
     e.preventDefault()
     if (guardandoConfig) return
     setError('')
+    if (!ubicacion) {
+      fallo('Busque y seleccione la ubicación (ciudad o zona) de la edificación.')
+      return
+    }
     const datos = {
       horaInicioOperacion: Number(horaInicio),
       horasOperacionDia: Number(horasDia),
       temperaturaBase: Number(tb),
-      lat: Number(lat),
-      lon: Number(lon),
-    }
-    if (lat.trim() === '' || lon.trim() === '' || Number.isNaN(datos.lat) || Number.isNaN(datos.lon)) {
-      fallo('Ingrese las coordenadas (latitud y longitud) de la edificación.')
-      return
+      lat: ubicacion.lat,
+      lon: ubicacion.lon,
+      ubicacionNombre: ubicacion.nombre,
+      usarHorariosXe,
     }
     setGuardandoConfig(true)
     try {
@@ -217,12 +234,52 @@ export function CalendarioGdeDrawer({
         horaInicioOperacion: datos.horaInicioOperacion,
         horasOperacionDia: datos.horasOperacionDia,
         temperaturaBase: datos.temperaturaBase,
+        usarHorariosXe: datos.usarHorariosXe,
       })
       showToast(res.mensaje, 'success')
       router.refresh()
     } finally {
       setGuardandoConfig(false)
     }
+  }
+
+  // ------------------------- Ubicación (ciudad/zona, S1) -------------------
+
+  /** Busca ciudades/zonas en el geocoding server-side (bajo demanda, S1).
+   *  Sin `FormEvent`: el bloque de configuración ya es un `<form>` y anidar
+   *  forms es HTML inválido — el input dispara con Enter y el botón con click. */
+  const buscarUbicacionEnFuente = async () => {
+    if (buscandoUbicacion) return
+    setError('')
+    const texto = consulta.trim()
+    if (texto.length < 3) {
+      fallo('Escriba al menos 3 caracteres para buscar la ciudad o zona.')
+      return
+    }
+    setBuscandoUbicacion(true)
+    try {
+      const res = await buscarUbicacion(texto)
+      if (res.estado === 'error') {
+        fallo(res.mensaje)
+        return
+      }
+      setResultadosUbicacion(res.ubicaciones)
+    } finally {
+      setBuscandoUbicacion(false)
+    }
+  }
+
+  /** Elige un resultado: fija nombre + lat/lon pendientes de «Guardar». */
+  const seleccionarUbicacion = (u: UbicacionEncontrada) => {
+    setUbicacion({
+      nombre: u.admin1 ? `${u.nombre}, ${u.admin1}` : u.nombre,
+      lat: u.lat,
+      lon: u.lon,
+    })
+    setResultadosUbicacion(null)
+    setConsulta('')
+    setBusquedaAbierta(false)
+    setError('')
   }
 
   // ------------------------- Rangos -------------------------
@@ -396,47 +453,6 @@ export function CalendarioGdeDrawer({
     router.refresh()
   }
 
-  // ------------------------- GDE -------------------------
-
-  const calcular = async () => {
-    if (calculando) return
-    setError('')
-    setResultado(null)
-    setCalculando(true)
-    try {
-      const res = await calcularGdeMensual(edificacion.id, mes, ano)
-      if (res.estado === 'error') {
-        fallo(res.mensaje)
-        return
-      }
-      setResultado(res)
-    } finally {
-      setCalculando(false)
-    }
-  }
-
-  const registrar = async () => {
-    if (!resultado || registro) return
-    setError('')
-    setRegistro(true)
-    try {
-      const res = await registrarGdeCalculado(
-        edificacion.id,
-        resultado.mes,
-        resultado.ano,
-        resultado.resultado.gde
-      )
-      if (res.estado === 'error') {
-        fallo(res.mensaje)
-        return
-      }
-      showToast(res.mensaje, 'success')
-      router.refresh()
-    } finally {
-      setRegistro(false)
-    }
-  }
-
   // ------------------------- Render -------------------------
 
   const hayConfig = config != null
@@ -461,7 +477,7 @@ export function CalendarioGdeDrawer({
         <div className="mb-5 flex items-start justify-between gap-4 border-b border-gray-100 px-6 pt-6 pb-4 dark:border-slate-800">
           <div>
             <h2 id="calendario-drawer-title" className="ui-title text-lg">
-              Calendario y GDE
+              Calendario operativo
             </h2>
             <p className="ui-muted mt-1 text-sm">{edificacion.nombre}</p>
           </div>
@@ -530,49 +546,131 @@ export function CalendarioGdeDrawer({
               Horario diario: {hora(Number(horaInicio))}–{hora(horaFin)} ({horasDia} h)
             </p>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label htmlFor="cfg-tb" className="ui-label mb-1.5">Tb (°C)</label>
-                <input
-                  id="cfg-tb"
-                  type="number"
-                  min={10}
-                  max={40}
-                  step="any"
-                  className="ui-input"
-                  value={tb}
-                  onChange={(e) => setTb(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="cfg-lat" className="ui-label mb-1.5">Latitud</label>
-                <input
-                  id="cfg-lat"
-                  type="number"
-                  step="any"
-                  placeholder="Ej. 6.2477"
-                  className="ui-input"
-                  value={lat}
-                  onChange={(e) => setLat(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="cfg-lon" className="ui-label mb-1.5">Longitud</label>
-                <input
-                  id="cfg-lon"
-                  type="number"
-                  step="any"
-                  placeholder="Ej. -75.5662"
-                  className="ui-input"
-                  value={lon}
-                  onChange={(e) => setLon(e.target.value)}
-                />
-              </div>
+            <div>
+              <label htmlFor="cfg-tb" className="ui-label mb-1.5">Tb (°C)</label>
+              <input
+                id="cfg-tb"
+                type="number"
+                min={10}
+                max={40}
+                step="any"
+                className="ui-input"
+                value={tb}
+                onChange={(e) => setTb(e.target.value)}
+              />
+              <p className="ui-muted mt-1 text-xs">
+                La temperatura base Tb se define por tipo de edificación (típicamente 3 °C bajo el
+                confort: 20 / 23 / 25 °C según la resolución).
+              </p>
             </div>
-            <p className="ui-muted text-xs">
-              La temperatura base Tb se define por tipo de edificación (típicamente 3 °C bajo el
-              confort: 20 / 23 / 25 °C según la resolución).
-            </p>
+
+            {/* S4: fuente de Xe para el cálculo de la GDE (se guarda con la config) */}
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="ui-label" id="cfg-xe-label">
+                  Usar horarios como Xe
+                </span>
+                <label htmlFor="cfg-xe" className="inline-flex shrink-0 cursor-pointer items-center">
+                  <input
+                    id="cfg-xe"
+                    type="checkbox"
+                    role="switch"
+                    aria-labelledby="cfg-xe-label"
+                    aria-describedby="cfg-xe-help"
+                    checked={usarHorariosXe}
+                    onChange={(e) => setUsarHorariosXe(e.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform after:content-[''] peer-checked:bg-emerald-600 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-uv-lime peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 dark:bg-slate-600 dark:peer-checked:bg-emerald-700 dark:peer-checked:after:bg-white"
+                  />
+                </label>
+              </div>
+              <p id="cfg-xe-help" className="ui-muted mt-1 text-xs">
+                Apagado: Xe = horas de operación (H), comportamiento actual. Encendido: Xe = horas
+                de uso de los horarios vigentes por día.
+              </p>
+            </div>
+
+            {/* S1: ubicación por ciudad/zona (geocoding) — nunca lat/lon manual */}
+            <div>
+              <span className="ui-label mb-1.5" id="cfg-ubicacion-legend">
+                Ubicación
+              </span>
+              {ubicacion && !busquedaAbierta ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex min-h-10 items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-sm text-emerald-800 dark:bg-slate-800 dark:text-emerald-300">
+                    <span className="font-medium">{ubicacion.nombre ?? 'Ubicación seleccionada'}</span>
+                    <span className="text-xs opacity-70">
+                      {coord(ubicacion.lat)}, {coord(ubicacion.lon)}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn-secondary ui-btn-sm focus-ring"
+                    onClick={() => setBusquedaAbierta(true)}
+                  >
+                    Cambiar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="grow min-w-[12rem]">
+                    <label htmlFor="cfg-ubicacion" className="ui-label mb-1.5">
+                      Ciudad o zona
+                    </label>
+                    <input
+                      id="cfg-ubicacion"
+                      className="ui-input focus-ring"
+                      value={consulta}
+                      onChange={(e) => setConsulta(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void buscarUbicacionEnFuente()
+                        }
+                      }}
+                      placeholder="Medellín"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn-secondary focus-ring"
+                    onClick={() => void buscarUbicacionEnFuente()}
+                    disabled={buscandoUbicacion || consulta.trim().length < 3}
+                  >
+                    {buscandoUbicacion ? 'Buscando…' : 'Buscar ubicación'}
+                  </button>
+                </div>
+              )}
+
+              {resultadosUbicacion && resultadosUbicacion.length > 0 && (
+                <ul className="mt-2 overflow-hidden rounded-xl border border-slate-200 divide-y divide-slate-200 dark:border-slate-700 dark:divide-slate-700">
+                  {resultadosUbicacion.map((r) => (
+                    <li key={`${r.lat},${r.lon}`}>
+                      <button
+                        type="button"
+                        className="flex min-h-10 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50 focus-ring dark:hover:bg-slate-800"
+                        onClick={() => seleccionarUbicacion(r)}
+                      >
+                        <span className="font-medium">{r.nombre}</span>
+                        <span className="ui-muted text-xs">
+                          {[r.admin1, r.pais].filter(Boolean).join(', ')}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {resultadosUbicacion && resultadosUbicacion.length === 0 && !buscandoUbicacion && (
+                <p className="ui-empty mt-2">
+                  Sin coincidencias. Pruebe con otro nombre de ciudad o zona.
+                </p>
+              )}
+            </div>
 
             <button type="submit" disabled={guardandoConfig} className="ui-btn ui-btn-primary">
               {guardandoConfig ? 'Guardando…' : hayConfig ? 'Actualizar configuración' : 'Guardar configuración'}
@@ -930,142 +1028,9 @@ export function CalendarioGdeDrawer({
             )}
           </div>
 
-          {/* 4. GDE mensual */}
-          <div className="space-y-3 border-t border-gray-100 pt-5 dark:border-slate-800">
-            <div>
-              <h3 className="ui-title text-sm">GDE mensual calculada</h3>
-              <p className="ui-muted mt-1 text-xs">
-                GDE = Σ(Tp − Tb)·Xd sobre los días operativos del mes, con la temperatura de la
-                fuente climática durante el horario operativo.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <label htmlFor="gde-mes" className="ui-label mb-1.5">Mes</label>
-                <select
-                  id="gde-mes"
-                  className="ui-input"
-                  value={mes}
-                  onChange={(e) => setMes(Number(e.target.value))}
-                >
-                  {MESES.map((m, i) => (
-                    <option key={m} value={i + 1}>{m}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="gde-ano" className="ui-label mb-1.5">Año</label>
-                <select
-                  id="gde-ano"
-                  className="ui-input"
-                  value={ano}
-                  onChange={(e) => setAno(Number(e.target.value))}
-                >
-                  {ANOS.map((a) => (
-                    <option key={a} value={a}>{a}</option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={() => void calcular()}
-                disabled={calculando || !hayConfig}
-                className="ui-btn ui-btn-primary"
-              >
-                {calculando ? 'Calculando…' : 'Calcular GDE'}
-              </button>
-            </div>
-
-            {!hayConfig && (
-              <div className="ui-callout ui-callout-info" role="status">
-                Complete la configuración operativa y los rangos antes de calcular.
-              </div>
-            )}
-
-            {resultado && (
-              <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/40">
-                {/* Resultado */}
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <div>
-                    <p className="ui-label">GDE de {MESES[resultado.mes - 1]} de {resultado.ano}</p>
-                    <p className="ui-title text-2xl text-emerald-800 dark:text-emerald-300">
-                      {num(resultado.resultado.gde)} °C·día
-                    </p>
-                  </div>
-                  <p className="text-xs text-emerald-800 dark:text-emerald-300">
-                    Fuente: {resultado.fuente}
-                  </p>
-                </div>
-
-                {/* Fórmula aplicada con los valores sustituidos (interpretabilidad) */}
-                <div className="rounded-md bg-white/80 p-3 text-sm dark:bg-slate-900/60">
-                  <p className="ui-label mb-1">Fórmula aplicada</p>
-                  <p className="font-mono text-xs leading-5">
-                    GDE = Σ(Tp − Tb)·Xd sobre {resultado.resultado.diasOperativos} días operativos
-                    (Xd = 1 operativo / 0 no operativo)
-                    <br />
-                    con Tb = {num(resultado.config.temperaturaBase)} °C,
-                    H = {hora(resultado.config.horaInicioOperacion)}–{hora((resultado.config.horaInicioOperacion + resultado.config.horasOperacionDia) % 24)}
-                    ({resultado.config.horasOperacionDia} h/día)
-                    <br />
-                    = {' '}
-                    {resultado.resultado.detalle
-                      .filter((d) => d.tp != null)
-                      .slice(0, 6)
-                      .map((d) =>
-                        d.grados > 0
-                          ? `(${num(d.tp as number)} − ${num(resultado.config.temperaturaBase)})`
-                          : 'max(0)'
-                      )
-                      .join(' + ')}
-                    {resultado.resultado.detalle.filter((d) => d.tp != null).length > 6 ? ' + …' : ''}
-                    <br />
-                    = {num(resultado.resultado.sumaGrados)} °C·día
-                    {resultado.resultado.diasConTemperatura !== resultado.resultado.diasOperativos && (
-                      <span className="text-amber-700 dark:text-amber-400">
-                        {' '}
-                        (sobre {resultado.resultado.diasConTemperatura} de{' '}
-                        {resultado.resultado.diasOperativos} días operativos con datos climáticos)
-                      </span>
-                    )}
-                  </p>
-                </div>
-
-                {/* Desglose por día */}
-                <div className="max-h-52 overflow-y-auto rounded-md bg-white/80 dark:bg-slate-900/60">
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-gray-50 dark:bg-slate-800">
-                      <tr>
-                        <th className="px-2 py-1.5 text-left font-medium">Día</th>
-                        <th className="px-2 py-1.5 text-right font-medium">Tp (°C)</th>
-                        <th className="px-2 py-1.5 text-right font-medium">Grados (Tp − Tb)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {resultado.resultado.detalle.map((d) => (
-                        <tr key={d.fecha} className="border-t border-gray-100 dark:border-slate-800">
-                          <td className="px-2 py-1">{fechaCorta(d.fecha)}</td>
-                          <td className="px-2 py-1 text-right">
-                            {d.tp == null ? '—' : num(d.tp)}
-                          </td>
-                          <td className="px-2 py-1 text-right">{d.grados > 0 ? num(d.grados) : '0'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => void registrar()}
-                  disabled={registro}
-                  className="ui-btn ui-btn-secondary"
-                >
-                  {registro ? 'Registrando…' : 'Registrar en variables operativas'}
-                </button>
-              </div>
-            )}
+          {/* Pie: la GDE se calcula desde «Variables Operativas» (S2) */}
+          <div className="ui-callout ui-callout-info" role="status">
+            La GDE mensual se calcula desde Variables Operativas.
           </div>
         </div>
       </div>

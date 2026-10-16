@@ -13,6 +13,7 @@
  */
 
 import { z } from 'zod'
+import { horasDeUsoEnFecha, type HorarioHorasUso } from './horarios'
 
 // ============================================================
 // Catálogo de tipos de día
@@ -82,8 +83,16 @@ export interface ResultadoGde {
    * Desglose por día operativo (para mostrar la fórmula con los valores
    * sustituidos junto al resultado — requisito de interpretabilidad).
    * `tp` es null cuando el día no tenía datos climáticos.
+   * `xe` (opcional, S4) son las horas de Xe usadas ese día.
    */
-  detalle: { fecha: string; tp: number | null; grados: number }[]
+  detalle: { fecha: string; tp: number | null; grados: number; xe?: number }[]
+  /**
+   * S4: `true` cuando Xe salió de los horarios vigentes (mapa presente);
+   * ausente/false = legado, Xe = H fijo. Opcional para no romper los mocks.
+   */
+  usarHorariosXe?: boolean
+  /** S4: Σ Xe sobre los días operativos del mes (horas). Opcional. */
+  xeTotalHoras?: number
 }
 
 // ============================================================
@@ -131,6 +140,51 @@ export function diasOperativosDelMes(
   return cuenta
 }
 
+// ============================================================
+// S4: fuente de Xe (H fijo vs. horarios vigentes)
+// ============================================================
+
+/**
+ * Horario operativo efectivo `[hInicio, hInicio + duración)` de la config:
+ * `hInicio` recortado a 0-23 y la duración a 1-(24 − hInicio) horas.
+ */
+function ventanaOperativa(
+  config: Pick<ConfigCalendario, 'horaInicioOperacion' | 'horasOperacionDia'>
+): [number, number] {
+  const hInicio = Math.max(0, Math.min(23, Math.round(config.horaInicioOperacion)))
+  const duracion = Math.max(1, Math.min(24 - hInicio, Math.round(config.horasOperacionDia)))
+  return [hInicio, duracion]
+}
+
+/**
+ * S4: mapa `fecha → Xe (horas)` de los DÍAS OPERATIVOS de (mes, ano).
+ *
+ * Con `usarHorariosXe` Xe sale de `horasDeUsoEnFecha` (horarios vigentes ese
+ * día, ya recortada a 0-24); apagado Xe = H (duracion), que reproduce bit a
+ * bit el cálculo legado al dividirse por la misma duración en `calcularGde`.
+ * Compartido por el controller (mapa → `calcularGde`) y por la UI (valor de
+ * Xe previo al clic) para que ambos muestren exactamente lo mismo.
+ */
+export function mapaXeDelMes(params: {
+  rangos: RangoFechas[]
+  config: Pick<ConfigCalendario, 'horaInicioOperacion' | 'horasOperacionDia'>
+  horarios: HorarioHorasUso[]
+  usarHorariosXe: boolean
+  mes: number
+  ano: number
+}): Map<string, number> {
+  const { rangos, config, horarios, usarHorariosXe, mes, ano } = params
+  const [, duracion] = ventanaOperativa(config)
+  const mapa = new Map<string, number>()
+  const total = diasDelMes(ano, mes)
+  for (let d = 1; d <= total; d++) {
+    const fechaIso = iso(ano, mes, d)
+    if (operativoEnFecha(rangos, fechaIso) !== true) continue
+    mapa.set(fechaIso, usarHorariosXe ? horasDeUsoEnFecha(horarios, fechaIso) : duracion)
+  }
+  return mapa
+}
+
 /**
  * Calcula la GDE mensual: para cada día operativo con temperatura disponible,
  * promedia las horas del horario operativo [H, H + duración) y suma (Tp − Tb)
@@ -142,23 +196,38 @@ export function calcularGde(params: {
   tempsHorarias: TempDia[]
   mes: number
   ano: number
+  /**
+   * S4 (opt-in): horas de uso por día (`YYYY-MM-DD` → 0-24), calculadas con
+   * `horasDeUsoEnFecha` sobre los horarios vigentes. `null`/ausente = flag
+   * apagado: Xe = H (duracion), que reproduce bit a bit el legado.
+   */
+  horasUsoPorFecha?: ReadonlyMap<string, number> | null
 }): ResultadoGde {
-  const { rangos, config, tempsHorarias, mes, ano } = params
+  const { rangos, config, tempsHorarias, mes, ano, horasUsoPorFecha } = params
   const total = diasDelMes(ano, mes)
   const porFecha = new Map(tempsHorarias.map((t) => [t.fecha, t.horas]))
 
-  const hInicio = Math.max(0, Math.min(23, Math.round(config.horaInicioOperacion)))
-  const duracion = Math.max(1, Math.min(24 - hInicio, Math.round(config.horasOperacionDia)))
+  const [hInicio, duracion] = ventanaOperativa(config)
 
   let diasOperativos = 0
   let diasConTemperatura = 0
   let sumaGrados = 0
+  let xeTotalHoras = 0
   const detalle: ResultadoGde['detalle'] = []
 
   for (let d = 1; d <= total; d++) {
     const fechaIso = iso(ano, mes, d)
     if (operativoEnFecha(rangos, fechaIso) !== true) continue
     diasOperativos++
+
+    // Xe del día: con el flag encendido salen los horarios vigentes (recorte
+    // defensivo a [0, 24]; el día ausente del mapa aporta 0). Con el flag
+    // apagado Xe = H → peso 1 → (Tp − Tb) · 1 idéntico al cálculo legado.
+    const xe = horasUsoPorFecha
+      ? Math.max(0, Math.min(24, horasUsoPorFecha.get(fechaIso) ?? 0))
+      : duracion
+    xeTotalHoras += xe
+    const peso = xe / duracion
 
     const horas = porFecha.get(fechaIso)
     let tp: number | null = null
@@ -178,13 +247,14 @@ export function calcularGde(params: {
         diasConTemperatura++
         tp = redondear2(sumaHoras / conteoHoras)
         if (tp > config.temperaturaBase) {
-          grados = redondear2(tp - config.temperaturaBase)
-          sumaGrados += tp - config.temperaturaBase
+          const gradosBrutos = tp - config.temperaturaBase
+          grados = redondear2(gradosBrutos * peso)
+          sumaGrados += gradosBrutos * peso
         }
       }
     }
 
-    detalle.push({ fecha: fechaIso, tp, grados })
+    detalle.push({ fecha: fechaIso, tp, grados, xe })
   }
 
   return {
@@ -194,6 +264,8 @@ export function calcularGde(params: {
     diasSinTemperatura: diasOperativos - diasConTemperatura,
     sumaGrados: redondear2(sumaGrados),
     detalle,
+    usarHorariosXe: horasUsoPorFecha != null,
+    xeTotalHoras,
   }
 }
 
@@ -224,6 +296,19 @@ export const configCalendarioSchema = z.object({
   temperaturaBase: z.number().min(10).max(40),
   lat: z.number().min(-90).max(90),
   lon: z.number().min(-180).max(180),
+  // Nombre visible de la ubicación elegida por ciudad/zona (S1 — geocoding
+  // Open-Meteo): «Ciudad, Departamento». Vacío/nulo = solo coordenadas
+  // (edificaciones preexistentes con lat/lon manuales).
+  ubicacionNombre: z
+    .string()
+    .trim()
+    .max(160, 'El nombre de la ubicación no puede superar los 160 caracteres')
+    .nullish()
+    .transform((v) => (v && v.trim() ? v : null)),
+  // Opt-in S4 (Fase 6): usar las horas de uso derivadas de los horarios
+  // vigentes como Xe en el cálculo nuevo de la GDE. Apagado por defecto;
+  // los resultados históricos jamás se recalculan.
+  usarHorariosXe: z.boolean().default(false),
 })
 
 export const consultaGdeSchema = z.object({
@@ -264,4 +349,74 @@ export const TDEA_PLANTILLA: {
     { fechaInicio: '2027-02-08', fechaFin: '2027-06-12', tipoDia: 'LECTIVO', nombre: 'Período académico 2027-1' },
     { fechaInicio: '2027-06-13', fechaFin: '2027-08-01', tipoDia: 'VACACIONES', nombre: 'Vacaciones e intersemestral 2027-1' },
   ],
+}
+
+// ============================================================
+// Ubicación por ciudad/zona (S1): contrato y mapeo puro
+// ============================================================
+//
+// Vive en `models/` (no en `controllers/clima.ts`) porque `'use server'`
+// exige que TODOS los exports de ese módulo sean funciones async: la clase de
+// error y el mapeador puro del geocoding no lo son. Aquí son valores normales,
+// compartidos por la server action, el controlador del calendario y los tests.
+
+/** Error amigable de la fuente climática/geocoding (Open-Meteo). */
+export class ClimaFuenteError extends Error {
+  constructor(mensaje: string) {
+    super(mensaje)
+    this.name = 'ClimaFuenteError'
+  }
+}
+
+/** Resultado de búsqueda de ubicación listo para la UI (nombres en `es`). */
+export interface UbicacionEncontrada {
+  nombre: string
+  admin1: string | null
+  pais: string | null
+  lat: number
+  lon: number
+  timezone: string | null
+}
+
+export type ResultadoBusquedaUbicacion =
+  | { estado: 'ok'; ubicaciones: UbicacionEncontrada[] }
+  | { estado: 'error'; mensaje: string }
+
+/** Tope de resultados mostrados (el endpoint ya se limita a `count=8`). */
+export const LIMITE_UBICACIONES = 8
+
+/**
+ * Mapea el payload del geocoding de Open-Meteo a un listado limpio y puro
+ * (sin red ni Prisma): filtra entradas sin nombre o con coordenadas ausentes,
+ * no numéricas o fuera de rango, y limita el listado a 8. Ante cualquier
+ * payload irreconocible devuelve `[]` (la action traduce eso a «sin
+ * coincidencias»).
+ */
+export function mapearUbicaciones(json: unknown): UbicacionEncontrada[] {
+  const resultados = (json as { results?: unknown } | null | undefined)?.results
+  if (!Array.isArray(resultados)) return []
+
+  const ubicaciones: UbicacionEncontrada[] = []
+  for (const crudo of resultados) {
+    if (ubicaciones.length >= LIMITE_UBICACIONES) break
+    if (!crudo || typeof crudo !== 'object') continue
+
+    const r = crudo as Record<string, unknown>
+    const nombre = typeof r.name === 'string' ? r.name.trim() : ''
+    const lat = r.latitude
+    const lon = r.longitude
+    if (!nombre) continue
+    if (typeof lat !== 'number' || !Number.isFinite(lat) || Math.abs(lat) > 90) continue
+    if (typeof lon !== 'number' || !Number.isFinite(lon) || Math.abs(lon) > 180) continue
+
+    ubicaciones.push({
+      nombre,
+      admin1: typeof r.admin1 === 'string' && r.admin1.trim() ? r.admin1.trim() : null,
+      pais: typeof r.country === 'string' && r.country.trim() ? r.country.trim() : null,
+      lat,
+      lon,
+      timezone: typeof r.timezone === 'string' && r.timezone ? r.timezone : null,
+    })
+  }
+  return ubicaciones
 }

@@ -18,10 +18,17 @@
 
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
+import { useRouter } from 'next/navigation'
 import { parse as parseCsv } from 'papaparse'
 import { filaVariableOperativaschema, tipoEdificacionPorCodigo } from '@/features/datos/models/validations'
 import type { ConflictoVariable, FilaEnvioVariables } from '@/features/datos/models/validations'
 import { importarFilasVariables } from '@/features/datos/controllers/variables'
+import {
+  calcularGdeMensual,
+  registrarGdeCalculado,
+} from '@/features/datos/controllers/calendario'
+import type { ResultadoCalculoGde } from '@/features/datos/controllers/calendario'
+import { mapaXeDelMes } from '@/features/datos/models/calendario'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
@@ -29,9 +36,12 @@ import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
 import type {
   BloqueInfo,
+  CalendarioInfo,
   CrearBloque,
   EdificacionInfo,
   EliminarBloque,
+  HorarioEquipoInfo,
+  RangoCalendarioUI,
 } from './useCatalogoEdificaciones'
 import { IconCarga, IconImportar, IconMapeo, IconVistaPrevia } from './icons'
 
@@ -45,6 +55,20 @@ const FILAS_POR_PAGINA = 50
 const MAX_FILAS = 5000
 const ETIQUETA_FORMATOS = '.xlsx, .xls o .csv'
 const ETIQUETA_TAMANO = '5 MB'
+
+// Periodo del cálculo de la GDE (mismo alcance que el bloque retirado del
+// drawer de calendario: mes + año con listas de 4 años alrededor del actual).
+const MESES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+]
+const ANO_BASE = new Date().getFullYear()
+const ANOS = [ANO_BASE - 1, ANO_BASE, ANO_BASE + 1, ANO_BASE + 2]
+
+const num = (n: number): string =>
+  new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(n)
+
+const hora = (h: number): string => `${String(h).padStart(2, '0')}:00`
 
 type CampoId =
   | 'bloque'
@@ -328,6 +352,9 @@ export function ImportadorVariables({
   onIrAlCatalogo,
   puedeCargar,
   resultadoInicial,
+  calendarios = [],
+  rangos = [],
+  horarios = [],
 }: {
   bloques: BloqueInfo[]
   edificaciones: EdificacionInfo[]
@@ -343,8 +370,15 @@ export function ImportadorVariables({
    * resultado sin ejecutar la importación. En producción no se envía.
    */
   resultadoInicial?: ResultadoVariablesCompletado
+  /** Configuración operativa por edificación (Cálculo de la GDE, S2). */
+  calendarios?: CalendarioInfo[]
+  /** Rangos de fechas con tipo de día de todos los calendarios. */
+  rangos?: RangoCalendarioUI[]
+  /** Horarios de funcionamiento de equipos (fuente de Xe cuando el interruptor está encendido). */
+  horarios?: HorarioEquipoInfo[]
 }) {
   const { showToast } = useToast()
+  const router = useRouter()
   const inputArchivoRef = useRef<HTMLInputElement | null>(null)
   const libroRef = useRef<XLSX.WorkBook | null>(null)
 
@@ -391,6 +425,22 @@ export function ImportadorVariables({
     resultadoInicial ?? null
   )
 
+  // Cálculo de la GDE (S2): periodo elegido y estado del pedido. Solo se
+  // escribe al pulsar «Calcular y guardar GDE» (nada durante el render).
+  const [gdeMes, setGdeMes] = useState(new Date().getMonth() + 1)
+  const [gdeAno, setGdeAno] = useState(ANO_BASE)
+  const [calculandoGde, setCalculandoGde] = useState(false)
+  const [resultadoGde, setResultadoGde] = useState<ResultadoCalculoGde | null>(null)
+  const [gdeGuardado, setGdeGuardado] = useState(false)
+  const [warnGde, setWarnGde] = useState<string | null>(null)
+
+  /** Limpia el resultado previo de la GDE (cambio de periodo o de edición). */
+  const limpiarGde = () => {
+    setResultadoGde(null)
+    setGdeGuardado(false)
+    setWarnGde(null)
+  }
+
   // ------------------------------------------
   // Datos derivados
   // ------------------------------------------
@@ -412,6 +462,67 @@ export function ImportadorVariables({
     return mapa
   }, [bloques])
 
+  // ---------------- Cálculo de la GDE (S2): datos efectivos ----------------
+
+  /** Configuración operativa (H, Tb, interruptor Xe) de la edificación elegida. */
+  const calendarioSel = useMemo(
+    () => calendarios.find((c) => c.edificacionId === edificacionSel) ?? null,
+    [calendarios, edificacionSel]
+  )
+  /** Rangos del calendario de esa edificación (alcance del mes a calcular). */
+  const rangosCal = useMemo(
+    () => (calendarioSel ? rangos.filter((r) => r.calendarioId === calendarioSel.id) : []),
+    [rangos, calendarioSel]
+  )
+  /** Horarios de equipos de esa edificación (fuente de Xe con el interruptor ON). */
+  const horariosEdif = useMemo(
+    () => horarios.filter((h) => h.edificacionId === edificacionSel),
+    [horarios, edificacionSel]
+  )
+
+  /**
+   * Xe del mes mostrado, previo al clic: el MISMO mapa que usa el servidor
+   * (`mapaXeDelMes` → `calcularGde`), para que el valor efectivo que vea el
+   * usuario antes de guardar coincida con el que se calcula al pulsar.
+   */
+  const xePrevio = useMemo(() => {
+    if (!edificacionSel || !calendarioSel) return null
+    const mapa = mapaXeDelMes({
+      rangos: rangosCal,
+      config: calendarioSel,
+      horarios: horariosEdif,
+      usarHorariosXe: calendarioSel.usarHorariosXe ?? false,
+      mes: gdeMes,
+      ano: gdeAno,
+    })
+    let total = 0
+    let fijo: number | null = null
+    mapa.forEach((v) => {
+      total += v
+      if (fijo === null) fijo = v
+    })
+    return { total, dias: mapa.size, fijo }
+  }, [edificacionSel, calendarioSel, rangosCal, horariosEdif, gdeMes, gdeAno])
+
+  /** Línea de fuente/valor de Xe (S2): «Xe = H (fijo, N h)» / «Xe = horarios (N h)». */
+  const lineaXe = (totalDelServidor: number | null): string => {
+    if (!calendarioSel) return '—'
+    const conHorarios = calendarioSel.usarHorariosXe ?? false
+    return conHorarios
+      ? `Xe = horarios (${num(totalDelServidor ?? xePrevio?.total ?? 0)} h)`
+      : `Xe = H (fijo, ${num(xePrevio?.fijo ?? calendarioSel.horasOperacionDia)} h)`
+  }
+
+  /** Estado del calendario operativo (configuración + coordenadas + rangos). */
+  const estadoCalendario = (): string => {
+    if (!calendarioSel) return 'Sin configuración operativa'
+    if (edificacionActual?.lat == null || edificacionActual?.lon == null) {
+      return 'Configurado · faltan coordenadas'
+    }
+    if (rangosCal.length === 0) return 'Configurado · sin rangos de calendario'
+    return `Configurado · ${xePrevio?.dias ?? 0} día(s) operativo(s) en ${MESES[gdeMes - 1]} de ${gdeAno}`
+  }
+
   const etiquetaTipo = (codigo: string): string => tipoEdificacionPorCodigo(codigo).etiqueta
 
   /** Resuelve el valor de la columna "bloque" (código o ID) a un ID de bloque. */
@@ -427,6 +538,48 @@ export function ImportadorVariables({
     },
     [bloquesPorId, bloquesPorCodigo]
   )
+
+  // ------------------------------------------
+  // Cálculo de la GDE (S2): botón único
+  // ------------------------------------------
+
+  /**
+   * Calcula la GDE del periodo en el servidor y, si no hay motivos de bloqueo
+   * (S4: interruptor ON con 0 horas de horarios), la registra en las variables
+   * operativas existentes de la edificación. Nada se escribe sin este clic.
+   */
+  const calcularYGuardarGde = async () => {
+    if (!edificacionSel || calculandoGde) return
+    setAviso(null)
+    limpiarGde()
+    setCalculandoGde(true)
+    try {
+      const res = await calcularGdeMensual(edificacionSel, gdeMes, gdeAno)
+      if (res.estado === 'error') {
+        setAviso(res.mensaje)
+        return
+      }
+      // Gate S4: flag ON + 0 horas de uso → warn y NO escribir.
+      if (res.resultado.usarHorariosXe && (res.resultado.xeTotalHoras ?? 0) === 0) {
+        setResultadoGde(res)
+        setWarnGde(
+          'El interruptor «Usar horarios como Xe» está encendido y los horarios vigentes suman 0 horas en el mes seleccionado: la GDE quedaría en 0. No se guardó nada; revise los horarios de funcionamiento o apague el interruptor en Edificaciones › Calendario operativo.'
+        )
+        return
+      }
+      const reg = await registrarGdeCalculado(edificacionSel, res.mes, res.ano, res.resultado.gde)
+      setResultadoGde(res)
+      if (reg.estado === 'error') {
+        setAviso(reg.mensaje)
+        return
+      }
+      setGdeGuardado(true)
+      showToast(reg.mensaje, 'success')
+      router.refresh()
+    } finally {
+      setCalculandoGde(false)
+    }
+  }
 
   // ------------------------------------------
   // Utilidades de archivo
@@ -1133,6 +1286,7 @@ export function ImportadorVariables({
                 onChange={(v) => {
                   setEdificacionSel(v)
                   setBloqueGlobal('')
+                  limpiarGde()
                 }}
                 invalid={!edificacionSel}
                 placeholder="— Seleccione —"
@@ -1220,6 +1374,152 @@ export function ImportadorVariables({
               )}
             </div>
           </div>
+
+          {/* Cálculo de la GDE (S2): sección dentro de «Variables Operativas» */}
+          {edificacionSel && (
+            <div className="ui-card">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="ui-title text-sm">Cálculo de la GDE</h3>
+                  <p className="ui-muted mt-1 text-xs">
+                    Grados de enfriamiento del mes seleccionado sobre los días operativos del
+                    calendario. Se calcula en el servidor y solo se guarda al pulsar el botón.
+                  </p>
+                </div>
+                <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  GDE = Σ (Tp − Tb) · Xe
+                </p>
+              </div>
+
+              {/* Periodo (mismo alcance que el bloque retirado del drawer) */}
+              <div className="mt-4 flex flex-wrap items-end gap-3">
+                <div>
+                  <label htmlFor="gde-mes" className="ui-label mb-1.5">Mes</label>
+                  <select
+                    id="gde-mes"
+                    className="ui-input"
+                    value={gdeMes}
+                    disabled={calculandoGde}
+                    onChange={(e) => {
+                      setGdeMes(Number(e.target.value))
+                      limpiarGde()
+                    }}
+                  >
+                    {MESES.map((m, i) => (
+                      <option key={m} value={i + 1}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="gde-ano" className="ui-label mb-1.5">Año</label>
+                  <select
+                    id="gde-ano"
+                    className="ui-input"
+                    value={gdeAno}
+                    disabled={calculandoGde}
+                    onChange={(e) => {
+                      setGdeAno(Number(e.target.value))
+                      limpiarGde()
+                    }}
+                  >
+                    {ANOS.map((a) => (
+                      <option key={a} value={a}>{a}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Entradas efectivas ANTES de guardar */}
+              <dl className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                  <dt className="ui-label">Horario H</dt>
+                  <dd className="text-sm">
+                    {calendarioSel
+                      ? `${hora(calendarioSel.horaInicioOperacion)}–${hora(
+                          (calendarioSel.horaInicioOperacion + calendarioSel.horasOperacionDia) % 24
+                        )} (${calendarioSel.horasOperacionDia} h/día)`
+                      : '—'}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                  <dt className="ui-label">Tb (°C)</dt>
+                  <dd className="text-sm">
+                    {calendarioSel ? num(calendarioSel.temperaturaBase) : '—'}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                  <dt className="ui-label">Fuente de Xe</dt>
+                  <dd className="font-mono text-xs">{lineaXe(null)}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                  <dt className="ui-label">Calendario</dt>
+                  <dd className="text-right text-sm">{estadoCalendario()}</dd>
+                </div>
+              </dl>
+
+              {/* Estado previo al clic */}
+              {!calendarioSel && (
+                <div className="ui-callout ui-callout-warn mt-3" role="status">
+                  Esta edificación no tiene configuración operativa (H, Tb, ubicación e interruptor
+                  Xe). Configure el calendario en Facturas de energía › Edificaciones › Calendario
+                  operativo.
+                </div>
+              )}
+              {calendarioSel && rangosCal.length === 0 && (
+                <div className="ui-callout ui-callout-warn mt-3" role="status">
+                  El calendario no tiene rangos: sin días operativos no hay GDE que calcular.
+                  Agregue rangos en Edificaciones › Calendario operativo.
+                </div>
+              )}
+              {warnGde && (
+                <div className="ui-callout ui-callout-warn mt-3" role="alert">
+                  {warnGde}
+                </div>
+              )}
+
+              {/* Botón único: calcula en el servidor y, si no hay bloqueo, registra */}
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void calcularYGuardarGde()}
+                  disabled={!calendarioSel || rangosCal.length === 0 || calculandoGde}
+                  className="ui-btn ui-btn-primary"
+                >
+                  {calculandoGde ? 'Calculando y guardando…' : 'Calcular y guardar GDE'}
+                </button>
+                <p className="ui-muted text-xs">
+                  Escribe solo las variables del mes seleccionado: no modifica meses anteriores,
+                  líneas base ni el resto de los campos.
+                </p>
+              </div>
+
+              {/* Resultado del último cálculo (tras el clic) */}
+              {resultadoGde && (
+                <div className="mt-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/40">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <div>
+                      <p className="ui-label">
+                        GDE de {MESES[resultadoGde.mes - 1]} de {resultadoGde.ano}
+                      </p>
+                      <p className="ui-title text-2xl text-emerald-800 dark:text-emerald-300">
+                        {num(resultadoGde.resultado.gde)} °C·día
+                      </p>
+                    </div>
+                    <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                      {gdeGuardado ? 'Registrada en variables operativas' : 'No se registró'} ·
+                      Fuente: {resultadoGde.fuente}
+                    </p>
+                  </div>
+                  <p className="font-mono text-xs leading-5">
+                    GDE = Σ (Tp − Tb) · Xe sobre {resultadoGde.resultado.diasOperativos} día(s)
+                    operativo(s)
+                    <br />
+                    {lineaXe(resultadoGde.resultado.xeTotalHoras ?? null)}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-4">
             <div
