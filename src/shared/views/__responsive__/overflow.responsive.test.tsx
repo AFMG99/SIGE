@@ -369,6 +369,7 @@ describe('desborde horizontal', () => {
             edificaciones={edificacionesDemo}
             bloques={bloquesDemo}
             espacios={espaciosDemo}
+            equipos={equiposExistentesDemo.filas}
             calendarios={calendariosDemo}
             rangos={rangosCalendarioDemo}
             horarios={horariosEquipoDemo}

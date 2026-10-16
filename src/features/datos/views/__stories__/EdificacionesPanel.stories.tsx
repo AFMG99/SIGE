@@ -19,6 +19,7 @@ import {
   horariosEquipoDemo,
   rangosCalendarioDemo,
 } from '../__fixtures__/catalogo'
+import { equiposExistentesDemo } from '../__fixtures__/existencias'
 
 const meta = {
   component: EdificacionesPanel,
@@ -27,6 +28,7 @@ const meta = {
     edificaciones: edificacionesDemo,
     bloques: bloquesDemo,
     espacios: espaciosDemo,
+    equipos: equiposExistentesDemo.filas,
     calendarios: calendariosDemo,
     rangos: rangosCalendarioDemo,
     horarios: horariosEquipoDemo,
@@ -222,6 +224,44 @@ export const HorariosEquipos: Story = {
     // Alta de un horario nuevo (el panel es stateless en Storybook: el alta
     // se verifica por el toast del servidor, como en el resto de stories).
     await userEvent.type(within(dialog).getByLabelText(/nombre del grupo/i), 'Laboratorio 201')
+    await userEvent.click(within(dialog).getByRole('button', { name: /agregar horario/i }))
+    await screen.findByText(/Horario agregado/, {}, { timeout: 3000 })
+  },
+}
+
+export const HorarioAmbitoEspacio: Story = {
+  name: 'Horarios: ámbito en cascada (bloque → espacio) con vigencia',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const screen = within(canvasElement.ownerDocument.body)
+
+    await userEvent.click(
+      canvas.getByRole('button', { name: /calendario y gde de campus bloque a/i })
+    )
+    const dialog = await screen.findByRole('dialog')
+
+    // El horario del fixture es de la edificación completa sin vigencia (S12).
+    const chips = await within(dialog).findAllByText(
+      /Edificación completa · Sin vigencia registrada/
+    )
+    expect(chips.length).toBeGreaterThan(0)
+
+    // Nivel "Espacio / aula" revela los selects en cascada.
+    await userEvent.click(within(dialog).getByRole('button', { name: /espacio \/ aula/i }))
+    await expect(within(dialog).getByLabelText(/^bloque/i)).toBeVisible()
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText(/^bloque/i),
+      'bk-campus-a101-001'
+    )
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText(/espacio \/ aula/i),
+      'sp-campus-101-0001'
+    )
+
+    // Los campos de vigencia existen y el «hasta» es opcional (abierta).
+    await expect(within(dialog).getByLabelText(/vigente desde/i)).toBeVisible()
+    await expect(within(dialog).getByLabelText(/vigente hasta/i)).toBeVisible()
+
+    await userEvent.type(within(dialog).getByLabelText(/nombre del grupo/i), 'Aula 101 — prueba')
     await userEvent.click(within(dialog).getByRole('button', { name: /agregar horario/i }))
     await screen.findByText(/Horario agregado/, {}, { timeout: 3000 })
   },

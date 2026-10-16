@@ -35,6 +35,7 @@ import type {
   HorarioEquipoInfo,
   RangoCalendarioUI,
 } from './useCatalogoEdificaciones'
+import type { EquipoExistente } from './existencias'
 
 type ObjetivoBorrado = 'edificacion' | 'bloque' | 'espacio' | null
 
@@ -47,6 +48,7 @@ export function EdificacionesPanel({
   edificaciones,
   bloques,
   espacios,
+  equipos,
   calendarios,
   rangos,
   horarios,
@@ -61,6 +63,8 @@ export function EdificacionesPanel({
   edificaciones: EdificacionInfo[]
   bloques: BloqueInfo[]
   espacios: EspacioInfo[]
+  /** Equipos registrados (ids jerárquicos para el ámbito de horarios, S12). */
+  equipos: EquipoExistente[]
   /** Configuración operativa (calendario/GDE) por edificación. */
   calendarios: CalendarioInfo[]
   /** Rangos de fechas de todos los calendarios. */
@@ -486,6 +490,35 @@ export function EdificacionesPanel({
         }
         horariosIniciales={
           calEdificacion ? horarios.filter((h) => h.edificacionId === calEdificacion.id) : []
+        }
+        bloques={
+          calEdificacion
+            ? bloques.filter((b) => b.edificacionId === calEdificacion.id)
+            : []
+        }
+        espacios={
+          calEdificacion
+            ? (() => {
+                const ids = new Set(
+                  bloques
+                    .filter((b) => b.edificacionId === calEdificacion.id)
+                    .map((b) => b.id)
+                )
+                return espacios.filter((s) => ids.has(s.bloqueId))
+              })()
+            : []
+        }
+        equipos={
+          calEdificacion
+            ? (() => {
+                const ids = new Set(
+                  bloques
+                    .filter((b) => b.edificacionId === calEdificacion.id)
+                    .map((b) => b.id)
+                )
+                return equipos.filter((q) => ids.has(q.bloqueId))
+              })()
+            : []
         }
       />
 

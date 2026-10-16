@@ -454,6 +454,7 @@ export function DatosContent({
                   edificaciones={edificacionesCat}
                   bloques={bloquesCat}
                   espacios={espaciosCat}
+                  equipos={equiposExistentes.filas}
                   calendarios={calendarios}
                   rangos={rangos}
                   horarios={horarios}
