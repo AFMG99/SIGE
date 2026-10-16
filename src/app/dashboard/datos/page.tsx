@@ -29,6 +29,8 @@ export default async function DatosPage() {
     edificaciones,
     bloques,
     espacios,
+    calendarios,
+    rangosCalendario,
     ajustesAgg,
     ajustesRecientes,
     bloquesConAjustes,
@@ -98,7 +100,7 @@ export default async function DatosPage() {
     }),
     prisma.lineaBaseEnergia.count(),
     prisma.edificacion.findMany({
-      select: { id: true, nombre: true, tipo: true, area: true },
+      select: { id: true, nombre: true, tipo: true, area: true, lat: true, lon: true },
       orderBy: { nombre: 'asc' },
     }),
     prisma.bloque.findMany({
@@ -108,6 +110,26 @@ export default async function DatosPage() {
     prisma.espacio.findMany({
       select: { id: true, bloqueId: true, nombre: true },
       orderBy: { nombre: 'asc' },
+    }),
+    prisma.calendarioOperativo.findMany({
+      select: {
+        id: true,
+        edificacionId: true,
+        horaInicioOperacion: true,
+        horasOperacionDia: true,
+        temperaturaBase: true,
+      },
+    }),
+    prisma.rangoCalendario.findMany({
+      orderBy: { fechaInicio: 'asc' },
+      select: {
+        id: true,
+        calendarioId: true,
+        fechaInicio: true,
+        fechaFin: true,
+        tipoDia: true,
+        nombre: true,
+      },
     }),
     prisma.ajusteEnergetico.aggregate({
       _count: true,
@@ -242,6 +264,15 @@ export default async function DatosPage() {
       edificaciones={edificaciones}
       bloques={bloques}
       espacios={espacios}
+      calendarios={calendarios}
+      rangos={rangosCalendario.map((r) => ({
+        id: r.id,
+        calendarioId: r.calendarioId,
+        fechaInicio: r.fechaInicio.toISOString().slice(0, 10),
+        fechaFin: r.fechaFin.toISOString().slice(0, 10),
+        tipoDia: r.tipoDia,
+        nombre: r.nombre,
+      }))}
       facturasExistentes={facturasExistentes}
       equiposExistentes={equiposExistentes}
       variablesExistentes={variablesExistentes}

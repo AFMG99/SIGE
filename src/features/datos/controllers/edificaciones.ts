@@ -15,7 +15,7 @@ import {
 
 type AuthCarga = { ok: true } | { ok: false; mensaje: string }
 
-async function autorizarCarga(): Promise<AuthCarga> {
+export async function autorizarCarga(): Promise<AuthCarga> {
   const user = await getCurrentUser()
   if (!user) return { ok: false, mensaje: 'Sesión expirada. Inicie sesión nuevamente.' }
   if (!(await canWithOverrides(user, 'consumption', 'upload'))) {

@@ -36,6 +36,28 @@ export interface EdificacionInfo {
   tipo: string
   /** Área total en m² (UPME §7.3); ausente o null si aún no está registrada. */
   area?: number | null
+  /** Coordenadas para la fuente climática (GDE); null si aún no están. */
+  lat?: number | null
+  lon?: number | null
+}
+
+/** Configuración operativa de la edificación (horario H y Tb — UPME §7.1/§7.3). */
+export interface CalendarioInfo {
+  id: string
+  edificacionId: string
+  horaInicioOperacion: number
+  horasOperacionDia: number
+  temperaturaBase: number
+}
+
+/** Rango de fechas con tipo de día (fechas ISO `YYYY-MM-DD`). */
+export interface RangoCalendarioUI {
+  id: string
+  calendarioId: string
+  fechaInicio: string
+  fechaFin: string
+  tipoDia: string
+  nombre: string | null
 }
 
 export interface BloqueInfo {
