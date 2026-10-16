@@ -6,6 +6,7 @@ import type {
   HorarioEquipoInfo,
   RangoCalendarioUI,
 } from '../useCatalogoEdificaciones'
+import type { EventoInfo } from '../../models/eventos'
 
 /**
  * Catálogo de ejemplo que en producción llega desde Prisma en `page.tsx`.
@@ -159,5 +160,98 @@ export const horariosEquipoDemo: HorarioEquipoInfo[] = [
     horaFin: 15,
     desde: '2025-06-01',
     hasta: '2025-08-15',
+  },
+]
+
+/**
+ * Eventos de ejemplo (S7/S8): uno por tipo y cubriendo los cuatro niveles del
+ * ámbito (edificación, bloque, espacio y equipo) más un vencido por fecha y
+ * uno en otra edificación, para que las stories ejeriten la herencia y el
+ * filtrado por contexto (T8 los superpondrá al calendario).
+ */
+export const eventosDemo: EventoInfo[] = [
+  // Nivel edificación: visible en todo el árbol del campus.
+  {
+    id: 'ev-campus-inst-semana',
+    edificacionId: 'ed-campus-00000001',
+    tipo: 'INSTITUCIONAL',
+    nombre: 'Semana de la infraestructura',
+    descripcion: 'Recorrido técnico por aulas y laboratorios.',
+    fechaInicio: '2026-11-16',
+    fechaFin: '2026-11-20',
+    bloqueId: null,
+    espacioId: null,
+    equipoId: null,
+  },
+  // Nivel espacio: solo el Aula 101 (y sus equipos).
+  {
+    id: 'ev-campus-aca-tesis',
+    edificacionId: 'ed-campus-00000001',
+    tipo: 'ACADEMICO',
+    nombre: 'Sustentación de tesis',
+    descripcion: null,
+    fechaInicio: '2026-11-27',
+    fechaFin: null,
+    bloqueId: 'bk-campus-a101-001',
+    espacioId: 'sp-campus-101-0001',
+    equipoId: null,
+    // Nombres resueltos del ámbito (S9: query extendida en page.tsx).
+    espacioNombre: 'Aula 101',
+  },
+  // Nivel bloque: solo el bloque A-102.
+  {
+    id: 'ev-campus-man-chiller',
+    edificacionId: 'ed-campus-00000001',
+    tipo: 'MANTENIMIENTO',
+    nombre: 'Mantenimiento chiller A-102',
+    descripcion: 'Purga y carga de refrigerante.',
+    fechaInicio: '2026-12-05',
+    fechaFin: '2026-12-06',
+    bloqueId: 'bk-campus-a102-001',
+    espacioId: null,
+    equipoId: null,
+    bloqueCodigo: 'A-102',
+    bloqueNombre: 'Ala Sur',
+  },
+  // Nivel equipo: solo el HVAC del Aula 101.
+  {
+    id: 'ev-campus-exc-corte-hvac',
+    edificacionId: 'ed-campus-00000001',
+    tipo: 'EXCEPCION',
+    nombre: 'Corte de suministro al HVAC',
+    descripcion: null,
+    fechaInicio: '2026-11-14',
+    fechaFin: null,
+    bloqueId: 'bk-campus-a101-001',
+    espacioId: 'sp-campus-101-0001',
+    equipoId: 'eq-campus-a101-01',
+    equipoTipo: 'HVAC',
+    equipoEspacioNombre: 'Aula 101',
+  },
+  // Vencido por fecha (trazabilidad, S8): nivel edificación en 2025.
+  {
+    id: 'ev-campus-aca-feria-2025',
+    edificacionId: 'ed-campus-00000001',
+    tipo: 'ACADEMICO',
+    nombre: 'Feria de ciencias 2025',
+    descripcion: null,
+    fechaInicio: '2025-09-10',
+    fechaFin: '2025-09-12',
+    bloqueId: null,
+    espacioId: null,
+    equipoId: null,
+  },
+  // Otra edificación: jamás visible en el árbol del campus.
+  {
+    id: 'ev-oficina-exc-auditoria',
+    edificacionId: 'ed-oficina-000001',
+    tipo: 'EXCEPCION',
+    nombre: 'Cierre por auditoría interna',
+    descripcion: null,
+    fechaInicio: '2026-11-03',
+    fechaFin: null,
+    bloqueId: null,
+    espacioId: null,
+    equipoId: null,
   },
 ]

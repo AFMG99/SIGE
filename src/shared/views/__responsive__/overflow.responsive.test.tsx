@@ -91,6 +91,9 @@ vi.mock('@/features/datos/controllers/calendario', () =>
 vi.mock('@/features/datos/controllers/horarios', () =>
   import('@/features/datos/views/__mocks__/serverActions')
 )
+vi.mock('@/features/datos/controllers/eventos', () =>
+  import('@/features/datos/views/__mocks__/serverActions')
+)
 
 // --- componentes bajo prueba ------------------------------------------------
 import {
@@ -98,6 +101,7 @@ import {
   calendariosDemo,
   edificacionesDemo,
   espaciosDemo,
+  eventosDemo,
   horariosEquipoDemo,
   rangosCalendarioDemo,
 } from '@/features/datos/views/__fixtures__/catalogo'
@@ -928,6 +932,7 @@ const datosArgs = {
   calendarios: calendariosDemo,
   rangos: rangosCalendarioDemo,
   horarios: horariosEquipoDemo,
+  eventos: eventosDemo,
   facturasExistentes: facturasExistentesDemo,
   equiposExistentes: equiposExistentesDemo,
   variablesExistentes: variablesExistentesDemo,

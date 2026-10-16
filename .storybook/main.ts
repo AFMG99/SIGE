@@ -46,6 +46,9 @@ const config: StorybookConfig = {
       { find: '@/features/datos/controllers/edificaciones', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/calendario', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/horarios', replacement: SERVER_ACTIONS_MOCK },
+      // T7 (eventos del calendario): mismo doble que el resto de datos — el
+      // controller real importa Prisma y no puede entrar al bundle del navegador.
+      { find: '@/features/datos/controllers/eventos', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/lineasBase', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/ajustes', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/analisis/controllers/analisis', replacement: ANALISIS_MOCK },
