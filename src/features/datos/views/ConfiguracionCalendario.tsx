@@ -26,6 +26,7 @@ import {
 import { crearHorarioEquipo, eliminarHorarioEquipo } from '@/features/datos/controllers/horarios'
 import { CATALOGO_TIPOS_DIA } from '@/features/datos/models/calendario'
 import { CATALOGO_DIAS, formatearDias } from '@/features/datos/models/horarios'
+import { etiquetaAmbitoDeHorario } from './ambitos'
 import type {
   BloqueInfo,
   CalendarioInfo,
@@ -174,23 +175,6 @@ export function ConfiguracionCalendario({
   const bloquesEdif = bloques.filter((b) => b.edificacionId === edificacionId)
   const espaciosEdif = espacios.filter((s) => bloquesEdif.some((b) => b.id === s.bloqueId))
   const equiposEdif = equipos.filter((q) => bloquesEdif.some((b) => b.id === q.bloqueId))
-
-  const etiquetaAmbito = (valor: string): string => {
-    const [tipo, id] = valor.split(':')
-    if (tipo === 'bloque') {
-      const b = bloques.find((x) => x.id === id)
-      return b ? `Bloque ${b.codigo}${b.nombre ? ` — ${b.nombre}` : ''}` : 'Bloque'
-    }
-    if (tipo === 'espacio') {
-      const s = espacios.find((x) => x.id === id)
-      return s ? `Espacio ${s.nombre}` : 'Espacio'
-    }
-    if (tipo === 'equipo') {
-      const q = equipos.find((x) => x.id === id)
-      return q ? `Equipo ${q.tipo} en ${q.espacio}` : 'Equipo'
-    }
-    return 'Edificación completa'
-  }
 
   const ambitosDisponibles = [
     { valor: '', etiqueta: 'Toda la edificación' },
@@ -591,15 +575,7 @@ export function ConfiguracionCalendario({
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="font-medium">{h.nombre}</span>
                   <span className="ui-muted text-xs">
-                    {etiquetaAmbito(
-                      h.equipoId
-                        ? `equipo:${h.equipoId}`
-                        : h.espacioId
-                          ? `espacio:${h.espacioId}`
-                          : h.bloqueId
-                            ? `bloque:${h.bloqueId}`
-                            : ''
-                    )}
+                    {etiquetaAmbitoDeHorario(h, bloques, espacios, equipos)}
                   </span>
                   <span className="ui-muted text-xs">{formatearDias(h.diasSemana)}</span>
                   <span className="ui-muted text-xs">
