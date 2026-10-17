@@ -306,7 +306,15 @@ export async function actualizarFactura(
   }
 }
 
-/** Elimina una factura guardada por su id. */
+/**
+ * Elimina una factura guardada por su id.
+ *
+ * Arrastra la alerta de consumo inusual de ese período: `alertas_consumo` es
+ * una caché derivada de las facturas y, sin su factura, la alerta sería un
+ * dato fantasma. Es el ÚNICO borrado de alertas fuera del recálculo (las
+ * demás mutaciones de facturas solo dejan la evaluación desactualizada, porque
+ * la firma cambia sola).
+ */
 export async function eliminarFactura(id: string): Promise<ResultadoGestion> {
   try {
     const rechazo = await rechazoGestionFacturas()
@@ -317,24 +325,40 @@ export async function eliminarFactura(id: string): Promise<ResultadoGestion> {
       return { estado: 'error', mensaje: 'Factura inválida.' }
     }
 
-    const { count } = await prisma.facturaEnergia.deleteMany({
+    const factura = await prisma.facturaEnergia.findUnique({
       where: { id: idFactura },
+      select: { periodo: true, edificacionId: true },
     })
-    if (count === 0) {
+    if (!factura) {
+      return { estado: 'error', mensaje: 'La factura ya no existe.' }
+    }
+
+    const [borradas, alertas] = await prisma.$transaction([
+      prisma.facturaEnergia.deleteMany({ where: { id: idFactura } }),
+      prisma.alertaConsumo.deleteMany({
+        where: { edificacionId: factura.edificacionId, periodo: factura.periodo },
+      }),
+    ])
+    if (borradas.count === 0) {
       return { estado: 'error', mensaje: 'La factura ya no existe.' }
     }
 
     await auditarAccion({
       action: 'factura.delete',
       targetId: idFactura,
-      detail: `Factura ${idFactura} eliminada.`,
+      detail:
+        `Factura ${factura.periodo} eliminada` +
+        (alertas.count > 0 ? `; se retiró la alerta del período.` : '.'),
     })
 
     return {
       estado: 'completado',
-      eliminadas: count,
+      eliminadas: borradas.count,
       lineasBaseEliminadas: 0,
-      mensaje: 'Factura eliminada de la base de datos.',
+      alertasEliminadas: alertas.count,
+      mensaje:
+        'Factura eliminada de la base de datos.' +
+        (alertas.count > 0 ? ' Se retiró la alerta asociada a ese período.' : ''),
     }
   } catch (error) {
     console.error('Error en eliminarFactura:', error)
@@ -347,29 +371,32 @@ export async function eliminarFactura(id: string): Promise<ResultadoGestion> {
 
 /**
  * Vacía la base de facturas para empezar desde cero: elimina todas las
- * facturas y, en la misma transacción, las Líneas Base guardadas que se
- * calculan a partir de ellas. Las variables operativas se conservan.
+ * facturas y, en la misma transacción, los artefactos derivados de ellas
+ * (Líneas Base y alertas de consumo inusual). Las variables operativas se
+ * conservan.
  */
 export async function vaciarFacturas(): Promise<ResultadoGestion> {
   try {
     const rechazo = await rechazoGestionFacturas()
     if (rechazo) return rechazo
 
-    const [lineasBase, facturas] = await prisma.$transaction([
+    const [lineasBase, alertas, facturas] = await prisma.$transaction([
       prisma.lineaBaseEnergia.deleteMany(),
+      prisma.alertaConsumo.deleteMany(),
       prisma.facturaEnergia.deleteMany(),
     ])
 
     await auditarAccion({
       action: 'facturas.truncate',
       targetId: 'global',
-      detail: `Se eliminaron ${facturas.count} facturas y ${lineasBase.count} líneas base.`,
+      detail: `Se eliminaron ${facturas.count} facturas, ${lineasBase.count} líneas base y ${alertas.count} alertas.`,
     })
 
     return {
       estado: 'completado',
       eliminadas: facturas.count,
       lineasBaseEliminadas: lineasBase.count,
+      alertasEliminadas: alertas.count,
       mensaje: `Se eliminaron ${facturas.count} facturas y ${lineasBase.count} líneas base guardadas.`,
     }
   } catch (error) {
