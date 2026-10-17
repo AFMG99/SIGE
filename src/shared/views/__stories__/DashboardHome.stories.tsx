@@ -138,20 +138,20 @@ export const SinAccesoConsumo: Story = {
     account: { ...cuenta, role: 'COMUNIDAD_UNIVERSITARIA' },
     energy: null,
   },
-  play: async ({ canvas, userEvent }) => {
+  play: async ({ canvas }) => {
     // No summary region, no energy numbers and no data-module slide
     expect(canvas.queryByRole('region', { name: 'Resumen energético' })).toBeNull()
     expect(canvas.queryByText('Último periodo')).toBeNull()
     expect(canvas.queryByRole('link', { name: /Gestión de datos/ })).toBeNull()
     expect(canvas.queryByRole('link', { name: /Análisis estadístico/ })).toBeNull()
-    // …but the modules it CAN see are still slides (alertas has no module gate,
-    // estimates is allowed for this role; "analisis" requires consumption)
-    expect(await canvas.findByRole('link', { name: /Alertas/ })).toBeTruthy()
+    // …but the modules it CAN see are still slides: `estimates` is allowed for
+    // this role, while `alertas` gained its own permission gate in HU-08 and is
+    // hidden here as well (mismo gating que ModuleNav).
+    expect(canvas.queryByRole('link', { name: /Alertas/ })).toBeNull()
+    expect(await canvas.findByRole('link', { name: /Estimaciones/ })).toBeTruthy()
     // Placeholder slides show the honest label, never a figure
     expect(canvas.getByText('Módulo en construcción')).toBeTruthy()
-    await userEvent.click(canvas.getByRole('button', { name: 'Módulo siguiente' }))
-    expect(await canvas.findByRole('link', { name: /Estimaciones/ })).toBeTruthy()
-    // …and still no gated slide after navigating
+    // …and still no gated slide
     expect(canvas.queryByRole('link', { name: /Gestión de datos/ })).toBeNull()
   },
 }

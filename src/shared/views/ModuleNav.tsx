@@ -126,6 +126,7 @@ export const NAV_ITEMS: NavItem[] = [
     fullLabel: 'Alertas',
     shortLabel: 'Alertas',
     href: '/dashboard/alertas',
+    moduleId: 'alerts',
     icon: ICONS.bell,
   },
   {
