@@ -20,6 +20,7 @@ import {
 } from './icons'
 import { EdificacionesPanel } from './EdificacionesPanel'
 import { CalendarioFestivos } from './CalendarioFestivos'
+import { ConfiguracionCalendario } from './ConfiguracionCalendario'
 import { ConfiguracionOperativa } from './ConfiguracionOperativa'
 import { EventosCalendario } from './EventosCalendario'
 import { useCatalogoEdificaciones } from './useCatalogoEdificaciones'
@@ -501,6 +502,18 @@ export function DatosContent({
                     rangos={rangos}
                     horarios={horarios}
                     eventos={eventos}
+                  />
+                  {/* 6d2/6d3: rangos + plantilla TdeA y horarios (ex-drawer) con
+                      la MISMA selección de edificación que el calendario. */}
+                  <ConfiguracionCalendario
+                    edificacionId={edificacionCalendario}
+                    calendarios={calendarios}
+                    rangos={rangos}
+                    horarios={horarios}
+                    bloques={bloquesCat}
+                    espacios={espaciosCat}
+                    equipos={equiposExistentes.filas}
+                    puedeCargar={puedeCargar}
                   />
                 </div>
               ) : !puedeCargar ? (
