@@ -324,7 +324,7 @@ export const HorariosPorEquipoEnSeccion: Story = {
     // Cada equipo con horarios muestra su resumen anclado a «esta semana».
     expect(canvas.getAllByText('Horas de uso · esta semana').length).toBeGreaterThan(0)
     // Los equipos de Administración no tienen horarios en el fixture: estado
-    // vacío por equipo con la puntería al drawer «Calendario operativo».
+    // vacío por equipo con la puntería a la sub-vista «Calendario».
     const vacios = await canvas.findAllByText('Este equipo aún no tiene horarios asociados.')
     expect(vacios.length).toBe(2)
 

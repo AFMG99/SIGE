@@ -563,7 +563,7 @@ export function ImportadorVariables({
       if (res.resultado.usarHorariosXe && (res.resultado.xeTotalHoras ?? 0) === 0) {
         setResultadoGde(res)
         setWarnGde(
-          'El interruptor «Usar horarios como Xe» está encendido y los horarios vigentes suman 0 horas en el mes seleccionado: la GDE quedaría en 0. No se guardó nada; revise los horarios de funcionamiento o apague el interruptor en Edificaciones › Calendario operativo.'
+          'El interruptor «Usar horarios como Xe» está encendido y los horarios vigentes suman 0 horas en el mes seleccionado: la GDE quedaría en 0. No se guardó nada; revise los horarios de funcionamiento o apague el interruptor en Edificaciones › Configuración operativa.'
         )
         return
       }
@@ -1461,14 +1461,14 @@ export function ImportadorVariables({
               {!calendarioSel && (
                 <div className="ui-callout ui-callout-warn mt-3" role="status">
                   Esta edificación no tiene configuración operativa (H, Tb, ubicación e interruptor
-                  Xe). Configure el calendario en Facturas de energía › Edificaciones › Calendario
-                  operativo.
+                  Xe). Configure el calendario en Facturas de energía › Edificaciones ›
+                  Configuración operativa.
                 </div>
               )}
               {calendarioSel && rangosCal.length === 0 && (
                 <div className="ui-callout ui-callout-warn mt-3" role="status">
                   El calendario no tiene rangos: sin días operativos no hay GDE que calcular.
-                  Agregue rangos en Edificaciones › Calendario operativo.
+                  Agregue rangos en Edificaciones › Calendario.
                 </div>
               )}
               {warnGde && (

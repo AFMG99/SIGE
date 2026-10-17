@@ -26,6 +26,8 @@ import {
 } from '@/features/datos/models/validations'
 import type { ConflictoEquipo, FilaEnvioEquipos } from '@/features/datos/models/validations'
 import { importarFilasEquipos } from '@/features/datos/controllers/equipos'
+import { usoEquiposDelMes } from '@/features/datos/models/calendario'
+import { horariosAplicablesAEquipo } from '@/features/datos/models/horarios'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
@@ -33,10 +35,13 @@ import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
 import type {
   BloqueInfo,
+  CalendarioInfo,
   CrearBloque,
   EdificacionInfo,
   EliminarBloque,
   EspacioInfo,
+  HorarioEquipoInfo,
+  RangoCalendarioUI,
 } from './useCatalogoEdificaciones'
 import { IconCarga, IconImportar, IconMapeo, IconVistaPrevia } from './icons'
 
@@ -50,6 +55,25 @@ const FILAS_POR_PAGINA = 50
 const MAX_FILAS = 5000
 const ETIQUETA_FORMATOS = '.xlsx, .xls o .csv'
 const ETIQUETA_TAMANO = '5 MB'
+
+/** Meses en minúscula para los selectores del bloque de uso (6d4). */
+const MESES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+]
+
+/** Años ofrecidos por el selector de uso: el actual ± 1. */
+const ANOS_USO = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1]
 
 type CampoId =
   | 'bloque'
@@ -205,8 +229,11 @@ function descargar(nombreArchivo: string, contenido: string, tipo: string) {
 
 export function ImportadorEquipos({
   bloques,
+  calendarios = [],
   edificaciones,
   espacios,
+  horarios = [],
+  rangos = [],
   crearBloque: crearBloqueCatalogo,
   eliminarBloque: eliminarBloqueCatalogo,
   onIrAlCatalogo,
@@ -214,8 +241,14 @@ export function ImportadorEquipos({
   resultadoInicial,
 }: {
   bloques: BloqueInfo[]
+  /** Configuración operativa por edificación (fuente de Xe, 6d4). */
+  calendarios?: CalendarioInfo[]
   edificaciones: EdificacionInfo[]
   espacios: EspacioInfo[]
+  /** Horarios de funcionamiento de equipos (ámbito por fila, 6d4). */
+  horarios?: HorarioEquipoInfo[]
+  /** Rangos del calendario (días operativos del mes, 6d4). */
+  rangos?: RangoCalendarioUI[]
   /** Crea un bloque en la edificación indicada (catálogo compartido de DatosContent). */
   crearBloque: CrearBloque
   /** Elimina un bloque vacío del catálogo compartido. */
@@ -241,6 +274,9 @@ export function ImportadorEquipos({
 
   // Segmentación: edificación (obligatoria) + valores globales
   const [edificacionSel, setEdificacionSel] = useState('')
+  // Mes/año de referencia del bloque de uso (6d4); por defecto el mes actual.
+  const [usoMes, setUsoMes] = useState(new Date().getMonth() + 1)
+  const [usoAno, setUsoAno] = useState(new Date().getFullYear())
   const [bloqueGlobal, setBloqueGlobal] = useState('')
   const [espacioGlobal, setEspacioGlobal] = useState('')
 
@@ -604,6 +640,74 @@ export function ImportadorEquipos({
 
   const espacioEfectivo = (fila: FilaTrabajo): string =>
     normalizarEspacio(fila.datos.espacio) || normalizarEspacio(espacioGlobal)
+
+  // ---------------- Uso desde el calendario (6d4/S5) ----------------
+  // Fuente del mes elegido: la MISMA configuración operativa + rangos que la
+  // GDE; los horarios se filtran por el ámbito de cada fila (edificación >
+  // bloque > espacio) con la resolución jerárquica del dominio.
+  const calendarioDeEdif = calendarios.find((c) => c.edificacionId === edificacionSel) ?? null
+  const rangosDeEdif = calendarioDeEdif
+    ? rangos.filter((r) => r.calendarioId === calendarioDeEdif.id)
+    : []
+  const horariosDeEdif = horarios.filter((h) => h.edificacionId === edificacionSel)
+
+  /**
+   * Completa SOLO las celdas vacías de «Horas de uso por día» y «Días de uso
+   * por mes» con el calendario operativo del mes elegido (media de Xe sobre
+   * los días operativos). Lo escrito a mano se conserva: el valor manual
+   * siempre manda (override). Ninguna fila descartada se toca.
+   */
+  const completarUsoDesdeCalendario = () => {
+    if (!edificacionSel || !calendarioDeEdif) return
+    let completadas = 0
+    const nuevas = filas.map((fila) => {
+      if (fila.descartada) return fila
+      const faltaHoras = !fila.datos.horasUsoDia.trim()
+      const faltaDias = !fila.datos.diasUsoMes.trim()
+      if (!faltaHoras && !faltaDias) return fila
+      const bloqueId = resolverBloque(bloqueEfectivo(fila))
+      const nombreEspacio = normalizar(espacioEfectivo(fila))
+      const candidatos = nombreEspacio
+        ? espacios.filter((s) => normalizar(s.nombre) === nombreEspacio)
+        : []
+      // Con bloque resuelto solo cuenta el espacio de ESE bloque; sin bloque,
+      // el primer espacio homónimo del catálogo.
+      const espacioId = (
+        bloqueId ? candidatos.find((s) => s.bloqueId === bloqueId) : candidatos[0]
+      )?.id ?? ''
+      const aplicables = horariosAplicablesAEquipo(horariosDeEdif, {
+        edificacionId: edificacionSel,
+        bloqueId,
+        espacioId,
+      }).map((a) => a.horario)
+      const calc = usoEquiposDelMes({
+        rangos: rangosDeEdif,
+        config: calendarioDeEdif,
+        horarios: aplicables,
+        usarHorariosXe: calendarioDeEdif.usarHorariosXe ?? false,
+        mes: usoMes,
+        ano: usoAno,
+      })
+      if (!calc) return fila
+      const datos = { ...fila.datos }
+      if (faltaHoras) datos.horasUsoDia = String(calc.horasUsoDia)
+      if (faltaDias) datos.diasUsoMes = String(calc.diasUsoMes)
+      completadas += 1
+      return { ...fila, datos }
+    })
+    if (completadas === 0) {
+      showToast(
+        'No se completó ninguna celda: el mes elegido no tiene días operativos o las filas no tienen campos de uso vacíos.',
+        'error'
+      )
+      return
+    }
+    setFilas(nuevas)
+    showToast(
+      `Se completaron ${completadas} filas desde el calendario (${MESES[usoMes - 1]} de ${usoAno}).`,
+      'success'
+    )
+  }
 
   const validaciones = useMemo(() => {
     const mapa = new Map<string, ValidacionFila>()
@@ -1522,6 +1626,70 @@ export function ImportadorEquipos({
               </div>
             </div>
           </div>
+
+          {/* Uso desde el calendario (6d4/S5): opt-in que completa SOLO las
+              celdas vacías; lo escrito a mano se conserva (override). */}
+          {edificacionSel && calendarioDeEdif && puedeCargar && (
+            <div className="ui-card">
+              <h3 className="ui-title text-sm">Uso de equipos desde el calendario</h3>
+              <p className="ui-muted mt-1 text-xs">
+                «Horas de uso por día» y «Días de uso por mes» derivan del calendario operativo:
+                media de Xe sobre los días operativos del mes elegido, con los horarios del ámbito
+                de cada fila. El botón completa solo las celdas vacías: cualquier valor escrito a
+                mano se conserva y manda.
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <div>
+                  <label htmlFor="uso-mes" className="ui-label">
+                    Mes
+                  </label>
+                  <select
+                    id="uso-mes"
+                    value={usoMes}
+                    onChange={(e) => setUsoMes(Number(e.target.value))}
+                    className="ui-input mt-1"
+                  >
+                    {MESES.map((m, i) => (
+                      <option key={m} value={i + 1}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="uso-ano" className="ui-label">
+                    Año
+                  </label>
+                  <select
+                    id="uso-ano"
+                    value={usoAno}
+                    onChange={(e) => setUsoAno(Number(e.target.value))}
+                    className="ui-input mt-1"
+                  >
+                    {ANOS_USO.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={completarUsoDesdeCalendario}
+                  className="ui-btn ui-btn-secondary"
+                >
+                  Completar horas y días de uso desde el calendario
+                </button>
+                <p className="ui-muted basis-full text-xs">
+                  Xe{' '}
+                  {calendarioDeEdif.usarHorariosXe
+                    ? 'desde los horarios vigentes'
+                    : `= ${calendarioDeEdif.horasOperacionDia} h (H fija)`}{' '}
+                  · fuente: la configuración operativa de la edificación.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Tabla editable */}
           <div className="ui-table-shell">
