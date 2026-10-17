@@ -3,7 +3,14 @@ import { expect, waitFor, within } from 'storybook/test'
 
 import { crearBloque, eliminarBloque } from '@/features/datos/controllers/edificaciones'
 import { ImportadorEquipos } from '../ImportadorEquipos'
-import { bloquesDemo, edificacionesDemo, espaciosDemo } from '../__fixtures__/catalogo'
+import {
+  bloquesDemo,
+  calendariosDemo,
+  edificacionesDemo,
+  espaciosDemo,
+  horariosEquipoDemo,
+  rangosCalendarioDemo,
+} from '../__fixtures__/catalogo'
 import { resultadoEquiposDemo } from '../__fixtures__/resultado'
 import { archivoEquipos, elegirListbox, opcionesListbox, subirArchivo } from './ayuda'
 
@@ -18,6 +25,10 @@ const meta = {
     crearBloque,
     eliminarBloque,
     onIrAlCatalogo: () => {},
+    // Contexto de calendario (6d4): config operativa + rangos + horarios del campus.
+    calendarios: calendariosDemo,
+    rangos: rangosCalendarioDemo,
+    horarios: horariosEquipoDemo,
   },
 } satisfies Meta<typeof ImportadorEquipos>
 
@@ -140,5 +151,44 @@ export const SoloLectura: Story = {
   args: { puedeCargar: false },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText(/solo lectura/i)).toBeVisible()
+  },
+}
+
+export const UsoDesdeCalendario: Story = {
+  name: '6d4 · Uso de equipos auto-completado desde el calendario',
+  play: async ({ canvas, userEvent }) => {
+    await elegirEdificacion(canvas, userEvent)
+    // Ingreso manual: 5 filas vacías → vista previa editable.
+    await userEvent.click(await canvas.findByRole('button', { name: /ingreso manual/i }))
+
+    // El bloque de uso aparece porque el campus tiene configuración operativa.
+    const completar = await canvas.findByRole('button', {
+      name: /completar horas y días de uso desde el calendario/i,
+    })
+    // Mes por defecto = actual (fuera de rangos en las fixtures); elegimos junio:
+    // período académico hasta el 13/06 → 13 días operativos a H = 12 h.
+    await userEvent.selectOptions(canvas.getByLabelText(/^mes$/i), '6')
+
+    // Override manual: la fila 2 conserva sus 9 h escritas a mano.
+    const manual = canvas.getByLabelText('Fila 2, Horas de uso por día') as HTMLInputElement
+    await userEvent.clear(manual)
+    await userEvent.type(manual, '9')
+
+    await userEvent.click(completar)
+
+    // Celdas vacías completadas con la media de Xe del mes elegido.
+    const horas1 = canvas.getByLabelText('Fila 1, Horas de uso por día') as HTMLInputElement
+    const dias1 = canvas.getByLabelText('Fila 1, Días de uso por mes') as HTMLInputElement
+    expect(horas1.value).toBe('12')
+    expect(dias1.value).toBe('13')
+    // La fila 2 solo recibió el día vacío: su valor manual sigue intacto.
+    expect(
+      (canvas.getByLabelText('Fila 2, Horas de uso por día') as HTMLInputElement).value
+    ).toBe('9')
+    expect((canvas.getByLabelText('Fila 2, Días de uso por mes') as HTMLInputElement).value).toBe(
+      '13'
+    )
+    // Confirmación de la operación (5 filas: 4 completamente vacías + la de la fila 2).
+    await expect(await canvas.findByText(/Se completaron 5 filas/i)).toBeVisible()
   },
 }

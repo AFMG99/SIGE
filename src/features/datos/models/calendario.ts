@@ -218,6 +218,33 @@ export function mapaXeDelMes(params: {
 }
 
 /**
+ * «Horas de uso por día» y «Días de uso por mes» derivados del calendario
+ * (6d4/S5): la media de Xe sobre los días operativos del mes y el recuento de
+ * esos días. Es la MISMA fuente que la GDE (`mapaXeDelMes`), de modo que el
+ * valor sugerido y el cálculo regulatorio nunca divergen. Devuelve `null`
+ * cuando el mes no tiene ningún día operativo (sin rangos, o todo el mes no
+ * operativo): el formulario debe conservar entonces el valor manual.
+ */
+export function usoEquiposDelMes(params: {
+  rangos: RangoFechas[]
+  config: Pick<ConfigCalendario, 'horaInicioOperacion' | 'horasOperacionDia'>
+  horarios: HorarioHorasUso[]
+  usarHorariosXe: boolean
+  mes: number
+  ano: number
+}): { horasUsoDia: number; diasUsoMes: number } | null {
+  const mapa = mapaXeDelMes(params)
+  if (mapa.size === 0) return null
+  let total = 0
+  mapa.forEach((v) => {
+    total += v
+  })
+  // Entero positivo (la validación del importador lo exige); unión de franjas
+  // muy cortas redondea a 1 h mínima en lugar de a 0.
+  return { horasUsoDia: Math.max(1, Math.round(total / mapa.size)), diasUsoMes: mapa.size }
+}
+
+/**
  * Calcula la GDE mensual: para cada día operativo con temperatura disponible,
  * promedia las horas del horario operativo [H, H + duración) y suma (Tp − Tb)
  * solo cuando Tp > Tb (grados de enfriamiento; nunca aporta grados negativos).

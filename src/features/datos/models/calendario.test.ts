@@ -10,6 +10,7 @@ import {
   TDEA_PLANTILLA,
   tipoDiaEnFecha,
   tipoDiaEsOperativo,
+  usoEquiposDelMes,
 } from './calendario'
 import type { RangoCalendarioInfo } from './calendario'
 import { horasDeUsoEnFecha } from './horarios'
@@ -57,6 +58,56 @@ describe('diasOperativosDelMes', () => {
       { id: 'r1', fechaInicio: '2025-12-01', fechaFin: '2026-01-15', tipoDia: 'LECTIVO' },
     ]
     expect(diasOperativosDelMes(rangos, 1, 2026)).toBe(15)
+  })
+})
+
+describe('usoEquiposDelMes', () => {
+  it('con el interruptor OFF devuelve H fija y los días operativos del mes', () => {
+    const res = usoEquiposDelMes({
+      rangos: rangosFebrero,
+      config,
+      horarios: [],
+      usarHorariosXe: false,
+      mes: 2,
+      ano: 2026,
+    })
+    // 11–28 feb = 18 días operativos a H = 12 h fijas.
+    expect(res).toEqual({ horasUsoDia: 12, diasUsoMes: 18 })
+  })
+
+  it('con el interruptor ON promedia la unión de franjas sobre los días operativos', () => {
+    // Marzo 2026 completo lectivo (31 días, empieza en domingo) y horario
+    // laboral 08–16 de lunes a viernes: 22 días × 8 h = 176 h.
+    const rangosMarzo: RangoCalendarioInfo[] = [
+      { id: 'rm', fechaInicio: '2026-03-01', fechaFin: '2026-03-31', tipoDia: 'LECTIVO' },
+    ]
+    const horarios: HorarioHorasUso[] = [
+      { diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'], horaInicio: 8, horaFin: 16 },
+    ]
+    const res = usoEquiposDelMes({
+      rangos: rangosMarzo,
+      config,
+      horarios,
+      usarHorariosXe: true,
+      mes: 3,
+      ano: 2026,
+    })
+    // 176 / 31 = 5,68 → redondeo a 6 h; los 31 días son operativos.
+    expect(res).toEqual({ horasUsoDia: 6, diasUsoMes: 31 })
+  })
+
+  it('devuelve null cuando el mes no tiene ningún día operativo', () => {
+    // Mayo no está cubierto por ningún rango.
+    expect(
+      usoEquiposDelMes({
+        rangos: rangosFebrero,
+        config,
+        horarios: [],
+        usarHorariosXe: false,
+        mes: 5,
+        ano: 2026,
+      })
+    ).toBeNull()
   })
 })
 

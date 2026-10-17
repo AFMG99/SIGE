@@ -98,7 +98,7 @@ export const VigenciaExcluidaDelResumen: Story = {
 }
 
 export const EquipoSinHorarios: Story = {
-  name: 'Estado vacío por equipo con puntería al Calendario operativo',
+  name: 'Estado vacío por equipo con puntería al Calendario',
   args: {
     // Solo los equipos de Administración: el fixture no tiene horarios allí.
     equipos: equiposExistentesDemo.filas.filter((e) =>
@@ -113,7 +113,7 @@ export const EquipoSinHorarios: Story = {
 
     // Las dos tarjetas vacías repiten el puntería → findAllByText.
     const pistas = await canvas.findAllByText(
-      /Créelos en «Calendario operativo» \(sección Edificaciones\)/
+      /Créelos en «Calendario» \(sección Edificaciones\)/
     )
     expect(pistas.length).toBe(2)
     await expect(pistas[0]).toBeVisible()
