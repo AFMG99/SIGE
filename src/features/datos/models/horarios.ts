@@ -165,7 +165,7 @@ export interface HorarioHorasUso {
 }
 
 /** Código de día (LUN..DOM) de una fecha ISO, en zona UTC. */
-const codigoDiaDeFecha = (fechaIso: string): string | null => {
+export const codigoDiaDeFecha = (fechaIso: string): string | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaIso)) return null
   const dow = new Date(`${fechaIso}T00:00:00Z`).getUTCDay() // 0 = domingo
   return ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'][dow] ?? null

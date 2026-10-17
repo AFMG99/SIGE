@@ -21,9 +21,10 @@
  * pista de contexto.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   anclaDeSemana,
+  etiquetaDeTipoEvento,
   eventosPorFecha,
   isoDeHoy,
   puntoDeTipoEvento,
@@ -34,11 +35,16 @@ import {
 import { festivosDelMes, type Festivo } from '../models/festivos'
 import { chipTipoDia, tipoDiaEnFecha } from '../models/calendario'
 import { etiquetaAmbitoDeEvento, eventosVisiblesPara, type EventoInfo } from '../models/eventos'
+import { codigoDiaDeFecha, formatearDias, formatearFranja, horasDeUsoEnFecha } from '../models/horarios'
+import { etiquetaAmbitoDeHorario } from './ambitos'
 import type {
+  BloqueInfo,
   CalendarioInfo,
+  EspacioInfo,
   HorarioEquipoInfo,
   RangoCalendarioUI,
 } from './useCatalogoEdificaciones'
+import type { EquipoExistente } from './existencias'
 import { CalendarioVistaAgenda } from './CalendarioVistaAgenda'
 import { CalendarioVistaAno } from './CalendarioVistaAno'
 import { CalendarioVistaSemana } from './CalendarioVistaSemana'
@@ -49,6 +55,9 @@ const MESES = [
 ]
 
 const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+
+/** Nombres completos por `getUTCDay()` (0 = domingo), para el detalle del día. */
+const DIAS_COMPLETOS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 
@@ -83,6 +92,10 @@ interface CalendarioFestivosProps {
   horarios?: HorarioEquipoInfo[]
   /** Eventos de todas las edificaciones (la herencia S8 se aplica en cliente). */
   eventos?: EventoInfo[]
+  /** Bloques/espacios/equipos: resuelven nombres en el detalle del día (6d3). */
+  bloques?: BloqueInfo[]
+  espacios?: EspacioInfo[]
+  equipos?: EquipoExistente[]
 }
 
 export function CalendarioFestivos({
@@ -93,6 +106,9 @@ export function CalendarioFestivos({
   rangos = [],
   horarios = [],
   eventos = [],
+  bloques = [],
+  espacios = [],
+  equipos = [],
 }: CalendarioFestivosProps = {}) {
   const [ref, setRef] = useState(() => {
     const d = new Date()
@@ -105,8 +121,15 @@ export function CalendarioFestivos({
   const [vista, setVista] = useState<Vista>('mes')
   /** Ancla de la vista semanal: null = derivada del mes referido (hoy o día 1). */
   const [ancla, setAncla] = useState<string | null>(null)
+  /** Día expandido en la rejilla mensual (S4/6d3); null = sin detalle. */
+  const [diaExpandido, setDiaExpandido] = useState<string | null>(null)
 
   const { mes, ano } = ref
+
+  // El detalle pertenece a un mes/edificación concretos: al cambiar, se pliega.
+  useEffect(() => {
+    setDiaExpandido(null)
+  }, [mes, ano, edificacionId])
   const anclaEfectiva = ancla ?? anclaDeSemana(mes, ano, hoy)
   const festivos = festivosDelMes(ano, mes)
   const porFecha = new Map<string, Festivo>(festivos.map((f) => [f.fecha, f]))
@@ -155,6 +178,30 @@ export function CalendarioFestivos({
     return ev.fechaInicio <= ultimoDiaMes && fin >= primerDiaMes
   })
   const plural = (n: number, uno: string, muchos: string) => `${n} ${n === 1 ? uno : muchos}`
+
+  // ---------------- Detalle del día clicado (S4/6d3) ----------------
+  // Vigencia inclusiva: el horario cuenta para la fecha si su rango la cubre.
+  const vigenteEnFecha = (h: HorarioEquipoInfo, fecha: string): boolean =>
+    (!h.desde || h.desde <= fecha) && (!h.hasta || h.hasta >= fecha)
+  const codigoDeLaFecha = diaExpandido ? codigoDiaDeFecha(diaExpandido) : null
+  const horariosDeLaFecha =
+    diaExpandido && codigoDeLaFecha
+      ? horariosDeEdif.filter(
+          (h) => vigenteEnFecha(h, diaExpandido) && h.diasSemana.includes(codigoDeLaFecha)
+        )
+      : []
+  const horasUsoDeLaFecha = diaExpandido
+    ? horasDeUsoEnFecha(
+        horariosDeEdif.filter((h) => vigenteEnFecha(h, diaExpandido)),
+        diaExpandido
+      )
+    : 0
+  const fechaLargaDe = (iso: string): string => {
+    const [a, m, d] = iso.split('-')
+    return `${DIAS_COMPLETOS[new Date(`${iso}T00:00:00Z`).getUTCDay()]}, ${Number(d)} de ${
+      MESES[Number(m) - 1]
+    } de ${a}`
+  }
 
   // Navegación de mes/año: mantiene la vista actual y ancla la semana al
   // nuevo mes referido (S6: la coherencia vale en las tres vistas).
@@ -399,15 +446,27 @@ export function CalendarioFestivos({
                   const titulos = [festivo?.nombre, ...eventosDelDia.map((e) => e.nombre)]
                     .filter((t): t is string => Boolean(t))
                     .join(' · ')
+                  const abierto = diaExpandido === fecha
                   return (
                     <div
                       key={fecha}
                       role="gridcell"
                       aria-current={esHoy ? 'date' : undefined}
                       aria-label={etiquetas.join(', ')}
+                      aria-expanded={abierto}
+                      aria-controls="detalle-dia"
                       title={titulos || undefined}
+                      onClick={() => setDiaExpandido(abierto ? null : fecha)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setDiaExpandido(abierto ? null : fecha)
+                        }
+                      }}
+                      tabIndex={0}
                       className={[
-                        'flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-1',
+                        'flex min-h-12 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-1',
+                        'focus-ring',
                         finDeSemana && !festivo
                           ? 'border-transparent bg-gray-50 dark:bg-slate-800/50'
                           : 'border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800/40',
@@ -415,6 +474,7 @@ export function CalendarioFestivos({
                           ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/50'
                           : '',
                         esHoy ? 'ring-2 ring-uv-lime' : '',
+                        abierto ? 'outline-2 outline-emerald-600' : '',
                       ].join(' ')}
                     >
                       <span
@@ -458,6 +518,135 @@ export function CalendarioFestivos({
               </div>
             ))}
           </div>
+
+          {/* Detalle del día (S4/6d3): tipo, festivo, eventos, horarios
+              vigentes y horas de uso de la fecha clicada. Se pliega al clicar
+              otra vez, cambiar de mes o de edificación. */}
+          {diaExpandido && (
+            <section
+              id="detalle-dia"
+              aria-label={`Detalle del ${fechaLargaDe(diaExpandido)}`}
+              className="ui-card mt-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="ui-title text-sm">{fechaLargaDe(diaExpandido)}</h4>
+                  <p className="ui-muted mt-1 text-xs">
+                    {conContexto
+                      ? 'Tipo de día, festivo, eventos y horarios vigentes de esta fecha.'
+                      : 'Sin edificación seleccionada solo se resuelven los festivos nacionales.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDiaExpandido(null)}
+                  aria-label="Cerrar detalle del día"
+                  className="ui-btn ui-btn-ghost ui-btn-sm focus-ring"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              <dl className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <dt className="ui-label">Tipo de día</dt>
+                  <dd className="mt-1 text-sm">
+                    {conContexto ? (
+                      (() => {
+                        const tipo = tipoDiaEnFecha(rangosDeEdif, diaExpandido)
+                        const c = tipo ? chipTipoDia(tipo) : null
+                        return c ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span
+                              aria-hidden="true"
+                              className={`h-2 w-2 rounded-full ${c.punto}`}
+                            />
+                            {c.etiqueta}
+                          </span>
+                        ) : (
+                          <span className="ui-muted">Sin rangos para esta fecha</span>
+                        )
+                      })()
+                    ) : (
+                      <span className="ui-muted">Requiere edificación seleccionada</span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="ui-label">Festivo nacional</dt>
+                  <dd className="mt-1 text-sm">
+                    {porFecha.get(diaExpandido) ? (
+                      <span className="text-emerald-800 dark:text-emerald-300">
+                        {porFecha.get(diaExpandido)!.nombre}
+                      </span>
+                    ) : (
+                      <span className="ui-muted">No aplica</span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="ui-label">Horas de uso (Xe)</dt>
+                  <dd className="mt-1 text-sm">
+                    {conContexto ? `${horasUsoDeLaFecha} h` : <span className="ui-muted">—</span>}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="ui-label">Horarios vigentes</dt>
+                  <dd className="mt-1 text-sm">
+                    {!conContexto || horariosDeLaFecha.length === 0 ? (
+                      <span className="ui-muted">
+                        {conContexto ? 'Ninguno este día' : 'Requiere edificación seleccionada'}
+                      </span>
+                    ) : (
+                      <ul className="space-y-1">
+                        {horariosDeLaFecha.map((h) => (
+                          <li key={h.id}>
+                            {h.nombre}{' '}
+                            <span className="ui-muted text-xs">
+                              ({etiquetaAmbitoDeHorario(h, bloques, espacios, equipos)} ·{' '}
+                              {formatearDias(h.diasSemana)} ·{' '}
+                              {formatearFranja(h.horaInicio, h.horaFin)})
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="ui-label">Eventos del día</dt>
+                  <dd className="mt-1 text-sm">
+                    {(() => {
+                      const delDia = conContexto ? (mapaEventos.get(diaExpandido) ?? []) : []
+                      if (delDia.length === 0) {
+                        return (
+                          <span className="ui-muted">
+                            {conContexto ? 'Sin eventos' : 'Requiere edificación seleccionada'}
+                          </span>
+                        )
+                      }
+                      return (
+                        <ul className="space-y-1">
+                          {delDia.map((ev) => (
+                            <li key={ev.id} className="flex flex-wrap items-center gap-1.5">
+                              <span
+                                aria-hidden="true"
+                                className={`h-2 w-2 shrink-0 rounded-full ${puntoDeTipoEvento(ev.tipo)}`}
+                              />
+                              {ev.nombre}
+                              <span className="ui-muted text-xs">
+                                ({etiquetaDeTipoEvento(ev.tipo)})
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                    })()}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
 
           {/* Lista del mes: nombres completos (la rejilla los trunca en móvil) */}
           <div className="mt-4 border-t border-gray-100 pt-4 dark:border-slate-800">

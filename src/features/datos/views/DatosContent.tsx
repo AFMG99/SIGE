@@ -502,6 +502,9 @@ export function DatosContent({
                     rangos={rangos}
                     horarios={horarios}
                     eventos={eventos}
+                    bloques={bloquesCat}
+                    espacios={espaciosCat}
+                    equipos={equiposExistentes.filas}
                   />
                   {/* 6d2/6d3: rangos + plantilla TdeA y horarios (ex-drawer) con
                       la MISMA selección de edificación que el calendario. */}

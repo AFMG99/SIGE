@@ -3,11 +3,14 @@ import { expect, within } from 'storybook/test'
 
 import { CalendarioFestivos } from '../CalendarioFestivos'
 import {
+  bloquesDemo,
   calendariosDemo,
+  espaciosDemo,
   eventosDemo,
   horariosEquipoDemo,
   rangosCalendarioDemo,
 } from '../__fixtures__/catalogo'
+import { equiposExistentesDemo } from '../__fixtures__/existencias'
 
 const meta = {
   component: CalendarioFestivos,
@@ -271,5 +274,74 @@ export const ContextoDeEdificacion: Story = {
     await expect(canvas.getByText('Sustentación de tesis')).toBeVisible()
     await expect(canvas.getByText('Espacio · Aula 101')).toBeVisible()
     expect(canvas.queryByText('Cierre por auditoría interna')).toBeNull()
+  },
+}
+
+export const DetalleDiaFestivo: Story = {
+  name: '6d3 · Clic en un día expande el detalle (festivo, horarios y horas de uso)',
+  args: {
+    mesInicial: 7,
+    anoInicial: 2026,
+    edificacionId: 'ed-campus-00000001',
+    calendarios: calendariosDemo,
+    rangos: rangosCalendarioDemo,
+    horarios: horariosEquipoDemo,
+    eventos: eventosDemo,
+    bloques: bloquesDemo,
+    espacios: espaciosDemo,
+    equipos: equiposExistentesDemo.filas,
+  },
+  play: async ({ canvas, userEvent }) => {
+    // Sin expansión: la rejilla no monta el panel de detalle.
+    expect(canvas.queryByRole('region', { name: /Detalle del/ })).toBeNull()
+
+    // Clic en el 20 de julio (lunes): festivo + tipo vacaciones + horarios.
+    const celda20 = canvas.getByLabelText(/20 de julio/)
+    await userEvent.click(celda20)
+    const panel = canvas.getByRole('region', { name: /Detalle del lunes, 20 de julio de 2026/ })
+    await expect(within(panel).getByText('lunes, 20 de julio de 2026')).toBeVisible()
+    // Festivo nacional del catálogo (Ley 2578/2026).
+    await expect(within(panel).getByText('Día de la Independencia')).toBeVisible()
+    // Tipo de día del rango de vacaciones 14/06–02/08.
+    await expect(within(panel).getByText('Vacaciones')).toBeVisible()
+    // Horarios vigentes ese lunes: los sin vigencia vencida que caen en lunes.
+    await expect(within(panel).getByText('Iluminación aulas')).toBeVisible()
+    await expect(within(panel).getByText('HVAC administración')).toBeVisible()
+    await expect(within(panel).getByText('Aulas A-101 — operación extendida')).toBeVisible()
+    // El ámbito del bloque resuelve el nombre del catálogo de bloques.
+    await expect(within(panel).getByText(/Bloque A-101 — Ala Norte/)).toBeVisible()
+    // Horas de uso: unión 06–22 (el rango «verano 2025» vencido no aporta horas).
+    await expect(within(panel).getByText('16 h')).toBeVisible()
+    // Eventos: el fixture solo tiene noviembre/diciembre.
+    await expect(within(panel).getByText('Sin eventos')).toBeVisible()
+
+    // Colapsar: un segundo clic sobre la misma celda pliega el detalle.
+    await userEvent.click(celda20)
+    expect(canvas.queryByRole('region', { name: /Detalle del/ })).toBeNull()
+  },
+}
+
+export const DetalleDiaConEventos: Story = {
+  name: '6d3 · Detalle del día con evento superpuesto (17 nov)',
+  args: {
+    mesInicial: 11,
+    anoInicial: 2026,
+    edificacionId: 'ed-campus-00000001',
+    calendarios: calendariosDemo,
+    rangos: [...rangosCalendarioDemo, RANGO_2026_2],
+    horarios: horariosEquipoDemo,
+    eventos: eventosDemo,
+    bloques: bloquesDemo,
+    espacios: espaciosDemo,
+    equipos: equiposExistentesDemo.filas,
+  },
+  play: async ({ canvas, userEvent }) => {
+    // Martes 17 nov: dentro de «Semana de la infraestructura» (16–20) y del
+    // período académico 2026-2.
+    await userEvent.click(canvas.getByLabelText(/17 de noviembre/))
+    const panel = canvas.getByRole('region', { name: /Detalle del martes, 17 de noviembre de 2026/ })
+    await expect(within(panel).getByText('Semana de la infraestructura')).toBeVisible()
+    await expect(within(panel).getByText('Lectivo')).toBeVisible()
+    await expect(within(panel).getByText('16 h')).toBeVisible()
   },
 }
