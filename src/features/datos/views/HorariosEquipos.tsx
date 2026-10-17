@@ -103,7 +103,7 @@ export function HorariosEquipos({ equipos, horarios }: HorariosEquiposProps) {
                 <div className="ui-empty">
                   <p className="ui-title text-sm">Este equipo aún no tiene horarios asociados.</p>
                   <p className="max-w-md text-xs">
-                    Créelos en «Calendario operativo» (sección Edificaciones) y asócielos a este
+                    Créelos en «Calendario» (sección Edificaciones) y asócielos a este
                     equipo, su espacio, su bloque o su edificación.
                   </p>
                 </div>

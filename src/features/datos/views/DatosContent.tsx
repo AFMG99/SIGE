@@ -571,6 +571,9 @@ export function DatosContent({
                     edificaciones={edificacionesCat}
                     bloques={bloquesCat}
                     espacios={espacios}
+                    calendarios={calendarios}
+                    rangos={rangos}
+                    horarios={horarios}
                     crearBloque={crearBloque}
                     eliminarBloque={eliminarBloque}
                     onIrAlCatalogo={irAlCatalogo}
