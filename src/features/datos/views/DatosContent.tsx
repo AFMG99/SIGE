@@ -20,6 +20,7 @@ import {
 } from './icons'
 import { EdificacionesPanel } from './EdificacionesPanel'
 import { CalendarioFestivos } from './CalendarioFestivos'
+import { ConfiguracionOperativa } from './ConfiguracionOperativa'
 import { EventosCalendario } from './EventosCalendario'
 import { useCatalogoEdificaciones } from './useCatalogoEdificaciones'
 import type {
@@ -136,9 +137,10 @@ export function DatosContent({
     ? activeIdCrudo
     : 'resumen'
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
-  /** Sub-vista de Edificaciones: catálogo (infraestructura) o calendario de festivos. */
+  /** Sub-vista de Edificaciones: catálogo (infraestructura), calendario de
+   *  festivos/eventos o configuración operativa (6d1: ex-drawer). */
   const [vistaEdificaciones, setVistaEdificaciones] = React.useState<
-    'infraestructura' | 'calendario'
+    'infraestructura' | 'calendario' | 'configuracion'
   >('infraestructura')
   /**
    * S9: edificación seleccionada en la sub-vista «Calendario» — estado
@@ -451,10 +453,34 @@ export function DatosContent({
                   >
                     Calendario
                   </button>
+                  <button
+                    type="button"
+                    aria-pressed={vistaEdificaciones === 'configuracion'}
+                    onClick={() => setVistaEdificaciones('configuracion')}
+                    className={`focus-ring min-h-10 cursor-pointer rounded-lg px-3 text-sm font-medium ${
+                      vistaEdificaciones === 'configuracion'
+                        ? 'bg-emerald-600 text-white'
+                        : 'border border-gray-300 bg-white text-gray-700 hover:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-200'
+                    }`}
+                  >
+                    Configuración operativa
+                  </button>
                 </div>
               </div>
 
-              {vistaEdificaciones === 'calendario' ? (
+              {vistaEdificaciones === 'configuracion' ? (
+                !puedeCargar ? (
+                  <div className="ui-callout ui-callout-info" role="status">
+                    Su rol tiene permisos de <strong>solo lectura</strong> en este módulo. Puede
+                    consultar la configuración operativa, pero no modificarla aquí.
+                  </div>
+                ) : (
+                  <ConfiguracionOperativa
+                    edificaciones={edificacionesCat}
+                    calendarios={calendarios}
+                  />
+                )
+              ) : vistaEdificaciones === 'calendario' ? (
                 <div className="space-y-6">
                   {/* T7/T8: panel CRUD de eventos (S7/S8) hermano del calendario;
                       la selección de edificación es compartida (S9) y superpone
@@ -487,10 +513,6 @@ export function DatosContent({
                   edificaciones={edificacionesCat}
                   bloques={bloquesCat}
                   espacios={espaciosCat}
-                  equipos={equiposExistentes.filas}
-                  calendarios={calendarios}
-                  rangos={rangos}
-                  horarios={horarios}
                   crearEdificacion={crearEdificacion}
                   actualizarEdificacion={actualizarEdificacion}
                   eliminarEdificacion={eliminarEdificacion}
