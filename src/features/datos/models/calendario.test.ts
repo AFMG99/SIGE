@@ -152,9 +152,10 @@ describe('usoEquiposDelMes', () => {
     expect(res).toEqual({ horasUsoDia: 12, diasUsoMes: 18 })
   })
 
-  it('con el interruptor ON promedia la unión de franjas sobre los días operativos', () => {
-    // Marzo 2026 completo lectivo (31 días, empieza en domingo) y horario
-    // laboral 08–16 de lunes a viernes: 22 días × 8 h = 176 h.
+  it('con el interruptor ON promedia solo sobre los días en que corre el horario (S3)', () => {
+    // Marzo 2026 completo lectivo (31 días) y horario laboral 08–16 de lunes a
+    // viernes: el horario corre los 22 días hábiles → 176/22 = 8 h; los días
+    // sin horario no cuentan (S3: operativos ∩ días que corre el horario).
     const rangosMarzo: RangoCalendarioInfo[] = [
       { id: 'rm', fechaInicio: '2026-03-01', fechaFin: '2026-03-31', tipoDia: 'LECTIVO' },
     ]
@@ -169,8 +170,8 @@ describe('usoEquiposDelMes', () => {
       mes: 3,
       ano: 2026,
     })
-    // 176 / 31 = 5,68 → redondeo a 6 h; los 31 días son operativos.
-    expect(res).toEqual({ horasUsoDia: 6, diasUsoMes: 31 })
+    // 176 h sobre los 22 días en que corre = 8 h exactas; diasUsoMes = 22.
+    expect(res).toEqual({ horasUsoDia: 8, diasUsoMes: 22 })
   })
 
   it('devuelve null cuando el mes no tiene ningún día operativo', () => {

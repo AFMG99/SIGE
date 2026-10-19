@@ -3,6 +3,7 @@ import {
   CATALOGO_DIAS,
   horarioEquipoSchema,
   horariosAplicablesAEquipo,
+  horariosDelNivelGanador,
   horasDeUsoEnFecha,
   formatearDias,
   formatearFranja,
@@ -388,6 +389,93 @@ describe('horariosAplicablesAEquipo (S3: qué horarios aplican a un equipo)', ()
 
   it('sin coincidencias devuelve []', () => {
     expect(horariosAplicablesAEquipo([], contexto)).toEqual([])
+  })
+})
+
+describe('horariosDelNivelGanador (S1: el más específico manda por nivel)', () => {
+  const contexto: ContextoEquipo = {
+    edificacionId: 'edi-1',
+    bloqueId: 'blo-1',
+    espacioId: 'esp-1',
+  }
+
+  type Fila = HorarioConAmbito & {
+    nombre: string
+    desde?: string | null
+    hasta?: string | null
+  }
+
+  const fila = (extra: Partial<Fila> = {}): Fila => ({
+    nombre: 'Horario',
+    edificacionId: 'edi-1',
+    bloqueId: null,
+    espacioId: null,
+    equipoId: null,
+    ...extra,
+  })
+
+  it('si el espacio tiene horario manda él; bloque y edificación no suman', () => {
+    const horarios = [
+      fila({ nombre: 'edificación' }),
+      fila({ nombre: 'bloque', bloqueId: 'blo-1' }),
+      fila({ nombre: 'espacio', bloqueId: 'blo-1', espacioId: 'esp-1' }),
+    ]
+    expect(horariosDelNivelGanador(horarios, contexto).map((h) => h.nombre)).toEqual(['espacio'])
+  })
+
+  it('espacio sin horario → hereda del bloque; bloque sin horario → de la edificación', () => {
+    expect(
+      horariosDelNivelGanador(
+        [fila({ nombre: 'edificación' }), fila({ nombre: 'bloque', bloqueId: 'blo-1' })],
+        contexto
+      ).map((h) => h.nombre)
+    ).toEqual(['bloque'])
+    expect(
+      horariosDelNivelGanador([fila({ nombre: 'edificación' })], contexto).map((h) => h.nombre)
+    ).toEqual(['edificación'])
+  })
+
+  it('dentro del nivel ganador se conservan todos sus horarios', () => {
+    const horarios = [
+      fila({ nombre: 'edificación' }),
+      fila({ nombre: 'espacio tarde', bloqueId: 'blo-1', espacioId: 'esp-1' }),
+      fila({ nombre: 'espacio mañana', bloqueId: 'blo-1', espacioId: 'esp-1' }),
+    ]
+    expect(horariosDelNivelGanador(horarios, contexto).map((h) => h.nombre)).toEqual([
+      'espacio tarde',
+      'espacio mañana',
+    ])
+  })
+
+  it('con ventana solo cuenta como «tiene horario» lo vigente ese mes', () => {
+    // El horario del espacio está vencido en julio 2026 → manda el bloque.
+    const horarios = [
+      fila({ nombre: 'edificación' }),
+      fila({ nombre: 'bloque', bloqueId: 'blo-1' }),
+      fila({
+        nombre: 'espacio vencido',
+        bloqueId: 'blo-1',
+        espacioId: 'esp-1',
+        hasta: '2026-06-30',
+      }),
+    ]
+    expect(
+      horariosDelNivelGanador(horarios, contexto, { mes: 7, ano: 2026 }).map((h) => h.nombre)
+    ).toEqual(['bloque'])
+    // Sin ventana (trazabilidad) el más específico sigue siendo el espacio.
+    expect(horariosDelNivelGanador(horarios, contexto).map((h) => h.nombre)).toEqual([
+      'espacio vencido',
+    ])
+  })
+
+  it('sin horarios en ningún nivel devuelve []', () => {
+    expect(horariosDelNivelGanador([], contexto)).toEqual([])
+    expect(
+      horariosDelNivelGanador(
+        [fila({ nombre: 'otra edificación', edificacionId: 'edi-2' })],
+        contexto
+      )
+    ).toEqual([])
   })
 })
 
