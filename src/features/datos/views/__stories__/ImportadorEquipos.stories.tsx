@@ -197,3 +197,66 @@ export const UsoDesdeCalendario: Story = {
     )
   },
 }
+
+export const OverrideHorariosPorAmbito: Story = {
+  name: 'S1 · Horario efectivo por ámbito: espacio > bloque > edificación',
+  args: {
+    // Xe ON para el campus: el cálculo usa los horarios vigentes por fila.
+    calendarios: calendariosDemo.map((c) =>
+      c.edificacionId === 'ed-campus-00000001' ? { ...c, usarHorariosXe: true } : c
+    ),
+  },
+  play: async ({ canvas, userEvent }) => {
+    await elegirEdificacion(canvas, userEvent)
+    await userEvent.click(await canvas.findByRole('button', { name: /ingreso manual/i }))
+    // Rango lectivo 01/06–13/06 (13 días operativos; sábados 6 y 13).
+    await userEvent.selectOptions(canvas.getByLabelText(/^mes$/i), '6')
+
+    // Fila 1: Aula 101 — tiene horario propio (SAB 08–14): manda él.
+    await elegirListbox(canvas.getByLabelText('Fila 1, Bloque'), 'bk-campus-a101-001', userEvent)
+    await userEvent.type(canvas.getByLabelText('Fila 1, Espacio'), 'Aula 101')
+    // Fila 2: solo bloque A-101 (LUN–VIE 06–22): hereda del bloque.
+    await elegirListbox(canvas.getByLabelText('Fila 2, Bloque'), 'bk-campus-a101-001', userEvent)
+    // Fila 3: sin bloque ni espacio: hereda de la edificación (unión de sus dos horarios).
+    // Fila 4: bloque A-102 solo tiene el horario vencido (2025): como no está
+    // vigente en junio 2026, el nivel BLOQUE no manda y cae a la edificación.
+    await elegirListbox(canvas.getByLabelText('Fila 4, Bloque'), 'bk-campus-a102-001', userEvent)
+
+    await userEvent.click(
+      await canvas.findByRole('button', {
+        name: /completar horas y días de uso desde el calendario/i,
+      })
+    )
+
+    // Fila 1 (ESPACIO SAB 08–14): corre solo los sábados 6 y 13 → 12 h / 2 días = 6 h.
+    expect(
+      (canvas.getByLabelText('Fila 1, Horas de uso por día') as HTMLInputElement).value
+    ).toBe('6')
+    expect(
+      (canvas.getByLabelText('Fila 1, Días de uso por mes') as HTMLInputElement).value
+    ).toBe('2')
+    // Fila 2 (BLOQUE LUN–VIE 06–22): 10 hábiles × 16 h → 16 h y 10 días
+    // (si se sumaran los niveles, los sábados aportarían y daría 15/12).
+    expect(
+      (canvas.getByLabelText('Fila 2, Horas de uso por día') as HTMLInputElement).value
+    ).toBe('16')
+    expect(
+      (canvas.getByLabelText('Fila 2, Días de uso por mes') as HTMLInputElement).value
+    ).toBe('10')
+    // Fila 3 (EDIFICACIÓN): 10 hábiles × 14 h + 2 sábados × 12 h = 164 h
+    // sobre 12 días (el domingo 7 no corre) → 14 h y 12 días.
+    expect(
+      (canvas.getByLabelText('Fila 3, Horas de uso por día') as HTMLInputElement).value
+    ).toBe('14')
+    expect(
+      (canvas.getByLabelText('Fila 3, Días de uso por mes') as HTMLInputElement).value
+    ).toBe('12')
+    // Fila 4: el horario vencido del A-102 no cuenta → mismos números que la edificación.
+    expect(
+      (canvas.getByLabelText('Fila 4, Horas de uso por día') as HTMLInputElement).value
+    ).toBe('14')
+    expect(
+      (canvas.getByLabelText('Fila 4, Días de uso por mes') as HTMLInputElement).value
+    ).toBe('12')
+  },
+}

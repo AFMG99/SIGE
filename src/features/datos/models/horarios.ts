@@ -307,6 +307,36 @@ export function horariosAplicablesAEquipo<T extends HorarioConAmbito>(
   return coincidencias.map(({ horario, nivel }) => ({ horario, nivel }))
 }
 
+/** ¿La vigencia del horario (extremos abiertos = infinito) se solapa con el mes? */
+const vigenciaTraslapaMes = (
+  h: Pick<HorarioHorasUso, 'desde' | 'hasta'>,
+  ventana: { mes: number; ano: number }
+): boolean => {
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  const primerDia = `${ventana.ano}-${pad(ventana.mes)}-01`
+  const ultimoDia = new Date(Date.UTC(ventana.ano, ventana.mes, 0)).getUTCDate()
+  const ultimo = `${ventana.ano}-${pad(ventana.mes)}-${pad(ultimoDia)}`
+  return (!h.hasta || h.hasta >= primerDia) && (!h.desde || h.desde <= ultimo)
+}
+
+/**
+ * S1 — horario efectivo por ámbito (override): el nivel más específico con al
+ * menos un horario VIGENTE en la ventana manda para todos los días; si ese
+ * nivel no tiene, se cae al siguiente (equipo → espacio → bloque →
+ * edificación). Dentro del nivel ganador se conservan todos sus horarios;
+ * entre niveles NO se suman. Sin ventana (trazabilidad) cuenta cualquier fila
+ * del nivel. Sin horarios en ningún nivel: `[]`.
+ */
+export function horariosDelNivelGanador<
+  T extends HorarioConAmbito & Pick<HorarioHorasUso, 'desde' | 'hasta'>
+>(horarios: T[], contexto: ContextoEquipo, ventana?: { mes: number; ano: number }): T[] {
+  const candidatos = ventana ? horarios.filter((h) => vigenciaTraslapaMes(h, ventana)) : horarios
+  const aplicables = horariosAplicablesAEquipo(candidatos, contexto)
+  const ganador = aplicables[0]?.nivel
+  if (!ganador) return []
+  return aplicables.filter((a) => a.nivel === ganador).map((a) => a.horario)
+}
+
 /** Día de un resumen semanal: código LUN..DOM, fecha ISO y horas de uso. */
 export interface DiaHorasUso {
   codigo: string

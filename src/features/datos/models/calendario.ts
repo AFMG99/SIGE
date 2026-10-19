@@ -267,13 +267,20 @@ export function usoEquiposDelMes(params: {
 }): { horasUsoDia: number; diasUsoMes: number } | null {
   const mapa = mapaXeDelMes(params)
   if (mapa.size === 0) return null
+  // S3 (Xe ON): el día cuenta solo si el horario efectivo corre ese día; con
+  // el interruptor OFF todo operativo vale H ≥ 1 y este filtro no cambia nada.
+  let dias = 0
   let total = 0
   mapa.forEach((v) => {
+    if (v <= 0) return
+    dias += 1
     total += v
   })
+  // Operativo pero el horario nunca corre (o vencido): conservar el manual.
+  if (dias === 0) return null
   // Entero positivo (la validación del importador lo exige); unión de franjas
   // muy cortas redondea a 1 h mínima en lugar de a 0.
-  return { horasUsoDia: Math.max(1, Math.round(total / mapa.size)), diasUsoMes: mapa.size }
+  return { horasUsoDia: Math.max(1, Math.round(total / dias)), diasUsoMes: dias }
 }
 
 /**

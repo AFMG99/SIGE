@@ -27,7 +27,7 @@ import {
 import type { ConflictoEquipo, FilaEnvioEquipos } from '@/features/datos/models/validations'
 import { importarFilasEquipos } from '@/features/datos/controllers/equipos'
 import { usoEquiposDelMes } from '@/features/datos/models/calendario'
-import { horariosAplicablesAEquipo } from '@/features/datos/models/horarios'
+import { horariosDelNivelGanador } from '@/features/datos/models/horarios'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
@@ -675,15 +675,17 @@ export function ImportadorEquipos({
       const espacioId = (
         bloqueId ? candidatos.find((s) => s.bloqueId === bloqueId) : candidatos[0]
       )?.id ?? ''
-      const aplicables = horariosAplicablesAEquipo(horariosDeEdif, {
-        edificacionId: edificacionSel,
-        bloqueId,
-        espacioId,
-      }).map((a) => a.horario)
+      // S1: el nivel más específico con horario vigente ese mes manda; dentro
+      // del nivel se unen sus horarios y entre niveles no se suman.
+      const horariosFila = horariosDelNivelGanador(
+        horariosDeEdif,
+        { edificacionId: edificacionSel, bloqueId, espacioId },
+        { mes: usoMes, ano: usoAno }
+      )
       const calc = usoEquiposDelMes({
         rangos: rangosDeEdif,
         config: calendarioDeEdif,
-        horarios: aplicables,
+        horarios: horariosFila,
         usarHorariosXe: calendarioDeEdif.usarHorariosXe ?? false,
         mes: usoMes,
         ano: usoAno,
