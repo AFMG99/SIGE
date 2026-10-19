@@ -39,6 +39,9 @@ export async function guardarConfigCalendario(
     lon: number
     /** Nombre visible de la ubicación elegida por ciudad/zona (S1). */
     ubicacionNombre?: string | null
+    /** S2: flags de operatividad de domingos/festivos (ausentes → ON). */
+    domingosOperativos?: boolean
+    festivosOperativos?: boolean
   }
 ): Promise<Exito<{ mensaje: string }>> {
   try {
@@ -76,12 +79,16 @@ export async function guardarConfigCalendario(
           horasOperacionDia: parseo.data.horasOperacionDia,
           temperaturaBase: parseo.data.temperaturaBase,
           usarHorariosXe: parseo.data.usarHorariosXe,
+          domingosOperativos: parseo.data.domingosOperativos,
+          festivosOperativos: parseo.data.festivosOperativos,
         },
         update: {
           horaInicioOperacion: parseo.data.horaInicioOperacion,
           horasOperacionDia: parseo.data.horasOperacionDia,
           temperaturaBase: parseo.data.temperaturaBase,
           usarHorariosXe: parseo.data.usarHorariosXe,
+          domingosOperativos: parseo.data.domingosOperativos,
+          festivosOperativos: parseo.data.festivosOperativos,
         },
       }),
       prisma.edificacion.update({
@@ -317,6 +324,12 @@ export async function calcularGdeMensual(
       temperaturaBase: edificacion.calendario.temperaturaBase,
     }
 
+    // S2: flags de operatividad de la edificación (ausentes → ON, legado).
+    const politica = {
+      domingosOperativos: edificacion.calendario.domingosOperativos ?? true,
+      festivosOperativos: edificacion.calendario.festivosOperativos ?? true,
+    }
+
     const tempsHorarias = await obtenerTempsHorarias(
       edificacion.lat,
       edificacion.lon,
@@ -353,6 +366,7 @@ export async function calcularGdeMensual(
         usarHorariosXe: true,
         mes: consulta.data.mes,
         ano: consulta.data.ano,
+        politica,
       })
     }
 
@@ -363,6 +377,7 @@ export async function calcularGdeMensual(
       mes: consulta.data.mes,
       ano: consulta.data.ano,
       horasUsoPorFecha,
+      politica,
     })
 
     if (resultado.diasOperativos === 0) {

@@ -689,6 +689,11 @@ export function ImportadorEquipos({
         usarHorariosXe: calendarioDeEdif.usarHorariosXe ?? false,
         mes: usoMes,
         ano: usoAno,
+        // S2: domingos/festivos operativos de la edificación (default ON).
+        politica: {
+          domingosOperativos: calendarioDeEdif.domingosOperativos ?? true,
+          festivosOperativos: calendarioDeEdif.festivosOperativos ?? true,
+        },
       })
       if (!calc) return fila
       const datos = { ...fila.datos }

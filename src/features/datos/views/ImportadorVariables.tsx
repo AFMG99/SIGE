@@ -494,6 +494,11 @@ export function ImportadorVariables({
       usarHorariosXe: calendarioSel.usarHorariosXe ?? false,
       mes: gdeMes,
       ano: gdeAno,
+      // S2: domingos/festivos operativos de la edificación (default ON).
+      politica: {
+        domingosOperativos: calendarioSel.domingosOperativos ?? true,
+        festivosOperativos: calendarioSel.festivosOperativos ?? true,
+      },
     })
     let total = 0
     let fijo: number | null = null
