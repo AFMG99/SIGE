@@ -361,3 +361,26 @@ export function resumirAlertas(alertas: readonly AlertaVista[]): ResumenAlertas 
   }
   return resumen
 }
+
+/**
+ * Conteo que debe lucir la campana de la navegación, o `null` cuando no toca
+ * pintar punto. Es la ÚNICA regla del punto de alerta (chrome, ajustes y
+ * bandeja la comparten; nadie la reimplementa en la vista).
+ *
+ * El interruptor «Notificaciones en la interfaz» manda sobre el conteo: quien
+ * lo apaga no recibe señales dentro de SIGE, aunque la bandeja siga poblada
+ * (se consulta a propósito, no se avisa).
+ */
+export function badgeAlertasNav(
+  sinRevisar: number,
+  notificacionesEnApp: boolean
+): number | null {
+  if (!notificacionesEnApp) return null
+  if (!Number.isFinite(sinRevisar) || sinRevisar < 1) return null
+  return Math.floor(sinRevisar)
+}
+
+/** Texto accesible del punto: «3 alertas sin revisar». */
+export function etiquetaBadgeAlertas(sinRevisar: number): string {
+  return `${sinRevisar} ${sinRevisar === 1 ? 'alerta sin revisar' : 'alertas sin revisar'}`
+}

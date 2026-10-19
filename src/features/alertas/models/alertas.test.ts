@@ -6,9 +6,11 @@ import type {
   SalidaAnalisis,
 } from '@/features/analisis/models/analisis'
 import {
+  badgeAlertasNav,
   calcularSeveridad,
   clavePeriodo,
   esConfigNormativa,
+  etiquetaBadgeAlertas,
   evaluarAlertas,
   firmaDeEntradas,
   resumirAlertas,
@@ -280,5 +282,29 @@ describe('resumirAlertas', () => {
       descartadas: 0,
       altas: 0,
     })
+  })
+})
+
+describe('badgeAlertasNav', () => {
+  it('cuenta las alertas sin revisar', () => {
+    expect(badgeAlertasNav(3, true)).toBe(3)
+  })
+
+  it('no pinta punto sin alertas pendientes', () => {
+    expect(badgeAlertasNav(0, true)).toBeNull()
+  })
+
+  it('el interruptor de notificaciones en la interfaz manda', () => {
+    expect(badgeAlertasNav(7, false)).toBeNull()
+  })
+
+  it('un conteo imposible no pinta punto', () => {
+    expect(badgeAlertasNav(Number.NaN, true)).toBeNull()
+    expect(badgeAlertasNav(-2, true)).toBeNull()
+  })
+
+  it('etiqueta el punto en singular y plural', () => {
+    expect(etiquetaBadgeAlertas(1)).toBe('1 alerta sin revisar')
+    expect(etiquetaBadgeAlertas(4)).toBe('4 alertas sin revisar')
   })
 })
