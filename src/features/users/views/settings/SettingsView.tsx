@@ -81,12 +81,18 @@ interface SettingsViewProps {
   initialSessions: SettingsSession[]
   /** Tab preselected from a validated `?tab=` deep link. */
   initialTab?: Tab
+  /** Alertas sin revisar — panel de la pestaña Notificaciones. */
+  alertasPendientes?: number
+  /** El rol ve el módulo de alertas (lo decide el guard server-side). */
+  puedeVerAlertas?: boolean
 }
 
 export function SettingsView({
   initialUser,
   initialSessions,
   initialTab,
+  alertasPendientes = 0,
+  puedeVerAlertas = false,
 }: SettingsViewProps) {
   const { showToast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -390,6 +396,8 @@ export function SettingsView({
               user={user}
               saving={savingNotifications}
               onToggle={handleToggleNotification}
+              alertasPendientes={alertasPendientes}
+              puedeVerAlertas={puedeVerAlertas}
             />
           )}
         </div>
