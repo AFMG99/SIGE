@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
 import { expect, waitFor, within } from 'storybook/test'
 
+// El holder vive en el doble: la ruta relativa resuelve al MISMO archivo que
+// el alias del componente en runtime (alias → __mocks__/serverActions.ts) y además
+// satisface a tsc, que resolvería el alias al controller real.
+import { ultimaConfigGuardada } from '../__mocks__/serverActions'
 import { ConfiguracionOperativa } from '../ConfiguracionOperativa'
 import { calendariosDemo, edificacionesDemo } from '../__fixtures__/catalogo'
 
@@ -116,6 +120,34 @@ export const ValidacionSinUbicacion: Story = {
     const alerta = await canvas.findByRole('alert', {}, { timeout: 3000 })
     await expect(alerta).toHaveTextContent(
       'Busque y seleccione la ubicación (ciudad o zona) de la edificación.'
+    )
+  },
+}
+
+export const PoliticaOperatividad: Story = {
+  name: 'Flags de operatividad: domingos y festivos (S2)',
+  args: { edificaciones: edificacionesDemo, calendarios: calendariosDemo },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const screen = within(canvasElement.ownerDocument.body)
+    await elegirEdificacion(canvas, canvasElement, userEvent, 'ed-campus-00000001')
+
+    // Ambos interruptores visibles y encendidos por defecto (legado ON/ON).
+    const domingos = canvas.getByRole('switch', { name: /domingos operativos/i })
+    const festivos = canvas.getByRole('switch', { name: /festivos operativos/i })
+    expect((domingos as HTMLInputElement).checked).toBe(true)
+    expect((festivos as HTMLInputElement).checked).toBe(true)
+    await expect(canvas.getByText(/ningún domingo cuenta/i)).toBeVisible()
+    await expect(canvas.getByText(/festivos de Colombia/i)).toBeVisible()
+
+    // Apagar solo domingos: el otro sigue encendido y el payload lleva los dos.
+    await userEvent.click(domingos)
+    expect((domingos as HTMLInputElement).checked).toBe(false)
+    expect((festivos as HTMLInputElement).checked).toBe(true)
+    await userEvent.click(canvas.getByRole('button', { name: /actualizar configuración/i }))
+    await screen.findByText(/Configuración operativa guardada/, {}, { timeout: 3000 })
+    expect(ultimaConfigGuardada.edificacionId).toBe('ed-campus-00000001')
+    expect(ultimaConfigGuardada.datos).toEqual(
+      expect.objectContaining({ domingosOperativos: false, festivosOperativos: true })
     )
   },
 }

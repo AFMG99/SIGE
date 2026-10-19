@@ -60,6 +60,9 @@ export function ConfiguracionOperativa({
   const [buscandoUbicacion, setBuscandoUbicacion] = useState(false)
   const [resultadosUbicacion, setResultadosUbicacion] = useState<UbicacionEncontrada[] | null>(null)
   const [usarHorariosXe, setUsarHorariosXe] = useState(false)
+  // S2: política de operatividad (default ON/ON = legado hasta que se flaguee).
+  const [domingosOperativos, setDomingosOperativos] = useState(true)
+  const [festivosOperativos, setFestivosOperativos] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
@@ -78,6 +81,8 @@ export function ConfiguracionOperativa({
     setHorasDia(cfg ? String(cfg.horasOperacionDia) : '12')
     setTb(cfg ? String(cfg.temperaturaBase) : '23')
     setUsarHorariosXe(cfg?.usarHorariosXe ?? false)
+    setDomingosOperativos(cfg?.domingosOperativos ?? true)
+    setFestivosOperativos(cfg?.festivosOperativos ?? true)
     const conUbicacion =
       edificacion?.lat != null && edificacion?.lon != null
         ? {
@@ -111,6 +116,8 @@ export function ConfiguracionOperativa({
       lon: ubicacion.lon,
       ubicacionNombre: ubicacion.nombre,
       usarHorariosXe,
+      domingosOperativos,
+      festivosOperativos,
     }
     setGuardando(true)
     try {
@@ -289,6 +296,69 @@ export function ConfiguracionOperativa({
             <p id="cfg-xe-help" className="ui-muted mt-1 text-xs">
               Apagado: Xe = horas de operación (H), comportamiento legacy bit a bit. Encendido:
               Xe = horas de uso de los horarios vigentes por día (edición en «Calendario»).
+            </p>
+          </div>
+
+          {/* S2: política de operatividad — domingos y festivos de Colombia */}
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="ui-label" id="cfg-domingos-label">
+                Domingos operativos
+              </span>
+              <label
+                htmlFor="cfg-domingos"
+                className="inline-flex shrink-0 cursor-pointer items-center"
+              >
+                <input
+                  id="cfg-domingos"
+                  type="checkbox"
+                  role="switch"
+                  aria-labelledby="cfg-domingos-label"
+                  aria-describedby="cfg-domingos-help"
+                  checked={domingosOperativos}
+                  onChange={(e) => setDomingosOperativos(e.target.checked)}
+                  className="peer sr-only"
+                />
+                <span
+                  aria-hidden="true"
+                  className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform after:content-[''] peer-checked:bg-emerald-600 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-uv-lime peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 dark:bg-slate-600 dark:peer-checked:bg-emerald-700 dark:peer-checked:after:bg-white"
+                />
+              </label>
+            </div>
+            <p id="cfg-domingos-help" className="ui-muted mt-1 text-xs">
+              Encendido (por defecto): los domingos operan cuando el calendario los marca LECTIVO o
+              HÁBIL. Apagado: ningún domingo cuenta como día operativo, aunque el rango lo indique.
+            </p>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="ui-label" id="cfg-festivos-label">
+                Festivos operativos
+              </span>
+              <label
+                htmlFor="cfg-festivos"
+                className="inline-flex shrink-0 cursor-pointer items-center"
+              >
+                <input
+                  id="cfg-festivos"
+                  type="checkbox"
+                  role="switch"
+                  aria-labelledby="cfg-festivos-label"
+                  aria-describedby="cfg-festivos-help"
+                  checked={festivosOperativos}
+                  onChange={(e) => setFestivosOperativos(e.target.checked)}
+                  className="peer sr-only"
+                />
+                <span
+                  aria-hidden="true"
+                  className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-gray-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform after:content-[''] peer-checked:bg-emerald-600 peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-uv-lime peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 dark:bg-slate-600 dark:peer-checked:bg-emerald-700 dark:peer-checked:after:bg-white"
+                />
+              </label>
+            </div>
+            <p id="cfg-festivos-help" className="ui-muted mt-1 text-xs">
+              Encendido (por defecto): los festivos de Colombia operan si el calendario los marca
+              LECTIVO o HÁBIL. Apagado: ningún festivo cuenta, aunque el rango lo indique.
             </p>
           </div>
 
