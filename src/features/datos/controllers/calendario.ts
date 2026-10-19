@@ -121,7 +121,10 @@ export async function guardarConfigCalendario(
         anterior.festivosOperativos !== parseo.data.festivosOperativos)
     const conLbenCalculada =
       flagueoPolitica &&
-      (await prisma.lineaBaseEnergia.count({ where: { bloque: { edificacionId: id } } })) > 0
+      (await prisma.lineaBaseEnergia.count({
+        // Doble alcance de la LBEn (XOR por fila): por bloque o por edificación completa.
+        where: { OR: [{ bloque: { edificacionId: id } }, { edificacionId: id }] },
+      })) > 0
     return {
       estado: 'ok',
       mensaje: conLbenCalculada
