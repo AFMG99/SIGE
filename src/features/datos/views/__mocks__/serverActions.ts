@@ -387,7 +387,17 @@ export async function guardarConfigCalendario(
 ): Promise<{ estado: 'ok'; mensaje: string } | { estado: 'error'; mensaje: string }> {
   ultimaConfigGuardada.edificacionId = edificacionId
   ultimaConfigGuardada.datos = datos
-  return { estado: 'ok', mensaje: 'Configuración operativa guardada.' }
+  // Emula el contrato del servidor (S5): el campus del fixture tiene LBEn
+  // calculada y sus flags de fixture son ON/ON — cualquier false = flagueo.
+  const flagueoConLben =
+    edificacionId === 'ed-campus-00000001' &&
+    (datos.domingosOperativos === false || datos.festivosOperativos === false)
+  return {
+    estado: 'ok',
+    mensaje: flagueoConLben
+      ? 'Configuración operativa guardada. Este edificio tiene líneas base calculadas: al cambiar la política de operatividad recalcule sus LBEn.'
+      : 'Configuración operativa guardada.',
+  }
 }
 
 export async function agregarRangoCalendario(

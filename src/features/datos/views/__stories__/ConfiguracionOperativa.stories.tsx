@@ -149,5 +149,10 @@ export const PoliticaOperatividad: Story = {
     expect(ultimaConfigGuardada.datos).toEqual(
       expect.objectContaining({ domingosOperativos: false, festivosOperativos: true })
     )
+    // S5 (advertir): al flaguear con LBEn ya calculada, el servidor avisa que
+    // la línea base debe recalcularse (espera a que termine slide-up).
+    await waitFor(() =>
+      expect(screen.getByText(/recalcule sus LBEn/i)).toBeVisible()
+    )
   },
 }
