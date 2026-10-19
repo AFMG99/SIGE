@@ -371,6 +371,9 @@ export async function guardarConfigCalendario(
     temperaturaBase: number
     lat: number
     lon: number
+    /** S2: flags de operatividad de domingos/festivos (default ON). */
+    domingosOperativos?: boolean
+    festivosOperativos?: boolean
   }
 ): Promise<{ estado: 'ok'; mensaje: string } | { estado: 'error'; mensaje: string }> {
   void edificacionId

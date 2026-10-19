@@ -409,6 +409,11 @@ export const configCalendarioSchema = z.object({
   // vigentes como Xe en el cálculo nuevo de la GDE. Apagado por defecto;
   // los resultados históricos jamás se recalculan.
   usarHorariosXe: z.boolean().default(false),
+  // S2 (flags de operatividad): domingos y festivos de Colombia operativos.
+  // ON/ON por defecto = comportamiento legado bit a bit; solo restringen
+  // (nunca convierten un día no operativo en operativo).
+  domingosOperativos: z.boolean().default(true),
+  festivosOperativos: z.boolean().default(true),
 })
 
 export const consultaGdeSchema = z.object({

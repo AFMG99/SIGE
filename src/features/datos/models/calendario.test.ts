@@ -279,6 +279,29 @@ describe('configCalendarioSchema (ubicación e interruptor Xe)', () => {
       configCalendarioSchema.safeParse({ ...base, ubicacionNombre: 'x'.repeat(161) }).success
     ).toBe(false)
   })
+
+  it('normaliza los flags de operatividad: ausentes → ON/ON (S2)', () => {
+    const porDefecto = configCalendarioSchema.safeParse(base)
+    expect(porDefecto.success).toBe(true)
+    if (!porDefecto.success) return
+    expect(porDefecto.data.domingosOperativos).toBe(true)
+    expect(porDefecto.data.festivosOperativos).toBe(true)
+  })
+
+  it('conservan los flags apagados explícitos y rechazan valores no booleanos (S2)', () => {
+    const apagados = configCalendarioSchema.safeParse({
+      ...base,
+      domingosOperativos: false,
+      festivosOperativos: false,
+    })
+    expect(apagados.success).toBe(true)
+    if (!apagados.success) return
+    expect(apagados.data.domingosOperativos).toBe(false)
+    expect(apagados.data.festivosOperativos).toBe(false)
+    expect(
+      configCalendarioSchema.safeParse({ ...base, domingosOperativos: 'si' }).success
+    ).toBe(false)
+  })
 })
 
 // ============================================================
