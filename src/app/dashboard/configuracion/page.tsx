@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { getSession } from '@/shared/models/auth'
+import { getEffectiveExtraModules } from '@/shared/models/authz'
+import { visibleModules } from '@/shared/models/permissions'
 import { prisma } from '@/shared/models/prisma'
 import { SettingsView } from '@/features/users/views/settings/SettingsView'
 import { SETTINGS_TABS, type Tab } from '@/features/users/views/settings/settingsTypes'
@@ -45,6 +47,16 @@ export default async function SettingsPage({
     orderBy: { createdAt: 'desc' },
   })
 
+  // La pestaña de notificaciones muestra el estado REAL de la campana, así que
+  // necesita el conteo de alertas sin revisar y saber si el rol ve el módulo
+  // (misma regla que la navegación: matriz de permisos + overrides temporales).
+  const extraModules = await getEffectiveExtraModules(user.id)
+  const puedeVerAlertas =
+    visibleModules(user.role).includes('alerts') || extraModules.includes('alerts')
+  const alertasPendientes = puedeVerAlertas
+    ? await prisma.alertaConsumo.count({ where: { estado: 'nueva' } })
+    : 0
+
   const viewerToken = (await cookies()).get('auth-token')?.value
 
   const requestedTab = typeof searchParams.tab === 'string' ? searchParams.tab : null
@@ -56,6 +68,8 @@ export default async function SettingsPage({
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
       <SettingsView
         initialTab={initialTab}
+        alertasPendientes={alertasPendientes}
+        puedeVerAlertas={puedeVerAlertas}
         initialUser={{
           ...user,
           lastLoginAt: user.lastLoginAt?.toISOString() ?? null,

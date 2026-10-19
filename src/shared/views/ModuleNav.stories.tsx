@@ -86,3 +86,40 @@ export const RielSeccionesSinAnidar: Story = {
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
   },
 }
+
+export const PendientesEnBarra: Story = {
+  name: 'Barra · sello de pendientes con su conteo',
+  args: { badges: { alertas: 3 } },
+  play: async ({ canvas }) => {
+    // El nombre accesible lleva el conteo además del sello visible: quien no
+    // distingue el color del punto sigue sabiendo cuántos hay pendientes.
+    const alertas = canvas.getByRole('link', { name: /Alertas\s+3 pendientes/ })
+    expect(alertas.textContent).toContain('3')
+
+    // Un módulo sin pendientes no inventa aviso.
+    const datos = canvas.getByRole('link', { name: 'Datos' })
+    expect(datos.querySelector('[class*="bg-rose-500"]')).toBeNull()
+  },
+}
+
+export const PendientesEnRiel: Story = {
+  name: 'Riel · punto rojo y nombre accesible',
+  args: { variant: 'rail', badges: { alertas: 3 } },
+  play: async ({ canvas }) => {
+    const alertas = canvas.getByRole('link', { name: 'Alertas — 3 pendientes' })
+    const punto = alertas.querySelector('[class*="bg-rose-500"]')
+    expect(punto).not.toBeNull()
+    // El punto no tapa el icono: va en la esquina del control.
+    expect(punto!.className).toContain('absolute')
+    expect(alertas.getAttribute('aria-current')).toBeNull()
+  },
+}
+
+export const SinPendientes: Story = {
+  name: 'Barra · sin pendientes no hay punto',
+  args: { badges: {} },
+  play: async ({ canvas }) => {
+    const alertas = canvas.getByRole('link', { name: 'Alertas' })
+    expect(alertas.querySelector('[class*="bg-rose-500"]')).toBeNull()
+  },
+}

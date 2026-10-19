@@ -153,6 +153,11 @@ model Edificacion {
   horarios   HorarioEquipo[]
   eventos    Evento[]
 
+  // Módulo 4 — Alertas de consumo inusual (HU-08)
+  alertas            AlertaConsumo[]
+  configUmbralAlerta ConfigUmbralAlerta?
+  evaluacionAlerta   EvaluacionAlerta?
+
   @@map("edificaciones")
 }
 
@@ -409,4 +414,95 @@ model AjusteEnergetico {
 
   @@index([bloqueId])
   @@map("ajustes_energeticos")
+}
+
+// ============================================================
+// SIGE-TdeA — Módulo 4: Alertas de consumo inusual (HU-08)
+// ------------------------------------------------------------
+// La tabla de alertas es una CACHÉ DERIVADA de la última evaluación del
+// histórico: cada fila representa un período que HOY supera el umbral. Cuando
+// un período deja de cumplirlo, la fila se borra (sin soft-delete, como el
+// resto del esquema). El `estado` es la disposición del usuario y sobrevive a
+// los recálculos: el upsert nunca lo sobrescribe, así que una alerta
+// descartada no revive mientras su período siga siendo inusual. El rastro de
+// cada descarte queda en `AuditLog`.
+// ============================================================
+
+model AlertaConsumo {
+  id            String @id @default(cuid())
+  edificacionId String
+  // 'YYYY-MM' — mismo grano que FacturaEnergia (una alerta por período).
+  periodo String
+  mes     Int
+  ano     Int
+
+  // Lectura del período con la que se disparó la alerta.
+  consumoKwh    Float
+  bandaInf      Float
+  bandaSup      Float
+  desviacionPct Float
+  // 'alza' | 'caida'. La v1 solo genera 'alza' (HU-08: «supere el umbral»);
+  // la columna queda lista para extender la regla sin migrar.
+  direccion String
+  /// 'alta' | 'media' | 'baja' — exceso normalizado al semiancho de banda.
+  severidad String
+
+  // Snapshot del umbral aplicado: sin esto la alerta no es auditable
+  // (permite responder «¿por qué me disparé?» aunque la config cambie).
+  umbralPct Int
+  umbralK   Float
+
+  /// 'nueva' | 'leida' | 'descartada' — disposición del usuario.
+  estado     String    @default("nueva")
+  leidaPorId String?
+  leidaAt    DateTime?
+  nota       String?
+
+  createdAt     DateTime @default(now())
+  actualizadoAt DateTime @default(now()) @updatedAt
+
+  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+
+  @@unique([edificacionId, periodo])
+  @@index([estado])
+  @@index([periodo])
+  @@index([edificacionId])
+  @@map("alertas_consumo")
+}
+
+// Umbral configurable por edificación (default = criterio normativo UPME:
+// ±10 % ec. 3 y ±2·DesvEst ec. 4-5). Mismo patrón de unicidad que
+// CalendarioOperativo.
+model ConfigUmbralAlerta {
+  id            String   @id @default(cuid())
+  edificacionId String   @unique
+  pct           Int      @default(10)
+  k             Float    @default(2)
+  /// false = no se generan alertas nuevas (no borra las existentes).
+  activo        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+
+  @@map("config_umbral_alerta")
+}
+
+// Estado de la última evaluación de una edificación: la firma delata si los
+// datos de entrada (facturas, variables, ajustes, config, motor) cambiaron
+// desde entonces. La comparación es barata (aggregates, sin motor Python), así
+// que la página decide mostrar o no el aviso de «evaluación desactualizada».
+model EvaluacionAlerta {
+  id                 String @id @default(cuid())
+  edificacionId      String @unique
+  firma              String
+  periodosEvaluables Int
+  /// Meses sin banda suficiente: no evaluables (no son «no inusuales»).
+  noEvaluables Int
+
+  evaluadoEn    DateTime  @default(now())
+  evaluadoPorId String?
+
+  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+
+  @@map("evaluaciones_alerta")
 }

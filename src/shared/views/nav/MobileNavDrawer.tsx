@@ -22,11 +22,13 @@ export function MobileNavDrawer({
   onClose,
   role,
   extraModules = [],
+  badges,
 }: {
   open: boolean
   onClose: () => void
   role?: string | null
   extraModules?: string[]
+  badges?: Record<string, number | undefined>
 }) {
   const pathname = usePathname()
   const isDesktop = useBreakpoint('lg')
@@ -159,6 +161,7 @@ export function MobileNavDrawer({
                 role={role ?? null}
                 variant="sidebar"
                 extraModules={extraModules}
+                badges={badges}
                 onNavigate={onClose}
               />
             </div>

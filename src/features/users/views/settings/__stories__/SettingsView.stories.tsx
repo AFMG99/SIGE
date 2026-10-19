@@ -74,3 +74,35 @@ export const PerfilConFoto: Story = {
     expect(await canvas.getByRole('button', { name: 'Quitar foto' })).toBeEnabled()
   },
 }
+
+export const NotificacionesConPendientes: Story = {
+  name: 'Notificaciones · la campana avisa y la bandeja está a un clic',
+  args: {
+    initialUser: { ...settingsUser, notificationsInApp: true },
+    alertasPendientes: 3,
+    puedeVerAlertas: true,
+    initialTab: 'notificaciones',
+  },
+  play: async ({ canvas }) => {
+    await canvas.findByRole('heading', { level: 3, name: 'Alertas de consumo inusual' })
+    // El texto sale de la MISMA regla que pinta el punto del cromo.
+    await canvas.findByText(
+      /Ahora mismo hay 3 alertas sin revisar: la campana de la navegación lleva el punto rojo/
+    )
+    const abrir = canvas.getByRole('link', { name: 'Abrir bandeja' })
+    expect(abrir).toHaveAttribute('href', '/dashboard/alertas')
+    // Lo que todavía no existe se dice: nada de prometer correos.
+    await canvas.findByText('Próximamente')
+  },
+}
+
+export const NotificacionesApagadas: Story = {
+  name: 'Notificaciones · interfaz apagada (bandeja sin aviso)',
+  args: { alertasPendientes: 3, puedeVerAlertas: true, initialTab: 'notificaciones' },
+  play: async ({ canvas }) => {
+    await canvas.findByRole('heading', { level: 3, name: 'Alertas de consumo inusual' })
+    await canvas.findByText(
+      /Los avisos en la interfaz están apagados: tu bandeja sigue ahí, pero la campana no marca pendientes/
+    )
+  },
+}

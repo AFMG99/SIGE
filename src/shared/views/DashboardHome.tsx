@@ -39,7 +39,7 @@ const DESCRIPTIONS: Record<string, string> = {
   users: 'Cuentas, roles y permisos de acceso.',
   consumption: 'Facturas EPM, equipos, variables y catálogos.',
   analisis: 'Tendencias y comparaciones del histórico de consumo.',
-  alertas: 'Avisos y notificaciones del sistema.',
+  alertas: 'Consumos inusuales por encima del umbral de su mes.',
   estimates: 'Modelos y estimaciones de consumo.',
   reports: 'Reportes y exportaciones autorizados.',
   plans: 'Planos y representación espacial de la universidad.',
@@ -48,7 +48,7 @@ const DESCRIPTIONS: Record<string, string> = {
 const STAT_LABEL = 'text-xs font-medium uppercase tracking-wide ui-muted'
 
 /** Placeholder modules (route exists, feature pending): honest label, no figures. */
-const EN_CONSTRUCCION = new Set(['alertas', 'estimates', 'reports', 'plans'])
+const EN_CONSTRUCCION = new Set(['estimates', 'reports', 'plans'])
 
 /** es-CO integer formatting for the carousel's real figures. */
 const FORMATO_ENTERO = new Intl.NumberFormat('es-CO')

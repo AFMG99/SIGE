@@ -126,6 +126,7 @@ export const NAV_ITEMS: NavItem[] = [
     fullLabel: 'Alertas',
     shortLabel: 'Alertas',
     href: '/dashboard/alertas',
+    moduleId: 'alerts',
     icon: ICONS.bell,
   },
   {
@@ -189,11 +190,18 @@ export function ModuleNav({
   role,
   variant,
   extraModules = [],
+  badges = {},
   onNavigate,
 }: {
   role: string | null
   variant: NavVariant
   extraModules?: string[]
+  /**
+   * Pendientes por módulo, indexados por `NavItem.id` (p. ej. `{ alertas: 3 }`).
+   * Un valor ausente, 0 o inválido significa «sin punto»: el cromo no inventa
+   * avisos, sólo pinta el conteo que le pasa el servidor.
+   */
+  badges?: Record<string, number | undefined>
   /** Called when the user picks a module or a datos section — used by the
    *  mobile drawer to close itself (section changes don't touch the URL). */
   onNavigate?: () => void
@@ -201,6 +209,39 @@ export function ModuleNav({
   const pathname = usePathname()
   const { activeId, setActiveId } = useSubNav()
   const [treeOpen, setTreeOpen] = useState(true)
+
+  /** Conteo pendiente del módulo (undefined = nada que anunciar). */
+  const pendientesDe = (item: NavItem): number | undefined => {
+    const conteo = badges[item.id]
+    if (typeof conteo !== 'number' || !Number.isFinite(conteo) || conteo < 1) {
+      return undefined
+    }
+    return Math.floor(conteo)
+  }
+
+  const rotuloPendientes = (conteo: number) =>
+    `${conteo} ${conteo === 1 ? 'pendiente' : 'pendientes'}`
+
+  /** Punto para las variantes de sólo icono (panel derecho del riel). */
+  const puntoBadge = (
+    <span
+      aria-hidden
+      className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-emerald-950"
+    />
+  )
+
+  /** Sello numérico de las variantes con etiqueta visible. */
+  const selloBadge = (conteo: number) => (
+    <>
+      <span
+        aria-hidden
+        className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white"
+      >
+        {conteo}
+      </span>
+      <span className="sr-only">{rotuloPendientes(conteo)}</span>
+    </>
+  )
 
   const enRutaDe = (href: string) =>
     pathname === href || pathname.startsWith(href + '/')
@@ -235,6 +276,7 @@ export function ModuleNav({
 
   const renderItem = (item: NavItem, index: number) => {
     const active = isActive(item.href)
+    const pendientes = pendientesDe(item)
     const inactiveClass = 'text-emerald-100/85 hover:text-white hover:bg-white/10'
     const activeClass = 'bg-white/15 text-white font-medium'
     const commonClass = `${baseClasses} ${active ? activeClass : inactiveClass}`
@@ -247,12 +289,17 @@ export function ModuleNav({
           href={item.href}
           className={`chrome-focus flex h-8 w-8 items-center justify-center ${commonClass}`}
           title={item.fullLabel}
-          aria-label={item.fullLabel}
+          aria-label={
+            pendientes === undefined
+              ? item.fullLabel
+              : `${item.fullLabel} — ${rotuloPendientes(pendientes)}`
+          }
           aria-current={current}
           data-no-drag
         >
           {active && activoMarker}
           {item.icon}
+          {pendientes !== undefined && puntoBadge}
         </Link>
       )
     }
@@ -270,6 +317,7 @@ export function ModuleNav({
           {active && activoMarker}
           <span className="shrink-0">{item.icon}</span>
           <span className="text-[13px]">{item.shortLabel}</span>
+          {pendientes !== undefined && selloBadge(pendientes)}
         </Link>
       )
     }
@@ -289,6 +337,7 @@ export function ModuleNav({
           {active && activoMarker}
           <span className="shrink-0">{item.icon}</span>
           <span className="text-[13px] truncate">{item.fullLabel}</span>
+          {pendientes !== undefined && selloBadge(pendientes)}
         </Link>
       )
     }
@@ -314,6 +363,7 @@ export function ModuleNav({
             <span className="min-w-0 flex-1 truncate text-[13px]">
               {item.fullLabel}
             </span>
+            {pendientes !== undefined && selloBadge(pendientes)}
           </Link>
 
           {onModuleRoute && (

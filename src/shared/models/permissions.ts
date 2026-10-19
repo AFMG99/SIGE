@@ -68,6 +68,7 @@ export const MODULES = [
   { id: 'plans', label: 'Planos de la Universidad' },
   { id: 'inventory', label: 'Inventario de Equipos' },
   { id: 'reports', label: 'Generación de Reportes' },
+  { id: 'alerts', label: 'Alertas de Consumo' },
 ] as const
 
 export type ModuleId = (typeof MODULES)[number]['id']
@@ -109,6 +110,7 @@ export const PERMISSIONS: Record<Role, Record<ModuleId, ModuleAccess>> = {
     plans: allow('read'),
     inventory: deny(),
     reports: deny(),
+    alerts: allow('read', 'config'),
   },
   GESTOR_ENERGETICO: {
     users: deny(),
@@ -117,6 +119,7 @@ export const PERMISSIONS: Record<Role, Record<ModuleId, ModuleAccess>> = {
     plans: allow('read'),
     inventory: allow('read'),
     reports: allow('design', 'generate'),
+    alerts: allow('read', 'evaluate', 'config'),
   },
   COORD_INFRAESTRUCTURA: {
     users: deny(),
@@ -125,6 +128,10 @@ export const PERMISSIONS: Record<Role, Record<ModuleId, ModuleAccess>> = {
     plans: allow('upload', 'modify'),
     inventory: allow('register', 'update'),
     reports: allow('read'),
+    // Sin `evaluate`: evaluar alertas ejecuta el mismo motor estadístico que
+    // el módulo de Análisis, que exige `consumption:analyze` (que este rol no
+    // tiene). Ver `generarAlertas`.
+    alerts: allow('read'),
   },
   DIRECTIVO: {
     users: deny(),
@@ -133,6 +140,7 @@ export const PERMISSIONS: Record<Role, Record<ModuleId, ModuleAccess>> = {
     plans: allow('read'),
     inventory: allow('read'),
     reports: allow('download_reports'),
+    alerts: allow('read'),
   },
   COMUNIDAD_UNIVERSITARIA: {
     users: deny(),
@@ -141,6 +149,9 @@ export const PERMISSIONS: Record<Role, Record<ModuleId, ModuleAccess>> = {
     plans: hide('Oculto (Por seguridad)'),
     inventory: hide('Oculto'),
     reports: deny(),
+    // Las alertas describen consumos anómalos por edificación: material de
+    // gestión interna, no de consulta abierta.
+    alerts: hide('Oculto (Por seguridad)'),
   },
 }
 
@@ -195,6 +206,7 @@ const ACTION_TEXT: Record<string, string> = {
   generate: 'Genera',
   download_reports: 'Descarga informes',
   download_public: 'Descarga reportes públicos',
+  config: 'Configura umbral',
 }
 
 // Module-specific wording where the generic action label does not fit
@@ -276,6 +288,7 @@ export const ACTION_LABELS: Record<string, string> = {
   generate: 'Generar',
   download_reports: 'Descargar informes',
   download_public: 'Descargar reportes públicos',
+  config: 'Configurar umbral',
 }
 
 /** Thin wrapper over `can()` for explicit action checks. */

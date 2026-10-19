@@ -29,6 +29,7 @@ const MODULE_DOTS: Record<ModuleId, string> = {
   plans: 'bg-uv-turquoise',
   inventory: 'bg-uv-yellow',
   reports: 'bg-uv-deep',
+  alerts: 'bg-uv-forest',
 }
 
 interface PermissionMatrixModalProps {
