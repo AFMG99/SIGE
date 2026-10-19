@@ -13,7 +13,8 @@
  */
 
 import { z } from 'zod'
-import { horasDeUsoEnFecha, type HorarioHorasUso } from './horarios'
+import { codigoDiaDeFecha, horasDeUsoEnFecha, type HorarioHorasUso } from './horarios'
+import { esFestivo } from './festivos'
 
 // ============================================================
 // Catálogo de tipos de día
@@ -148,26 +149,53 @@ export function tipoDiaEnFecha(rangos: RangoFechas[], fechaIso: string): string 
   return tipo
 }
 
+/**
+ * Política de operatividad por edificación (S2): decide si los domingos y si
+ * los festivos nacionales de Colombia cuentan como días operativos. Ambos ON
+ * (default) reproduce bit a bit el comportamiento anterior a los flags; los
+ * flags solo restringen, nunca convierten un día no operativo en operativo.
+ */
+export interface PoliticaOperatividad {
+  domingosOperativos: boolean
+  festivosOperativos: boolean
+}
+
+/** Política por defecto (legado): domingos y festivos operativos. */
+export const POLITICA_OPERATIVIDAD_LEGADO: PoliticaOperatividad = {
+  domingosOperativos: true,
+  festivosOperativos: true,
+}
+
 /** Diagnóstico estructural de un mes: prioriza el último rango que lo cubre. */
-function operativoEnFecha(rangos: RangoFechas[], fechaIso: string): boolean | null {
+function operativoEnFecha(
+  rangos: RangoFechas[],
+  fechaIso: string,
+  politica: PoliticaOperatividad = POLITICA_OPERATIVIDAD_LEGADO
+): boolean | null {
   const tipo = tipoDiaEnFecha(rangos, fechaIso)
-  return tipo === null ? null : tipoDiaEsOperativo(tipo)
+  if (tipo === null) return null
+  if (!tipoDiaEsOperativo(tipo)) return false
+  if (!politica.domingosOperativos && codigoDiaDeFecha(fechaIso) === 'DOM') return false
+  if (!politica.festivosOperativos && esFestivo(fechaIso)) return false
+  return true
 }
 
 /**
  * Cuenta los días operativos de (mes, ano) según los rangos del calendario.
  * Un día sin rango que lo cubra NO cuenta como operativo (fail-safe: mejor no
- * sumar grados que sumar de más).
+ * sumar grados que sumar de más). Aplica la política de operatividad cuando
+ * se recibe (S2); sin ella = legado bit a bit.
  */
 export function diasOperativosDelMes(
   rangos: RangoFechas[],
   mes: number,
-  ano: number
+  ano: number,
+  politica: PoliticaOperatividad = POLITICA_OPERATIVIDAD_LEGADO
 ): number {
   const total = diasDelMes(ano, mes)
   let cuenta = 0
   for (let d = 1; d <= total; d++) {
-    if (operativoEnFecha(rangos, iso(ano, mes, d)) === true) cuenta++
+    if (operativoEnFecha(rangos, iso(ano, mes, d), politica) === true) cuenta++
   }
   return cuenta
 }
@@ -204,14 +232,16 @@ export function mapaXeDelMes(params: {
   usarHorariosXe: boolean
   mes: number
   ano: number
+  /** S2: flags de operatividad por edificación (ausente = legado ON/ON). */
+  politica?: PoliticaOperatividad
 }): Map<string, number> {
-  const { rangos, config, horarios, usarHorariosXe, mes, ano } = params
+  const { rangos, config, horarios, usarHorariosXe, mes, ano, politica } = params
   const [, duracion] = ventanaOperativa(config)
   const mapa = new Map<string, number>()
   const total = diasDelMes(ano, mes)
   for (let d = 1; d <= total; d++) {
     const fechaIso = iso(ano, mes, d)
-    if (operativoEnFecha(rangos, fechaIso) !== true) continue
+    if (operativoEnFecha(rangos, fechaIso, politica) !== true) continue
     mapa.set(fechaIso, usarHorariosXe ? horasDeUsoEnFecha(horarios, fechaIso) : duracion)
   }
   return mapa
@@ -232,6 +262,8 @@ export function usoEquiposDelMes(params: {
   usarHorariosXe: boolean
   mes: number
   ano: number
+  /** S2: flags de operatividad por edificación (ausente = legado ON/ON). */
+  politica?: PoliticaOperatividad
 }): { horasUsoDia: number; diasUsoMes: number } | null {
   const mapa = mapaXeDelMes(params)
   if (mapa.size === 0) return null
@@ -261,8 +293,10 @@ export function calcularGde(params: {
    * apagado: Xe = H (duracion), que reproduce bit a bit el legado.
    */
   horasUsoPorFecha?: ReadonlyMap<string, number> | null
+  /** S2: flags de operatividad por edificación (ausente = legado ON/ON). */
+  politica?: PoliticaOperatividad
 }): ResultadoGde {
-  const { rangos, config, tempsHorarias, mes, ano, horasUsoPorFecha } = params
+  const { rangos, config, tempsHorarias, mes, ano, horasUsoPorFecha, politica } = params
   const total = diasDelMes(ano, mes)
   const porFecha = new Map(tempsHorarias.map((t) => [t.fecha, t.horas]))
 
@@ -276,7 +310,7 @@ export function calcularGde(params: {
 
   for (let d = 1; d <= total; d++) {
     const fechaIso = iso(ano, mes, d)
-    if (operativoEnFecha(rangos, fechaIso) !== true) continue
+    if (operativoEnFecha(rangos, fechaIso, politica) !== true) continue
     diasOperativos++
 
     // Xe del día: con el flag encendido salen los horarios vigentes (recorte
