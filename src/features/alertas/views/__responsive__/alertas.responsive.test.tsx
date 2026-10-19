@@ -118,6 +118,19 @@ function botonCon(contenedor: ParentNode, texto: string): HTMLButtonElement {
   return boton as HTMLButtonElement
 }
 
+/** Abre el ListboxSelect y elige la opción por su `data-value` (panel en portal). */
+async function elegirEdificacion(valor: string) {
+  const trigger = document.querySelector<HTMLButtonElement>('#alertas-edificacion')
+  expect(trigger, 'disparador de edificación').not.toBeNull()
+  trigger!.click()
+  const opcion = await vi.waitFor(() => {
+    const el = document.querySelector<HTMLElement>(`[role="option"][data-value="${valor}"]`)
+    expect(el, `opción ${valor}`).not.toBeNull()
+    return el as HTMLElement
+  })
+  opcion.click()
+}
+
 describe('AlertasView — desborde horizontal', () => {
   beforeEach(() => cleanup())
   afterEach(() => cleanup())
@@ -140,22 +153,42 @@ describe('AlertasView — desborde horizontal', () => {
       const selector = document.querySelector<HTMLButtonElement>('#alertas-edificacion')
       expect(selector, 'selector de edificación').not.toBeNull()
 
-      // Controles del umbral (sliders) y el toggle de generación.
-      for (const sel of ['#alerta-pct', '#alerta-k']) {
-        const el = document.querySelector<HTMLElement>(sel)
-        expect(el, `control ${sel}`).not.toBeNull()
-        if (width < 1024) {
-          expect(el!.getBoundingClientRect().height, `target táctil de ${sel}`).toBeGreaterThanOrEqual(39.5)
-        }
-      }
-      const casilla = document.querySelector<HTMLInputElement>('#alerta-pct')
-      expect(casilla).not.toBeNull()
+      // Alcance por defecto: TODO el campus. Las cinco alertas caben en la
+      // bandeja y, sin una edificación elegida, no hay umbral que ajustar (ni
+      // botón que dispare cinco evaluaciones).
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll('.ui-table-shell tbody tr').length).toBe(5)
+      })
+      expect(recalcular.disabled).toBe(true)
+      expect(document.body.innerText).toContain(
+        'Elija una edificación en el selector para ajustar su umbral.'
+      )
+      expect(document.querySelector('#alerta-pct')).toBeNull()
 
       if (width < 1024) {
         expect(recalcular.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
         expect(selector!.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+      }
+
+      // Elegir una edificación devuelve su bandeja y sus controles de umbral.
+      await elegirEdificacion('edi-demo-campus')
+
+      const pct = await vi.waitFor(() => {
+        const el = document.querySelector<HTMLElement>('#alerta-pct')
+        expect(el, 'control #alerta-pct').not.toBeNull()
+        return el as HTMLElement
+      })
+      const k = document.querySelector<HTMLElement>('#alerta-k')
+      expect(k, 'control #alerta-k').not.toBeNull()
+
+      if (width < 1024) {
+        expect(pct.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+        expect(k!.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
         // Las acciones de fila usan `.ui-btn-sm` (min-h-10).
-        const acciones = botonCon(document.querySelector('.ui-table-shell') as ParentNode, 'Marcar leída')
+        const acciones = botonCon(
+          document.querySelector('.ui-table-shell') as ParentNode,
+          'Marcar leída'
+        )
         expect(acciones.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
       }
 

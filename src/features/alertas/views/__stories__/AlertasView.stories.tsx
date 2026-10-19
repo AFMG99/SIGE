@@ -11,13 +11,17 @@ import {
 } from '../__fixtures__/alertas'
 
 /**
- * La vista no trae wrapper de página: los `space-y-6` conviven con el fondo del
- * canvas de Storybook. Las server actions están aliadas al doble determinista
- * de `../__mocks__/serverActions.ts` (ver `.storybook/main.ts`).
+ * La vista trae su propio marco de página (`min-h-screen` + contenedor con
+ * `max-w-7xl`): en el canvas de Storybook se ve como en el dashboard.
+ * Las server actions están aliadas al doble determinista de
+ * `../__mocks__/serverActions.ts` (ver `.storybook/main.ts`).
  *
  * Nota: los toasts los pinta el `ToastProvider` (fuera del árbol del canvas) y
  * el `ConfirmDialog` entra por portal en `document.body`; ambos se consultan con
  * `screen`, no con `canvas`.
+ *
+ * El alcance por defecto es TODO el campus, así que las stories que necesitan el
+ * panel de umbral o una bandeja concreta eligen primero su edificación.
  */
 
 const meta = {
@@ -67,6 +71,10 @@ export const BandejaVigente: Story = {
   play: async ({ canvas }) => {
     await canvas.findByRole('heading', { level: 1, name: 'Alertas de consumo' })
 
+    // La bandeja vigente vive dentro de una edificación: el alcance por defecto
+    // es todo el campus (ver la story de alcance), así que aquí se elige.
+    await elegirListbox(canvas.getByLabelText('Edificación'), 'edi-demo-campus')
+
     // Bandeja vigente: la evaluación es la última y los datos no cambiaron.
     await canvas.findByText(/Bandeja vigente: evaluada el/)
     await canvas.findByText(/36 períodos comparados con el umbral/)
@@ -97,9 +105,62 @@ export const BandejaVigente: Story = {
   },
 }
 
+export const AlcanceCampus: Story = {
+  name: 'Alcance · todo el campus (por defecto)',
+  play: async ({ canvas }) => {
+    await canvas.findByRole('heading', { level: 1, name: 'Alertas de consumo' })
+
+    // Sin elegir edificación: se ve el estado de TODAS las bandejas y el aviso
+    // dice exactamente cuáles hay que recalcular (no un «desactualizada» a secas).
+    await canvas.findByText(/2 bandejas sin recalcular/)
+    await canvas.findByText(/1 con datos cambiados · 1 sin evaluar nunca/)
+    await canvas.findByText(/Oficina Central, Bloque de Aulas 12/)
+
+    // Recalcular es por edificación: con el campus entero en pantalla, no hay
+    // un botón que dispare cinco evaluaciones a espaldas del usuario.
+    const recalcular = canvas.getByRole('button', { name: /Recalcular alertas/i })
+    expect(recalcular).toBeDisabled()
+
+    // KPIs de todo el alcance: 5 alertas, 3 sin revisar, 3 de severidad alta,
+    // repartidas en 2 de las 3 edificaciones.
+    const vigentes = (await canvas.findByText('Alertas vigentes')).closest(
+      '.ui-card-stat'
+    ) as HTMLElement
+    expect(within(vigentes).getByText('5')).toBeTruthy()
+    const sinRevisar = (await canvas.findByText('Sin revisar')).closest(
+      '.ui-card-stat'
+    ) as HTMLElement
+    expect(within(sinRevisar).getByText('3')).toBeTruthy()
+    const altas = (await canvas.findByText('Severidad alta')).closest(
+      '.ui-card-stat'
+    ) as HTMLElement
+    expect(within(altas).getByText('3')).toBeTruthy()
+    const conAlertas = (await canvas.findByText('Edificaciones con alertas')).closest(
+      '.ui-card-stat'
+    ) as HTMLElement
+    expect(within(conAlertas).getByText('2')).toBeTruthy()
+
+    // La tabla suma una columna: sin ella habría que adivinar de qué bloque es
+    // el período.
+    await canvas.findByRole('columnheader', { name: 'Edificación' })
+    expect(canvas.getAllByRole('row').length).toBe(6)
+    expect(canvas.getAllByText('Oficina Central').length).toBeGreaterThan(0)
+
+    // El umbral es por edificación: se muestra la foto del campus, pero se
+    // ajusta eligiendo una.
+    await canvas.findByRole('heading', { level: 2, name: 'Umbral por edificación' })
+    await canvas.findByText('±15 % / 1,5 σ')
+    await canvas.findByText('Sin configurar (norma)')
+    await canvas.findByText('Elija una edificación en el selector para ajustar su umbral.')
+    expect(canvas.queryByRole('button', { name: /Guardar umbral/i })).toBeNull()
+  },
+}
+
 export const Filtros: Story = {
   name: 'Filtros · por estado y severidad',
   play: async ({ canvas, userEvent: ue }) => {
+    await canvas.findByRole('heading', { level: 1, name: 'Alertas de consumo' })
+    await elegirListbox(canvas.getByLabelText('Edificación'), 'edi-demo-campus')
     await canvas.findByText(/Bandeja vigente/)
 
     // Filtrar por estado: solo las nuevas (2 en el campus).
@@ -132,6 +193,8 @@ export const Filtros: Story = {
 export const DescartarAlerta: Story = {
   name: 'Descartar · confirmación y estado preservado',
   play: async ({ canvas, userEvent: ue }) => {
+    await canvas.findByRole('heading', { level: 1, name: 'Alertas de consumo' })
+    await elegirListbox(canvas.getByLabelText('Edificación'), 'edi-demo-campus')
     await canvas.findByText(/Bandeja vigente/)
 
     const tabla = document.querySelector('.ui-table-shell') as HTMLElement
@@ -158,6 +221,8 @@ export const DescartarAlerta: Story = {
 export const MarcarLeidaYRestaurar: Story = {
   name: 'Triage · marcar leída y restaurar',
   play: async ({ canvas, userEvent: ue }) => {
+    await canvas.findByRole('heading', { level: 1, name: 'Alertas de consumo' })
+    await elegirListbox(canvas.getByLabelText('Edificación'), 'edi-demo-campus')
     await canvas.findByText(/Bandeja vigente/)
 
     const leer = canvas.getAllByRole('button', { name: 'Marcar leída' })
@@ -212,6 +277,11 @@ export const SoloLectura: Story = {
   name: 'Solo lectura · sin evaluar ni configurar',
   args: { puedeEvaluar: false, puedeConfigurar: false },
   play: async ({ canvas }) => {
+    // En el alcance de campus el permiso de configuración no se anuncia (no hay
+    // umbral que ajustar): se elige una edificación para ver los dos avisos.
+    await canvas.findByRole('heading', { level: 1, name: 'Alertas de consumo' })
+    await elegirListbox(canvas.getByLabelText('Edificación'), 'edi-demo-campus')
+
     await canvas.findByText(/requiere el permiso «Analizar consumo»/)
     await canvas.findByText(/requiere el permiso «Configurar umbral»/)
 
@@ -227,6 +297,8 @@ export const SoloLectura: Story = {
 export const ConfiguracionSinGuardar: Story = {
   name: 'Umbral · cambios sin guardar',
   play: async ({ canvas, userEvent: ue }) => {
+    await canvas.findByRole('heading', { level: 1, name: 'Alertas de consumo' })
+    await elegirListbox(canvas.getByLabelText('Edificación'), 'edi-demo-campus')
     await canvas.findByText('Umbral de la edificación')
 
     const guardar = canvas.getByRole('button', { name: /Guardar umbral/i })
