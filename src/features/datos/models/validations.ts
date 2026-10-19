@@ -307,6 +307,12 @@ export type ResultadoGestion =
       eliminadas: number;
       /** Líneas base eliminadas junto con las facturas; 0 fuera de ese vaciado. */
       lineasBaseEliminadas: number;
+      /**
+       * Alertas de consumo inusual retiradas junto con su factura: una alerta
+       * sin la factura que la sustenta es un dato fantasma. Opcional para no
+       * tocar los demás módulos que comparten este resultado.
+       */
+      alertasEliminadas?: number;
     }
   | { estado: 'error'; mensaje: string };
 

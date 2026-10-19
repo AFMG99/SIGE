@@ -589,6 +589,14 @@ export const UMBRAL_K_PASO = 0.5
 /** K de la ec. 4 del motor (`python/lben/constants.py: K_INTERVALO = 2`). */
 export const K_INTERVALO_MOTOR = 2
 
+/**
+ * Versión del CONTRATO del motor de análisis (`python/lben/analisis.py`).
+ * Subirla invalida toda evaluación derivada (p. ej. las alertas persistidas):
+ * un motor nuevo puede clasificar distinto los mismos datos, así que las
+ * bandejas aguas abajo deben recalcularse.
+ */
+export const VERSION_MOTOR_ANALISIS = 1
+
 export type ConfigUmbral = { pct: number; k: number }
 
 /** Estado del simulador en el shell (sobrevive al cambio de submódulo). */

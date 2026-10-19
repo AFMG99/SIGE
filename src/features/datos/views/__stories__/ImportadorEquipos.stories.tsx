@@ -189,6 +189,11 @@ export const UsoDesdeCalendario: Story = {
       '13'
     )
     // Confirmación de la operación (5 filas: 4 completamente vacías + la de la fila 2).
-    await expect(await canvas.findByText(/Se completaron 5 filas/i)).toBeVisible()
+    // El aviso entra con `animate-slide-up` (0,5 s, arranca en opacity 0): la
+    // visibilidad se ESPERA. Comprobar en el mismo tick lo vuelve una carrera
+    // contra la animación.
+    await waitFor(() =>
+      expect(canvas.getByText(/Se completaron 5 filas/i)).toBeVisible()
+    )
   },
 }

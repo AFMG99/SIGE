@@ -360,8 +360,8 @@ describe('Home view — energy summary permission gate', () => {
     ).toBe(true)
     expect(bodyText()).not.toContain('ana.torres@tecnologicoantioquia.edu.co')
     // Same visibility + order as ModuleNav: one dot per visible module.
-    // ADMIN_TI: users, consumption, analisis (consumption), alertas (no
-    // module gate), plans — estimates/reports are denied by the matrix.
+    // ADMIN_TI: users, consumption, analisis (consumption), alertas (alerts),
+    // plans — estimates/reports are denied by the matrix.
     const puntos = Array.from(
       carrusel.querySelectorAll('[aria-label^="Ir al módulo"]')
     ).map((el) => el.getAttribute('aria-label'))
@@ -441,16 +441,19 @@ describe('Home view — energy summary permission gate', () => {
     expect(texto).not.toContain('resumen energético')
     expect(texto).not.toContain('último periodo')
     expect(texto).not.toContain('facturas registradas')
-    // Nor a slide to the module it cannot access (same gating as ModuleNav)
+    // Nor a slide to the modules it cannot access (same gating as ModuleNav)
     expect(document.querySelector('main a[href="/dashboard/datos"]')).toBeNull()
     expect(document.querySelector('[aria-label^="Ir al módulo Gestión"]')).toBeNull()
     expect(document.querySelector('[aria-label^="Ir al módulo Usuarios"]')).toBeNull()
+    // Alertas es un módulo con permiso propio desde HU-08: oculto a Comunidad,
+    // igual que Planos (material de gestión interna).
+    expect(document.querySelector('[aria-label^="Ir al módulo Alertas"]')).toBeNull()
     // The carousel starts at the first module it CAN see (nav order)
     expect(
       document
         .querySelector('[aria-label^="Ir al módulo"]')
         ?.getAttribute('aria-label')
-    ).toBe('Ir al módulo Alertas')
+    ).toBe('Ir al módulo Estimaciones')
   })
 
   it('a temporary override on consumption does enable the summary (canWithOverrides)', async () => {

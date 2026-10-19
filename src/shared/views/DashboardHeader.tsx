@@ -63,6 +63,7 @@ export function DashboardHeader({
   onSidebarWidth,
   role,
   extraModules = [],
+  badges = {},
   account = null,
 }: {
   onPosChange?: (p: HeaderPos) => void
@@ -71,6 +72,8 @@ export function DashboardHeader({
   role?: string | null
   /** Module IDs granted via temporary overrides. */
   extraModules?: string[]
+  /** Pending counts per module (drives the nav badges). */
+  badges?: Record<string, number | undefined>
   /** Logged-in identity — drives the avatar trigger and the account menu. */
   account?: HeaderAccount | null
 }) {
@@ -510,6 +513,7 @@ export function DashboardHeader({
             role={role ?? null}
             variant={isBar ? 'bar' : rail ? 'rail' : 'sidebar'}
             extraModules={extraModules}
+            badges={badges}
           />
 
           <div
@@ -723,6 +727,7 @@ export function DashboardHeader({
         onClose={() => setMenuOpen(false)}
         role={role ?? null}
         extraModules={extraModules}
+        badges={badges}
       />
     </>
   )

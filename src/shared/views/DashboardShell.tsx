@@ -22,11 +22,14 @@ export function DashboardShell({
   children,
   role,
   extraModules = [],
+  badges = {},
   account = null,
 }: {
   children: ReactNode
   role?: string | null
   extraModules?: string[]
+  /** Pending counts per module (drives the nav badges, p. ej. `{ alertas: 3 }`). */
+  badges?: Record<string, number | undefined>
   /** Logged-in identity forwarded to the header's account menu. */
   account?: HeaderAccount | null
 }) {
@@ -54,6 +57,7 @@ export function DashboardShell({
             onSidebarWidth={onSidebarWidth}
             role={role}
             extraModules={extraModules}
+            badges={badges}
             account={account}
           />
           {children}

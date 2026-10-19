@@ -21,6 +21,11 @@ const ANALISIS_MOCK = path.resolve(
   '../src/features/analisis/views/__mocks__/serverActions.ts'
 );
 
+const ALERTAS_MOCK = path.resolve(
+  dirname,
+  '../src/features/alertas/views/__mocks__/serverActions.ts'
+);
+
 const config: StorybookConfig = {
   stories: ['../src/**/*.mdx', '../src/**/*.stories.@(js|jsx|mjs|ts|tsx)'],
   addons: [
@@ -53,6 +58,7 @@ const config: StorybookConfig = {
       { find: '@/features/datos/controllers/ajustes', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/analisis/controllers/analisis', replacement: ANALISIS_MOCK },
       { find: '@/features/analisis/controllers/xm', replacement: ANALISIS_MOCK },
+      { find: '@/features/alertas/controllers/alertas', replacement: ALERTAS_MOCK },
       { find: '@', replacement: path.resolve(dirname, '../src') },
       ...base,
     ];
