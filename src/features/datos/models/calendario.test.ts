@@ -61,6 +61,83 @@ describe('diasOperativosDelMes', () => {
   })
 })
 
+// ============================================================
+// S2 — flags de operatividad por edificación (domingos/festivos)
+// ============================================================
+
+describe('flags de operatividad (S2)', () => {
+  /** Julio 2026: 31 días, 4 domingos (5, 12, 19, 26) y 2 festivos (13 y 20). */
+  const rangosJulio = [
+    { fechaInicio: '2026-07-01', fechaFin: '2026-07-31', tipoDia: 'LECTIVO' },
+  ]
+  /** Marzo 2026: 31 días; festivo Emiliani el 23 (San José trasladado al lunes). */
+  const rangosMarzo = [
+    { fechaInicio: '2026-03-01', fechaFin: '2026-03-31', tipoDia: 'LECTIVO' },
+  ]
+  const ambosOn = { domingosOperativos: true, festivosOperativos: true }
+
+  it('con los flags ON (default) conserva el conteo bit a bit del legado', () => {
+    expect(diasOperativosDelMes(rangosJulio, 7, 2026)).toBe(31)
+    expect(diasOperativosDelMes(rangosJulio, 7, 2026, ambosOn)).toBe(31)
+  })
+
+  it('con domingos OFF excluye los 4 domingos de julio 2026', () => {
+    expect(
+      diasOperativosDelMes(rangosJulio, 7, 2026, {
+        domingosOperativos: false,
+        festivosOperativos: true,
+      })
+    ).toBe(27)
+  })
+
+  it('con festivos OFF excluye los 2 festivos de julio (13 y 20) y el Emiliani del 23 de marzo', () => {
+    const soloFestivos = { domingosOperativos: true, festivosOperativos: false }
+    // Jul 2026: 31 − Chiquinquirá (13) − Independencia (20) = 29.
+    expect(diasOperativosDelMes(rangosJulio, 7, 2026, soloFestivos)).toBe(29)
+    expect(diasOperativosDelMes(rangosMarzo, 3, 2026, soloFestivos)).toBe(30)
+  })
+
+  it('con ambos flags OFF excluye domingos y festivos sin solaparse', () => {
+    // 31 − 4 domingos − 2 festivos (ninguno cae en domingo) = 25.
+    expect(
+      diasOperativosDelMes(rangosJulio, 7, 2026, {
+        domingosOperativos: false,
+        festivosOperativos: false,
+      })
+    ).toBe(25)
+  })
+
+  it('los flags nunca convierten un día no operativo en operativo', () => {
+    const vacaciones = [
+      { fechaInicio: '2026-07-01', fechaFin: '2026-07-31', tipoDia: 'VACACIONES' },
+    ]
+    expect(diasOperativosDelMes(vacaciones, 7, 2026, ambosOn)).toBe(0)
+  })
+
+  it('usoEquiposDelMes y calcularGde respetan los flags como verdad de calendario', () => {
+    const politica = { domingosOperativos: false, festivosOperativos: false }
+    const uso = usoEquiposDelMes({
+      rangos: rangosJulio,
+      config,
+      horarios: [],
+      usarHorariosXe: false,
+      mes: 7,
+      ano: 2026,
+      politica,
+    })
+    expect(uso).toEqual({ horasUsoDia: 12, diasUsoMes: 25 })
+    const gde = calcularGde({
+      rangos: rangosJulio,
+      config,
+      tempsHorarias: [],
+      mes: 7,
+      ano: 2026,
+      politica,
+    })
+    expect(gde.diasOperativos).toBe(25)
+  })
+})
+
 describe('usoEquiposDelMes', () => {
   it('con el interruptor OFF devuelve H fija y los días operativos del mes', () => {
     const res = usoEquiposDelMes({
