@@ -67,6 +67,12 @@ export async function guardarConfigCalendario(
       return { estado: 'error', mensaje: 'La edificación indicada no existe.' }
     }
 
+    // S5 (advertir): flags ANTES del upsert, para detectar un flagueo real.
+    const anterior = await prisma.calendarioOperativo.findUnique({
+      where: { edificacionId: id },
+      select: { domingosOperativos: true, festivosOperativos: true },
+    })
+
     // El create/upsert nombra cada campo a mano: `parseo.data` también trae
     // lat/lon/ubicacionNombre, que son columnas de EDIFICACION, no del
     // calendario operativo (el spread anterior fallaba en la primera creación).
@@ -107,7 +113,24 @@ export async function guardarConfigCalendario(
       detail: `Configuración operativa de "${edificacion.nombre}" actualizada (Tb ${parseo.data.temperaturaBase} °C, ${parseo.data.horasOperacionDia} h/día).`,
     })
 
-    return { estado: 'ok', mensaje: 'Configuración operativa guardada.' }
+    // S5 (advertir): flaguear la política con una LBEn ya calculada obliga a
+    // recalcular la línea base — se avisa junto al éxito del guardado.
+    const flagueoPolitica =
+      anterior != null &&
+      (anterior.domingosOperativos !== parseo.data.domingosOperativos ||
+        anterior.festivosOperativos !== parseo.data.festivosOperativos)
+    const conLbenCalculada =
+      flagueoPolitica &&
+      (await prisma.lineaBaseEnergia.count({
+        // Doble alcance de la LBEn (XOR por fila): por bloque o por edificación completa.
+        where: { OR: [{ bloque: { edificacionId: id } }, { edificacionId: id }] },
+      })) > 0
+    return {
+      estado: 'ok',
+      mensaje: conLbenCalculada
+        ? 'Configuración operativa guardada. Este edificio tiene líneas base calculadas: al cambiar la política de operatividad recalcule sus LBEn.'
+        : 'Configuración operativa guardada.',
+    }
   } catch (error) {
     console.error('Error en guardarConfigCalendario:', error)
     return { estado: 'error', mensaje: 'No fue posible guardar la configuración. Intente de nuevo.' }

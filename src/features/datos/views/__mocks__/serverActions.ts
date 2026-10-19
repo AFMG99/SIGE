@@ -363,22 +363,41 @@ export async function eliminarEspacio(id: string): Promise<ResultadoGestion> {
 // Calendario operativo y GDE (Fase 2)
 // ------------------------------------------------------------
 
+type DatosConfigCalendario = {
+  horaInicioOperacion: number
+  horasOperacionDia: number
+  temperaturaBase: number
+  lat: number
+  lon: number
+  ubicacionNombre?: string | null
+  /** S2: flags de operatividad de domingos/festivos (default ON). */
+  domingosOperativos?: boolean
+  festivosOperativos?: boolean
+}
+
+/** Última configuración guardada: las stories la leen para assertar el payload. */
+export const ultimaConfigGuardada: {
+  edificacionId: string | null
+  datos: DatosConfigCalendario | null
+} = { edificacionId: null, datos: null }
+
 export async function guardarConfigCalendario(
   edificacionId: string,
-  datos: {
-    horaInicioOperacion: number
-    horasOperacionDia: number
-    temperaturaBase: number
-    lat: number
-    lon: number
-    /** S2: flags de operatividad de domingos/festivos (default ON). */
-    domingosOperativos?: boolean
-    festivosOperativos?: boolean
-  }
+  datos: DatosConfigCalendario
 ): Promise<{ estado: 'ok'; mensaje: string } | { estado: 'error'; mensaje: string }> {
-  void edificacionId
-  void datos
-  return { estado: 'ok', mensaje: 'Configuración operativa guardada.' }
+  ultimaConfigGuardada.edificacionId = edificacionId
+  ultimaConfigGuardada.datos = datos
+  // Emula el contrato del servidor (S5): el campus del fixture tiene LBEn
+  // calculada y sus flags de fixture son ON/ON — cualquier false = flagueo.
+  const flagueoConLben =
+    edificacionId === 'ed-campus-00000001' &&
+    (datos.domingosOperativos === false || datos.festivosOperativos === false)
+  return {
+    estado: 'ok',
+    mensaje: flagueoConLben
+      ? 'Configuración operativa guardada. Este edificio tiene líneas base calculadas: al cambiar la política de operatividad recalcule sus LBEn.'
+      : 'Configuración operativa guardada.',
+  }
 }
 
 export async function agregarRangoCalendario(
