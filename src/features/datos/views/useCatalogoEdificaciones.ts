@@ -52,6 +52,9 @@ export interface CalendarioInfo {
   temperaturaBase: number
   /** Opt-in S4: usar las horas de los horarios vigentes como Xe en la GDE. */
   usarHorariosXe?: boolean | null
+  /** S2: domingos y festivos de Colombia operativos (default ON = legado). */
+  domingosOperativos?: boolean | null
+  festivosOperativos?: boolean | null
 }
 
 /** Rango de fechas con tipo de día (fechas ISO `YYYY-MM-DD`). */
