@@ -158,6 +158,10 @@ model Edificacion {
   configUmbralAlerta ConfigUmbralAlerta?
   evaluacionAlerta   EvaluacionAlerta?
 
+  // Cálculo de uso por periodo («Cálculo de uso»): resultados mensuales por
+  // edificación. Aditivo (D1): las columnas legado de EquipoElectrico no cambian.
+  usoPeriodos UsoPeriodo[]
+
   @@map("edificaciones")
 }
 
@@ -335,6 +339,9 @@ model EquipoElectrico {
   horarios HorarioEquipo[]
   eventos  Evento[]
 
+  // Resultados de cálculo de uso por periodo (Restringido: no se borran en cascada)
+  usoPeriodos UsoEquipoPeriodo[]
+
   @@unique([bloqueId, espacioId, tipo])
   @@index([bloqueId])
   @@index([espacioId])
@@ -511,4 +518,89 @@ model EvaluacionAlerta {
   edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
 
   @@map("evaluaciones_alerta")
+}
+
+// ============================================================
+// Cálculo masivo de horas de uso («Cálculo de uso» en Datos)
+// Tablas aditivas por periodo: conviven con las columnas legado
+// horasUsoDia/diasUsoMes de EquipoElectrico (decisión D1: sin
+// backfill, sin espejo y sin cambio de lector). Solo las
+// controllers de calculoUso las escriben o leen.
+// ============================================================
+
+// Estado del cálculo de un periodo (edificación + mes):
+// PENDIENTE = placeholder de un lote; CALCULANDO = reclamo transitorio con
+// calculandoEn (vencido a CLAIM_TTL_MS = 5 min ⇒ retomable); CALCULADO =
+// íntegro; FALLIDO = error guardado en `error`; REVISAR = calculado con
+// equipos sin horario vigente / sin días operativos.
+enum UsoPeriodoEstado {
+  PENDIENTE
+  CALCULANDO
+  CALCULADO
+  FALLIDO
+  REVISAR
+}
+
+// Qué escribió la fila: cálculo individual, lote masivo o recálculo explícito.
+enum UsoOrigen {
+  INDIVIDUAL
+  MASIVO
+  RECALCULO
+}
+
+// Estado del detalle por equipo: CALCULADO, o REVISAR con motivo en la fila.
+enum UsoEquipoEstado {
+  CALCULADO
+  REVISAR
+}
+
+// Resultado de cálculo de uso de UNA edificación en UN mes (grano de idempotencia).
+model UsoPeriodo {
+  id                String           @id @default(cuid())
+  edificacionId     String
+  mes               Int
+  ano               Int
+  estado            UsoPeriodoEstado @default(PENDIENTE)
+  // Contadores de integridad: equipos en alcance al calcular vs. calculados / en revisión.
+  equiposEsperados  Int              @default(0)
+  equiposCalculados Int              @default(0)
+  equiposRevisar    Int              @default(0)
+  advertencias      String?
+  error             String?
+  origen            UsoOrigen
+  loteId            String?
+  calculadoEn       DateTime?
+  calculadoPor      String?
+  calculandoEn      DateTime?
+
+  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Restrict)
+
+  // Nota: este modelo no tiene relación Prisma con UsoEquipoPeriodo (el grano de
+  // detalle se enlaza lógicamente por (mes, ano) + la edificación vía bloque, y
+  // el borrado de detalle usa filtros anidados sobre equipo.bloque.edificacionId).
+  @@unique([edificacionId, mes, ano])
+  @@index([edificacionId, estado])
+  @@map("uso_periodo")
+}
+
+// Resultado de cálculo de uso de UN equipo en UN mes (grano de idempotencia).
+// Sin filas (nunca relleno con ceros) cuando el equipo no tiene horario
+// vigente o días operativos: el motivo vive en motivoRevision.
+model UsoEquipoPeriodo {
+  id             String          @id @default(cuid())
+  equipoId       String
+  mes            Int
+  ano            Int
+  horasUsoDia    Int
+  diasUsoMes     Int
+  estado         UsoEquipoEstado
+  horarioGanador String?
+  motivoRevision String?
+  calculadoEn    DateTime        @default(now())
+
+  equipo EquipoElectrico @relation(fields: [equipoId], references: [id], onDelete: Restrict)
+
+  @@unique([equipoId, mes, ano])
+  @@index([mes, ano])
+  @@map("uso_equipo_periodo")
 }
