@@ -40,6 +40,13 @@ import type {
 import { advertenciaMinimos } from '@/features/datos/models/lineasBase'
 import { resultadoEquiposDemo, resultadoFacturasDemo, resultadoVariablesDemo } from '../__fixtures__/resultado'
 import { bloquesDemo, edificacionesDemo, espaciosDemo } from '../__fixtures__/catalogo'
+import type { PeriodoRef, VistaPrevia } from '@/features/datos/models/calculoUso'
+import {
+  EDIFICACION_SIN_CONEXION,
+  resultadoIndividualDemo,
+  vistaPreviaDemo,
+  type ResultadoIndividualDemo,
+} from '../__fixtures__/calculoUso'
 
 /**
  * Registros "con datos guardados": la action real los rechaza porque la BD los
@@ -942,4 +949,33 @@ export async function guardarLineaBase(input: {
     mensaje: 'Línea base guardada.',
     ...(advertencia ? { advertencia } : {}),
   }
+}
+
+// ── Cálculo de uso (T5): dobles deterministas de controllers/calculoUso ──
+// Las ramas por edificación (mixto / conservado / sin horario / sin equipos /
+// fallo) viven en __fixtures__/calculoUso.ts; ver su cabecera.
+
+export async function autorizarCalculoUso(): Promise<
+  { ok: true; userId: string } | { ok: false; mensaje: string }
+> {
+  return { ok: true, userId: 'usr-storybook' }
+}
+
+export async function prepararCalculoMasivo(
+  edificacionId: string,
+  desde: PeriodoRef,
+  hasta: PeriodoRef
+): Promise<Exito<{ vistaPrevia: VistaPrevia }>> {
+  if (edificacionId === EDIFICACION_SIN_CONEXION) {
+    return { estado: 'error', mensaje: 'No fue posible generar la vista previa. Intente de nuevo.' }
+  }
+  return { estado: 'ok', vistaPrevia: vistaPreviaDemo(edificacionId, desde, hasta) }
+}
+
+export async function calcularUsoIndividual(
+  edificacionId: string,
+  mes: number,
+  ano: number
+): Promise<Exito<ResultadoIndividualDemo>> {
+  return resultadoIndividualDemo(edificacionId, mes, ano)
 }

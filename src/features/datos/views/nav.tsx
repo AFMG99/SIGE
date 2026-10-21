@@ -1,6 +1,7 @@
 import type { SidebarItem } from '@/shared/views/sidebar/SidebarNav'
 import {
   IconAjuste,
+  IconCalculo,
   IconEdificacion,
   IconEquipo,
   IconFactura,
@@ -16,5 +17,6 @@ export const DATOS_SECTIONS: SidebarItem[] = [
   { id: 'equipos', label: 'Equipos Eléctricos', icon: <IconEquipo /> },
   { id: 'variables', label: 'Variables Operativas', icon: <IconVariable /> },
   { id: 'lineas-base', label: 'Líneas Base', icon: <IconLineaBase /> },
+  { id: 'calculo-uso', label: 'Cálculo de uso', icon: <IconCalculo /> },
   { id: 'ajustes', label: 'Ajustes', icon: <IconAjuste /> },
 ]

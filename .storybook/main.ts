@@ -56,6 +56,8 @@ const config: StorybookConfig = {
       { find: '@/features/datos/controllers/eventos', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/lineasBase', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/datos/controllers/ajustes', replacement: SERVER_ACTIONS_MOCK },
+      // Cálculo de uso (T5): el controller importa Prisma; doble determinista.
+      { find: '@/features/datos/controllers/calculoUso', replacement: SERVER_ACTIONS_MOCK },
       { find: '@/features/analisis/controllers/analisis', replacement: ANALISIS_MOCK },
       { find: '@/features/analisis/controllers/xm', replacement: ANALISIS_MOCK },
       { find: '@/features/alertas/controllers/alertas', replacement: ALERTAS_MOCK },
