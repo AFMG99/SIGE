@@ -1,6 +1,8 @@
 import { z } from 'zod'
+import { mapaXeDelMes, usoEquiposDelMes } from './calendario'
 import type { ConfigCalendario, PoliticaOperatividad, RangoFechas } from './calendario'
-import type { HorarioConAmbito, HorarioHorasUso } from './horarios'
+import { formatearDias, formatearFranja, formatearVigenciaCorta, horariosDelNivelGanador } from './horarios'
+import type { CodigoAmbito, ContextoEquipo, HorarioConAmbito, HorarioHorasUso } from './horarios'
 
 // ============================================================
 // Cálculo de uso — fundamentos puros (SDD calculo-masivo-uso)
@@ -122,7 +124,11 @@ export interface EquipoContexto {
 }
 
 /** Horario con ámbito jerárquico, la forma que consume `horariosDelNivelGanador`. */
-export type HorarioContexto = HorarioHorasUso & HorarioConAmbito
+export type HorarioContexto = HorarioHorasUso &
+  HorarioConAmbito & {
+    /** Nombre visible de la fila `horarios_equipo` (trazabilidad `NIVEL/Nombre`). */
+    nombre?: string | null
+  }
 
 /**
  * Contexto precargado de un periodo (paso 1 del pipeline): equipos en alcance,
@@ -134,6 +140,12 @@ export interface ContextoPeriodo {
   equipos: EquipoContexto[]
   rangos: RangoFechas[]
   config: Pick<ConfigCalendario, 'horaInicioOperacion' | 'horasOperacionDia'>
+  /**
+   * Opt-in S4: Xe desde los horarios vigentes. Es el MISMO flag que lee el
+   * importador (`calendarioDeEdif.usarHorariosXe ?? false`); ausente = false
+   * (H fijo), bit a bit con el legado.
+   */
+  usarHorariosXe?: boolean
   politica?: PoliticaOperatividad
   horarios: HorarioContexto[]
 }
@@ -325,3 +337,177 @@ export const recalcularSchema = z.object({
 })
 
 export type RecalcularPeriodosInput = z.infer<typeof recalcularSchema>
+
+// ============================================================
+// Núcleo puro de cálculo de un periodo (T3 — AC1, AC13, BR2, BR5)
+// Sin I/O, sin Prisma y sin Date.now(): mismas entradas ⇒ mismas salidas.
+// Solo envuelve la librería existente (horarios.ts / calendario.ts), que no
+// se modifica.
+// ============================================================
+
+/** Nivel activo de un horario ganador (espejo de `nivelDeHorario`, privado en horarios.ts). */
+const nivelDeHorario = (h: HorarioContexto): CodigoAmbito =>
+  h.equipoId ? 'EQUIPO' : h.espacioId ? 'ESPACIO' : h.bloqueId ? 'BLOQUE' : 'EDIFICACION'
+
+/** Etiqueta del horario ganador: `NIVEL/Nombre` (o la franja descrita si la fila no trae nombre). */
+const etiquetaHorario = (ganadores: HorarioContexto[]): string => {
+  const nombres = ganadores.map((h) => {
+    const nombre = h.nombre?.trim()
+    return nombre || `${formatearDias(h.diasSemana)} ${formatearFranja(h.horaInicio, h.horaFin)}`
+  })
+  return `${nivelDeHorario(ganadores[0])}/${Array.from(new Set(nombres)).join(' + ')}`
+}
+
+/** Entrada del núcleo puro: periodo + contexto precargado (paso 1 del pipeline). */
+export interface CalculoPeriodoInput {
+  edificacionId: string
+  mes: number
+  ano: number
+  contexto: ContextoPeriodo
+  /**
+   * Divergencia documentada (design §2.3): el importador resuelve el horario
+   * SIN equipoId e ignora los horarios de nivel EQUIPO; el núcleo por defecto
+   * sí lo pasa (spec R1 «jerarquía»). `false` reproduce la semántica del
+   * importador y alimenta el test de caracterización.
+   */
+  incluirHorarioDeEquipo?: boolean
+}
+
+/**
+ * Calcula las horas y días de uso de un periodo (AC1): por equipo, con el
+ * horario efectivo de la jerarquía (equipo → espacio → bloque → edificación,
+ * S1), desglose por fecha, advertencias, trazabilidad y consolidaciones (D2).
+ *
+ * BR5 (nunca rellenar con ceros): un equipo sin horario vigente o sin días
+ * operativos NO produce fila de detalle; su motivo va a las advertencias del
+ * periodo y el estado REVISAR lo decide el controller. BR2: un periodo sin
+ * equipos queda CALCULADO con equiposEsperados 0 y la advertencia
+ * «Sin equipos registrados».
+ */
+export function calcularPeriodo(p: CalculoPeriodoInput): ResultadoPeriodo {
+  const { edificacionId, mes, ano, contexto } = p
+  const incluirHorarioDeEquipo = p.incluirHorarioDeEquipo !== false
+  const detalle: DetalleEquipo[] = []
+  const trazabilidad: ResultadoPeriodo['trazabilidad'] = []
+  const advertencias: string[] = []
+  const advertir = (texto: string): void => {
+    if (!advertencias.includes(texto)) advertencias.push(texto)
+  }
+
+  if (contexto.equipos.length === 0) advertir('Sin equipos registrados') // BR2: CALCULADO con 0 esperados
+
+  for (const eq of contexto.equipos) {
+    const contextoEquipo: ContextoEquipo = {
+      edificacionId,
+      bloqueId: eq.bloqueId,
+      espacioId: eq.espacioId,
+    }
+    if (incluirHorarioDeEquipo) contextoEquipo.equipoId = eq.id
+    const ganadores = horariosDelNivelGanador(contexto.horarios, contextoEquipo, { mes, ano })
+
+    trazabilidad.push({
+      equipoId: eq.id,
+      nivelGanador: ganadores.length > 0 ? nivelDeHorario(ganadores[0]) : 'SIN_HORARIO',
+      vigencia:
+        ganadores.length > 0
+          ? Array.from(new Set(ganadores.map((h) => formatearVigenciaCorta(h.desde ?? null, h.hasta ?? null)))).join(
+              ' · '
+            )
+          : '—',
+      aportes: ganadores.map((h) => `${formatearDias(h.diasSemana)} ${formatearFranja(h.horaInicio, h.horaFin)}`),
+    })
+
+    const params = {
+      rangos: contexto.rangos,
+      config: contexto.config,
+      horarios: ganadores,
+      usarHorariosXe: contexto.usarHorariosXe ?? false,
+      mes,
+      ano,
+      politica: contexto.politica,
+    }
+    const base = usoEquiposDelMes(params)
+    if (!base) {
+      // BR5: sin fila de detalle (nunca ceros); el motivo queda en las
+      // advertencias y el estado REVISAR lo decide el controller (design §2.1).
+      if (ganadores.length === 0) advertir('Sin horario vigente')
+      else advertir('Sin días operativos')
+      continue
+    }
+
+    // Dos pasadas puras por equipo (design §2.1): usoEquiposDelMes sigue siendo
+    // la fuente canónica de los valores; mapaXeDelMes solo alimenta el
+    // desglose por fecha, sin duplicar reglas de redondeo.
+    const mapa = mapaXeDelMes(params)
+    detalle.push({
+      equipoId: eq.id,
+      horasUsoDia: base.horasUsoDia,
+      diasUsoMes: base.diasUsoMes,
+      estado: 'CALCULADO',
+      horarioGanador: ganadores.length > 0 ? etiquetaHorario(ganadores) : null,
+      porFecha: Array.from(mapa, ([fecha, horas]) => ({ fecha, horas })).sort((a, b) =>
+        a.fecha.localeCompare(b.fecha)
+      ),
+    })
+  }
+
+  return {
+    detalle,
+    consolidaciones: consolidarPorNivel(detalle, contexto),
+    advertencias,
+    trazabilidad,
+    equiposEsperados: contexto.equipos.length,
+  }
+}
+
+/**
+ * Consolidación por espacio, bloque y edificación (AC1, D2): display-only,
+ * se deriva bajo demanda y NUNCA se persiste. Solo suma filas con detalle
+ * calculado — los equipos en revisión no aportan.
+ */
+export function consolidarPorNivel(
+  detalle: DetalleEquipo[],
+  contexto: ContextoPeriodo
+): Consolidaciones {
+  const porEquipo = new Map(contexto.equipos.map((e) => [e.id, e]))
+  const espacios = new Map<string, ConsolidacionNivel & { espacioId: string }>()
+  const bloques = new Map<string, ConsolidacionNivel & { bloqueId: string }>()
+  const edificacion: ConsolidacionNivel = { equipos: 0, horasUsoDia: 0, diasUsoMes: 0 }
+
+  const sumar = (destino: ConsolidacionNivel, fila: DetalleEquipo): void => {
+    destino.equipos += 1
+    destino.horasUsoDia += fila.horasUsoDia
+    destino.diasUsoMes += fila.diasUsoMes
+  }
+  const asegurar = <T extends ConsolidacionNivel>(
+    mapa: Map<string, T>,
+    clave: string,
+    nuevo: () => T
+  ): T => {
+    const existente = mapa.get(clave)
+    if (existente) return existente
+    const creado = nuevo()
+    mapa.set(clave, creado)
+    return creado
+  }
+
+  for (const fila of detalle) {
+    const eq = porEquipo.get(fila.equipoId)
+    if (!eq) continue // fila huérfana: sin contexto jerárquico no se puede ubicar (fail-safe)
+    sumar(edificacion, fila)
+    sumar(
+      asegurar(espacios, eq.espacioId, () => ({ espacioId: eq.espacioId, equipos: 0, horasUsoDia: 0, diasUsoMes: 0 })),
+      fila
+    )
+    sumar(
+      asegurar(bloques, eq.bloqueId, () => ({ bloqueId: eq.bloqueId, equipos: 0, horasUsoDia: 0, diasUsoMes: 0 })),
+      fila
+    )
+  }
+
+  return {
+    espacios: Array.from(espacios.values()),
+    bloques: Array.from(bloques.values()),
+    edificacion,
+  }
+}
