@@ -81,6 +81,9 @@ const LineasBase = React.lazy(() =>
 const AjustesSection = React.lazy(() =>
   import('./AjustesSection').then((m) => ({ default: m.AjustesSection }))
 )
+const CalculoUso = React.lazy(() =>
+  import('./CalculoUso').then((m) => ({ default: m.CalculoUso }))
+)
 
 type DatosContentProps = {
   role: Role
@@ -656,6 +659,17 @@ export function DatosContent({
               />
             </React.Suspense>
           )}
+
+          {/* Sección: Cálculo de uso — individual + vista previa (spec §5, T5).
+              El cálculo requiere permiso de carga: sin él hay estado vacío. */}
+          {activeId === 'calculo-uso' &&
+            (!puedeCargar ? (
+              <div className="ui-empty">No tiene permiso para calcular horas de uso.</div>
+            ) : (
+              <React.Suspense fallback={<SectionSkeleton />}>
+                <CalculoUso edificaciones={edificacionesCat} puedeCargar={puedeCargar} />
+              </React.Suspense>
+            ))}
 
           {/* Sección: Ajustes — carga, visualización y gestión con referencia Anexo 4 */}
           {activeId === 'ajustes' && (
