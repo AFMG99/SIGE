@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * Sección «Cálculo de uso» (spec §5/§6, T5) dentro del módulo Datos.
+ * Sección «Cálculo de uso» (spec §5/§6, T5/T6) dentro del módulo Datos.
  *
  * Tres bloques props-driven (DV-1: sección cliente, no sub-ruta; el guard
  * `requireModuleAccess('consumption')` ya cubre la página y DatosContent solo
@@ -13,10 +13,14 @@
  *    por fecha, consolidaciones display-only (D2), advertencias (BR5: el equipo
  *    sin horario NUNCA es fila en ceros) y trazabilidad del horario ganador.
  * 3. Vista previa del intervalo (`prepararCalculoMasivo`, solo lectura, AC4):
- *    contadores + tabla con la clasificación BR4 en español (AC5).
+ *    contadores + tabla con la clasificación BR4 en español (AC5), y sobre ella
+ *    el CTA de ejecución masiva (AC6): lote por invocaciones acotadas con
+ *    progreso, «Detener» seguro (AC11), resumen de las cuatro cubetas
+ *    exclusivas (AC8) y «Reintentar» por periodo fallido.
  *
- * El loop de ejecución masiva y el recálculo explícito llegan en T6/T7; la
- * columna «Factura» es solo referencia (R3: nunca gatea periodos).
+ * Las tablas de resultado muestran el NOMBRE visible del equipo («TIPO ·
+ * Espacio») como texto principal y el id como dato secundario (decisión T6);
+ * la columna «Factura» es solo referencia (R3: nunca gatea periodos).
  */
 
 import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
@@ -25,10 +29,19 @@ import type {
   Consolidaciones,
   DetalleEquipo,
   PeriodoRef,
+  PeriodoVistaPrevia,
+  ResumenEjecucion,
   ResultadoPeriodo,
   VistaPrevia,
 } from '@/features/datos/models/calculoUso'
-import { ANOS_UI, MESES, etiquetaClasificacion, useCalculoMasivo } from './useCalculoMasivo'
+import type { ProcesadoLote } from '@/features/datos/controllers/calculoUso'
+import {
+  ANOS_UI,
+  MESES,
+  etiquetaClasificacion,
+  periodoEnCurso,
+  useCalculoMasivo,
+} from './useCalculoMasivo'
 import type { EdificacionInfo } from './useCatalogoEdificaciones'
 
 export type CalculoUsoProps = {
@@ -69,13 +82,23 @@ function vacioDelResultado(advertencias: string[]): string {
 }
 
 type ResultadoOk = {
-  detalle: DetalleEquipo[]
-  porFecha: { equipoId: string; fecha: string; horas: number }[]
+  detalle: (DetalleEquipo & { nombreEquipo: string })[]
+  porFecha: { equipoId: string; nombreEquipo: string; fecha: string; horas: number }[]
   consolidaciones: Consolidaciones
   advertencias: string[]
-  trazabilidad: ResultadoPeriodo['trazabilidad']
+  trazabilidad: (ResultadoPeriodo['trazabilidad'][number] & { nombreEquipo: string })[]
   periodo: { estado: string }
   conservado?: boolean
+}
+
+/** Nombre visible del equipo como texto principal, id como respaldo (T6). */
+function CeldaEquipo({ nombre, id }: { nombre: string; id: string }) {
+  return (
+    <>
+      <span className="font-medium">{nombre}</span>
+      <span className="block text-xs text-gray-500 dark:text-slate-400">{id}</span>
+    </>
+  )
 }
 
 /** Resultado del cálculo individual: conservado, vacío o tablas de trazabilidad. */
@@ -128,7 +151,9 @@ function ResultadoIndividual({
                 <tbody>
                   {resultado.detalle.map((d) => (
                     <tr key={d.equipoId}>
-                      <td>{d.equipoId}</td>
+                      <td>
+                        <CeldaEquipo nombre={d.nombreEquipo} id={d.equipoId} />
+                      </td>
                       <td>{d.horasUsoDia}</td>
                       <td>{d.diasUsoMes}</td>
                       <td>{d.estado}</td>
@@ -154,7 +179,9 @@ function ResultadoIndividual({
                 <tbody>
                   {resultado.porFecha.map((f) => (
                     <tr key={`${f.equipoId}-${f.fecha}`}>
-                      <td>{f.equipoId}</td>
+                      <td>
+                        <CeldaEquipo nombre={f.nombreEquipo} id={f.equipoId} />
+                      </td>
                       <td>{f.fecha}</td>
                       <td>{f.horas}</td>
                     </tr>
@@ -219,7 +246,9 @@ function ResultadoIndividual({
                 <tbody>
                   {resultado.trazabilidad.map((t) => (
                     <tr key={t.equipoId}>
-                      <td>{t.equipoId}</td>
+                      <td>
+                        <CeldaEquipo nombre={t.nombreEquipo} id={t.equipoId} />
+                      </td>
                       <td>{t.nivelGanador}</td>
                       <td>{t.vigencia}</td>
                       <td>{t.aportes.length > 0 ? t.aportes.join(' · ') : '—'}</td>
@@ -271,6 +300,128 @@ function TablaVistaPrevia({ vistaPrevia }: { vistaPrevia: VistaPrevia }) {
   )
 }
 
+/**
+ * Resumen de una ejecución masiva (AC8): las cuatro cubetas EXCLUSIVAS
+ * particionan el intervalo; los periodos fallidos quedan trazables con su
+ * mensaje y accionables vía «Reintentar» (reitera SOLO lo aún pendiente:
+ * la retomada la decide el servidor, design §5.3).
+ */
+function ResumenFinal({
+  resumen,
+  procesados,
+  vistaPrevia,
+  ejecutando,
+  onReintentar,
+}: {
+  resumen: ResumenEjecucion
+  procesados: ProcesadoLote[]
+  vistaPrevia: VistaPrevia
+  ejecutando: boolean
+  onReintentar: () => void
+}) {
+  const fallidos = procesados.filter((p) => p.resultado === 'fallido')
+  const revisar = procesados.filter((p) => p.resultado === 'revisar')
+  const advertenciaDe = (clave: string): string =>
+    vistaPrevia.periodos.find((p) => p.clave === clave)?.advertencias.join(' · ') ?? '—'
+
+  return (
+    <section className="ui-card mt-4" aria-labelledby="calculo-uso-resumen">
+      <h4 id="calculo-uso-resumen" className="ui-title text-sm">
+        Resumen de la ejecución
+      </h4>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="ui-stat">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            Calculados: {resumen.calculados}
+          </p>
+        </div>
+        <div className="ui-stat">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            Conservados: {resumen.conservados}
+          </p>
+        </div>
+        <div className="ui-stat">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            Fallidos: {resumen.fallidos}
+          </p>
+        </div>
+        <div className="ui-stat">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            Pendientes de revisión: {resumen.revisar}
+          </p>
+        </div>
+      </div>
+
+      {resumen.pendientes > 0 && (
+        <p className="ui-muted mt-3 text-xs">
+          {resumen.pendientes} periodo(s) aún sin procesar: la ejecución se detuvo antes de
+          completarlos. Vuelva a ejecutar el cálculo masivo para retomarlos.
+        </p>
+      )}
+
+      {fallidos.length > 0 && (
+        <div className="mt-4">
+          <h5 className="ui-title text-sm">Periodos fallidos</h5>
+          <div className="ui-table-shell mt-2">
+            <table className="ui-table">
+              <thead>
+                <tr>
+                  <th scope="col">Periodo</th>
+                  <th scope="col">Motivo</th>
+                  <th scope="col">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fallidos.map((f) => (
+                  <tr key={f.clave}>
+                    <td>{f.clave}</td>
+                    <td>{f.mensaje ?? 'No fue posible calcular el periodo.'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={onReintentar}
+                        disabled={ejecutando}
+                        aria-label={`Reintentar ${f.clave}`}
+                        className="ui-btn ui-btn-secondary ui-btn-sm min-h-10"
+                      >
+                        Reintentar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {revisar.length > 0 && (
+        <div className="mt-4">
+          <h5 className="ui-title text-sm">Periodos que requieren revisión</h5>
+          <div className="ui-table-shell mt-2">
+            <table className="ui-table">
+              <thead>
+                <tr>
+                  <th scope="col">Periodo</th>
+                  <th scope="col">Motivo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {revisar.map((p) => (
+                  <tr key={p.clave}>
+                    <td>{p.clave}</td>
+                    <td>{advertenciaDe(p.clave)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function CalculoUso({ edificaciones }: CalculoUsoProps) {
   const {
     edificacionId,
@@ -293,9 +444,19 @@ export function CalculoUso({ edificaciones }: CalculoUsoProps) {
     resultado,
     calculando,
     calcular,
+    ejecutando,
+    procesados,
+    resumen,
+    ejecutar,
+    detener,
   } = useCalculoMasivo()
 
   const clave = clavePeriodo({ mes, ano } satisfies PeriodoRef)
+  const pendientes = vistaPrevia?.seEscribiran.length ?? 0
+  const enCurso = vistaPrevia ? periodoEnCurso(vistaPrevia.seEscribiran, procesados) : null
+  const procesadosDelIntervalo = vistaPrevia
+    ? procesados.filter((p) => vistaPrevia.seEscribiran.includes(p.clave)).length
+    : 0
 
   return (
     <div className="space-y-6">
@@ -525,6 +686,73 @@ export function CalculoUso({ edificaciones }: CalculoUsoProps) {
                 )}
 
                 <TablaVistaPrevia vistaPrevia={vistaPrevia} />
+
+                {/* Ejecución masiva por lotes (AC6): el CTA nace de los
+                    pendientes de la vista previa y nunca corre dos lotes a la
+                    vez. */}
+                <div className="mt-4 space-y-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={ejecutar}
+                      disabled={ejecutando || pendientes === 0}
+                      className="ui-btn ui-btn-primary min-h-10"
+                    >
+                      Ejecutar cálculo masivo ({pendientes} periodos pendientes)
+                    </button>
+                    {pendientes === 0 && !ejecutando && (
+                      <p className="ui-muted text-xs">
+                        No hay periodos pendientes; todos los resultados existentes se
+                        conservarán.
+                      </p>
+                    )}
+                  </div>
+
+                  {ejecutando && (
+                    <div className="ui-callout ui-callout-info" role="status">
+                      <p className="font-medium">
+                        Procesando {enCurso ?? '…'}… ({Math.min(procesadosDelIntervalo, pendientes)}{' '}
+                        de {pendientes} periodos pendientes)
+                      </p>
+                      <div
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={Math.max(1, pendientes)}
+                        aria-valuenow={Math.min(procesadosDelIntervalo, pendientes)}
+                        aria-label="Progreso del cálculo masivo"
+                        className="mt-2 h-2 w-full max-w-md overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-500/20"
+                      >
+                        <div
+                          className="h-2 rounded-full bg-emerald-600 transition-all"
+                          style={{
+                            width: `${
+                              pendientes === 0
+                                ? 100
+                                : Math.min(100, (procesadosDelIntervalo / pendientes) * 100)
+                            }%`,
+                          }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={detener}
+                        className="ui-btn ui-btn-danger-outline mt-3 min-h-10"
+                      >
+                        Detener
+                      </button>
+                    </div>
+                  )}
+
+                  {resumen && !ejecutando && (
+                    <ResumenFinal
+                      resumen={resumen}
+                      procesados={procesados}
+                      vistaPrevia={vistaPrevia}
+                      ejecutando={ejecutando}
+                      onReintentar={ejecutar}
+                    />
+                  )}
+                </div>
               </div>
             )}
           </section>

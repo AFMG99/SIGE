@@ -135,6 +135,14 @@ export const Individual: Story = {
 
     // 5) Trazabilidad: aportes del horario ganador por equipo.
     await canvas.findByText('Lun–Vie · 06:00–22:00')
+
+    // 6) Nombre visible del equipo en cada tabla de resultado (decisión T6):
+    //    el nombre es el texto principal y el id queda como dato secundario.
+    expect(filaHvac!.textContent).toContain('HVAC · Laboratorio 101')
+    expect(filaIlum!.textContent).toContain('ILUMINACION · Aula 102')
+    const filaLab = filas.find((f) => f.textContent?.includes('eq-campus-lab-03'))
+    expect(filaLab, 'fila de trazabilidad del equipo sin horario').toBeTruthy()
+    expect(filaLab!.textContent).toContain('MOTORES · Taller de máquinas')
   },
 }
 
@@ -227,5 +235,93 @@ export const ConservadoYError: Story = {
     await elegirEdificacion(canvas, userEvent, 'ed-error-0000001')
     await userEvent.click(await canvas.findByRole('button', { name: 'Calcular' }))
     await screen.findByText('No fue posible conectar con el servicio de cálculo. Intente de nuevo.')
+  },
+}
+
+/** Fija el intervalo enero–junio del año previo (seis clasificaciones BR4). */
+async function fijarIntervaloSeisMeses(canvas: Canvas, userEvent: UserEvent): Promise<void> {
+  await elegirSelect(userEvent, 'calculo-uso-mes-inicial', '1')
+  await elegirSelect(userEvent, 'calculo-uso-ano-inicial', String(ANO_PREVIO))
+  await elegirSelect(userEvent, 'calculo-uso-mes-final', '6')
+  await elegirSelect(userEvent, 'calculo-uso-ano-final', String(ANO_PREVIO))
+  await userEvent.click(await canvas.findByRole('button', { name: 'Vista previa' }))
+}
+
+export const EjecutarMasivo: Story = {
+  name: 'Ejecutar cálculo masivo · lote, progreso y resumen (AC6/AC8/AC11)',
+  play: async ({ canvas, userEvent }) => {
+    await elegirEdificacion(canvas, userEvent, 'ed-campus-00000001')
+    await fijarIntervaloSeisMeses(canvas, userEvent)
+    await canvas.findByText('Periodos pendientes: 5')
+
+    // El CTA nace de la lista de pendientes de la vista previa (spec §6.2).
+    const cta = await canvas.findByRole('button', {
+      name: /Ejecutar cálculo masivo \(5 periodos pendientes\)/,
+    })
+    await userEvent.click(cta)
+
+    // Progreso del lote mientras corre: periodo en curso, barra y Detener.
+    await canvas.findByText(/Procesando \d{4}-\d{2}…/)
+    await canvas.findByRole('progressbar')
+    await canvas.findByRole('button', { name: 'Detener' })
+
+    // Resumen final: las cuatro cubetas exclusivas particionan los 6 meses
+    // (1 intacto + 3 calculados + 1 fallido + 1 en revisión = 6, AC8).
+    await canvas.findByText('Resumen de la ejecución')
+    await canvas.findByText('Calculados: 3')
+    await canvas.findByText('Conservados: 1')
+    await canvas.findByText('Fallidos: 1')
+    await canvas.findByText('Pendientes de revisión: 1')
+
+    // El fallo queda trazable con su mensaje y es accionable (AC6/AC8):
+    // se busca la fila accionable de la tabla de resumen (tiene «Reintentar»),
+    // no la de la vista previa, que comparte la misma clave.
+    const filaFallo = (await canvas.findAllByRole('row')).find(
+      (f) =>
+        f.textContent?.includes(`${ANO_PREVIO}-04`) &&
+        f.textContent?.includes('Reintentar')
+    )
+    expect(filaFallo, 'fila del periodo fallido').toBeTruthy()
+    expect(filaFallo!.textContent).toContain(
+      'No fue posible calcular las horas de uso. Intente de nuevo.'
+    )
+    await canvas.findByRole('button', { name: /Reintentar/ })
+
+    // Toast de cierre (spec §6.2) y fin del lote: sin progreso ni Detener.
+    await screen.findByText(/Cálculo masivo finalizado/)
+    expect(canvas.queryByRole('progressbar')).toBeNull()
+    expect(canvas.queryByRole('button', { name: 'Detener' })).toBeNull()
+
+    // Reintentar reitera SOLO lo aún pendiente y vuelve a resumir: lo ya
+    // calculado por corridas previas aparece conservado (AC10/retomada).
+    await userEvent.click(await canvas.findByRole('button', { name: /Reintentar/ }))
+    await canvas.findByText('Conservados: 4')
+    await canvas.findByText('Calculados: 0')
+  },
+}
+
+export const DetenerEjecucion: Story = {
+  name: 'Detener a mitad de lote · resumen parcial y reanudación (AC11)',
+  play: async ({ canvas, userEvent }) => {
+    await elegirEdificacion(canvas, userEvent, 'ed-campus-00000001')
+    await fijarIntervaloSeisMeses(canvas, userEvent)
+    await canvas.findByText('Periodos pendientes: 5')
+
+    await userEvent.click(
+      await canvas.findByRole('button', { name: /Ejecutar cálculo masivo/ })
+    )
+
+    // La cancelación es segura: se corta DESPUÉS de la llamada en vuelo; lo
+    // ya persistido se conserva y el resumen refleja el avance parcial.
+    await userEvent.click(await canvas.findByRole('button', { name: 'Detener' }))
+    await screen.findByText(/Ejecución detenida/)
+
+    await canvas.findByText('Resumen de la ejecución')
+    await canvas.findByText('Calculados: 2')
+    await canvas.findByText('Conservados: 1')
+    await canvas.findByText('Fallidos: 1')
+    await canvas.findByText('Pendientes de revisión: 1')
+    await canvas.findByText(/aún sin procesar/)
+    expect(canvas.queryByRole('button', { name: 'Detener' })).toBeNull()
   },
 }

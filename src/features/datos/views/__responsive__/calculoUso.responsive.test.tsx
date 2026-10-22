@@ -180,5 +180,70 @@ describe('CalculoUso — desborde horizontal y targets táctiles', () => {
 
       expect(desborde(document.documentElement)).toBeLessThanOrEqual(1)
     })
+
+    it('ejecución masiva: CTA, progreso, resumen y acciones ≥40px bajo lg, sin desborde', async () => {
+      renderVista()
+
+      await vi.waitFor(() => {
+        expect(document.querySelector('#calculo-uso-edificacion')).not.toBeNull()
+      })
+      await elegirEdificacion('ed-campus-00000001')
+
+      // Vista previa de enero–junio del año previo (5 pendientes de 6).
+      elegirSelect('calculo-uso-mes-inicial', '1')
+      elegirSelect('calculo-uso-ano-inicial', String(ANO_PREVIO))
+      elegirSelect('calculo-uso-mes-final', '6')
+      elegirSelect('calculo-uso-ano-final', String(ANO_PREVIO))
+      botonCon(document, 'Vista previa').click()
+      await vi.waitFor(() => {
+        expect(document.body.innerText).toContain('Periodos pendientes: 5')
+      })
+
+      // CTA del lote con su recuento de pendientes.
+      const cta = botonCon(document, 'Ejecutar cálculo masivo')
+      expect(cta.disabled).toBe(false)
+      if (width < 1024) {
+        expect(cta.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+      }
+
+      cta.click()
+
+      // Durante la corrida: periodo en curso, barra de progreso y Detener.
+      // Todo se mide DENTRO del `waitFor`: el bloque de progreso solo existe
+      // mientras corre el lote, y medirlo tras terminar sería un nodo suelto.
+      await vi.waitFor(
+        () => {
+          const b = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+            (el) => (el.textContent ?? '').includes('Detener')
+          )
+          expect(b, 'botón Detener durante el lote').not.toBeNull()
+          expect(document.body.innerText).toMatch(/Procesando \d{4}-\d{2}…/)
+          expect(document.querySelector('[role="progressbar"]')).not.toBeNull()
+          if (width < 1024) {
+            expect(b!.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+          }
+        },
+        { timeout: 2000 }
+      )
+
+      // Resumen final con las cuatro cubetas + fila fallida accionable.
+      await vi.waitFor(
+        () => {
+          expect(document.body.innerText).toContain('Resumen de la ejecución')
+        },
+        { timeout: 4000 }
+      )
+      expect(document.body.innerText).toContain('Calculados: 3')
+      expect(document.body.innerText).toContain('Conservados: 1')
+      expect(document.body.innerText).toContain('Fallidos: 1')
+      expect(document.body.innerText).toContain('Pendientes de revisión: 1')
+
+      const reintentar = botonCon(document, 'Reintentar')
+      if (width < 1024) {
+        expect(reintentar.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+      }
+
+      expect(desborde(document.documentElement)).toBeLessThanOrEqual(1)
+    })
   })
 })
