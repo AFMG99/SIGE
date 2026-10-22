@@ -16,6 +16,10 @@
  *
  * La vista previa recorre las SIX clasificaciones del BR4 por posición en el
  * intervalo (patrón cíclico) y reparte la factura en posiciones pares.
+ *
+ * T6: las tablas de resultado muestran el NOMBRE visible del equipo
+ * (`nombreEquipo`, compuesto «TIPO · Espacio» igual que en el módulo de
+ * horarios) como texto principal; el `equipoId` queda como dato secundario.
  */
 
 import {
@@ -55,11 +59,11 @@ export const edificacionesCalculoDemo: EdificacionInfo[] = [
 
 /** Payload «ok» de `calcularUsoIndividual` (estructura idéntica a la action real). */
 export type ResultadoIndividualDemo = {
-  detalle: DetalleEquipo[]
-  porFecha: { equipoId: string; fecha: string; horas: number }[]
+  detalle: (DetalleEquipo & { nombreEquipo: string })[]
+  porFecha: { equipoId: string; nombreEquipo: string; fecha: string; horas: number }[]
   consolidaciones: Consolidaciones
   advertencias: string[]
-  trazabilidad: ResultadoPeriodo['trazabilidad']
+  trazabilidad: (ResultadoPeriodo['trazabilidad'][number] & { nombreEquipo: string })[]
   periodo: { estado: string }
   conservado?: boolean
 }
@@ -179,7 +183,13 @@ export function resultadoIndividualDemo(
       consolidaciones: CONSOLIDACIONES_VACIAS,
       advertencias: ['Sin horario vigente'],
       trazabilidad: [
-        { equipoId: 'eq-admin-hvac-01', nivelGanador: 'SIN_HORARIO', vigencia: '—', aportes: [] },
+        {
+          equipoId: 'eq-admin-hvac-01',
+          nombreEquipo: 'HVAC · Dirección',
+          nivelGanador: 'SIN_HORARIO',
+          vigencia: '—',
+          aportes: [],
+        },
       ],
       periodo: { estado: 'REVISAR' },
     }
@@ -202,9 +212,10 @@ export function resultadoIndividualDemo(
   const clave = `${ano}-${String(mes).padStart(2, '0')}`
   const f1 = `${clave}-01`
   const f2 = `${clave}-02`
-  const detalle: DetalleEquipo[] = [
+  const detalle: ResultadoIndividualDemo['detalle'] = [
     {
       equipoId: 'eq-campus-hvac-01',
+      nombreEquipo: 'HVAC · Laboratorio 101',
       horasUsoDia: 14,
       diasUsoMes: 21,
       estado: 'CALCULADO',
@@ -216,6 +227,7 @@ export function resultadoIndividualDemo(
     },
     {
       equipoId: 'eq-campus-ilum-02',
+      nombreEquipo: 'ILUMINACION · Aula 102',
       horasUsoDia: 16,
       diasUsoMes: 20,
       estado: 'CALCULADO',
@@ -230,10 +242,10 @@ export function resultadoIndividualDemo(
     estado: 'ok',
     detalle,
     porFecha: [
-      { equipoId: 'eq-campus-hvac-01', fecha: f1, horas: 14 },
-      { equipoId: 'eq-campus-hvac-01', fecha: f2, horas: 14 },
-      { equipoId: 'eq-campus-ilum-02', fecha: f1, horas: 16 },
-      { equipoId: 'eq-campus-ilum-02', fecha: f2, horas: 16 },
+      { equipoId: 'eq-campus-hvac-01', nombreEquipo: 'HVAC · Laboratorio 101', fecha: f1, horas: 14 },
+      { equipoId: 'eq-campus-hvac-01', nombreEquipo: 'HVAC · Laboratorio 101', fecha: f2, horas: 14 },
+      { equipoId: 'eq-campus-ilum-02', nombreEquipo: 'ILUMINACION · Aula 102', fecha: f1, horas: 16 },
+      { equipoId: 'eq-campus-ilum-02', nombreEquipo: 'ILUMINACION · Aula 102', fecha: f2, horas: 16 },
     ],
     consolidaciones: {
       espacios: [
@@ -248,17 +260,25 @@ export function resultadoIndividualDemo(
     trazabilidad: [
       {
         equipoId: 'eq-campus-hvac-01',
+        nombreEquipo: 'HVAC · Laboratorio 101',
         nivelGanador: 'EDIFICACION',
         vigencia: 'abierta',
         aportes: ['Lun–Vie · 06:00–22:00'],
       },
       {
         equipoId: 'eq-campus-ilum-02',
+        nombreEquipo: 'ILUMINACION · Aula 102',
         nivelGanador: 'BLOQUE',
         vigencia: '01/02/2024 – abierta',
         aportes: ['Lun–Vie · 07:00–19:00'],
       },
-      { equipoId: 'eq-campus-lab-03', nivelGanador: 'SIN_HORARIO', vigencia: '—', aportes: [] },
+      {
+        equipoId: 'eq-campus-lab-03',
+        nombreEquipo: 'MOTORES · Taller de máquinas',
+        nivelGanador: 'SIN_HORARIO',
+        vigencia: '—',
+        aportes: [],
+      },
     ],
     periodo: { estado: 'REVISAR' },
   }

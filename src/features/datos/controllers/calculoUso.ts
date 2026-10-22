@@ -17,17 +17,23 @@ import { canWithOverrides, getCurrentUser } from '@/shared/models/authz'
 import { auditarAccion } from '@/features/datos/controllers/auditoria'
 import {
   CLAIM_TTL_MS,
+  MAX_PERIODOS_POR_LLAMADA,
   calcularPeriodo,
   clasificarPeriodos,
   clavePeriodo,
+  ejecutarSchema,
   expandirIntervalo,
   intervaloSchema,
   periodoSchema,
+  presupuestoRestante,
+  type Clasificacion,
   type ContextoPeriodo,
   type DetalleAlmacenado,
+  type DetalleEquipo,
   type PeriodoAlmacenado,
   type PeriodoRef,
   type PeriodoVistaPrevia,
+  type ResumenEjecucion,
   type ResultadoPeriodo,
   type UsoOrigen,
   type UsoPeriodoEstado,
@@ -57,6 +63,27 @@ class ReclamoDenegado extends Error {
     super(MSJ_CLAIM)
     this.name = 'ReclamoDenegado'
   }
+}
+
+/**
+ * Falla controlada de la carga de contexto (p. ej. edificación sin calendario
+ * operativo): el usuario debe ver el mensaje específico, no el genérico.
+ */
+class ErrorDeCarga extends Error {
+  constructor(mensaje: string) {
+    super(mensaje)
+    this.name = 'ErrorDeCarga'
+  }
+}
+
+/**
+ * Etiqueta visible de un equipo en las tablas de resultados (decisión de
+ * binding de T6): `EquipoElectrico` NO tiene columna `nombre`, así que el
+ * proyecto compone «TIPO · Espacio» (mismo criterio que el módulo de
+ * horarios); el `equipoId` queda como dato secundario.
+ */
+function etiquetaEquipo(tipo: string, espacioNombre?: string | null): string {
+  return espacioNombre ? `${tipo} · ${espacioNombre}` : tipo
 }
 
 /**
@@ -104,8 +131,11 @@ function vigenciaTraslapaMes(
   return (!h.hasta || h.hasta >= primero) && (!h.desde || h.desde <= ultimo)
 }
 
+/** Etiqueta compuesta de cada equipo del alcance, por id (tablas de resultados). */
+type EtiquetasEquipo = Map<string, string>
+
 type ResultadoCarga =
-  | { ok: true; contexto: ContextoPeriodo }
+  | { ok: true; contexto: ContextoPeriodo; equipoEtiquetas: EtiquetasEquipo }
   | { ok: false; mensaje: string }
 
 /**
@@ -174,7 +204,13 @@ async function cargarContextoPeriodo(
     prisma.equipoElectrico.findMany({
       where: { bloque: { edificacionId } },
       orderBy: { id: 'asc' },
-      select: { id: true, bloqueId: true, espacioId: true },
+      select: {
+        id: true,
+        bloqueId: true,
+        espacioId: true,
+        tipo: true,
+        espacio: { select: { nombre: true } },
+      },
     }),
     prisma.horarioEquipo.findMany({
       where: { edificacionId },
@@ -194,6 +230,12 @@ async function cargarContextoPeriodo(
 
   const iso = (d: Date): string => d.toISOString().slice(0, 10)
   const calendario = edificacion.calendario
+
+  // Etiquetas de equipo para las tablas (T6): se componen AQUÍ porque el
+  // contexto puro (`ContextoPeriodo`) es de models y no conoce el nombre.
+  const equipoEtiquetas: EtiquetasEquipo = new Map(
+    equipos.map((e) => [e.id, etiquetaEquipo(e.tipo, e.espacio?.nombre)] as const)
+  )
 
   const contexto: ContextoPeriodo = {
     equipos: equipos.map((e) => ({ id: e.id, bloqueId: e.bloqueId, espacioId: e.espacioId })),
@@ -227,6 +269,7 @@ async function cargarContextoPeriodo(
   }
   return {
     ok: true,
+    equipoEtiquetas,
     contexto: {
       ...contexto,
       // AC6: mismo flag que lee el importador (calendario); ausente = H fijo.
@@ -246,10 +289,15 @@ interface MetaPersistencia {
  * Marca el periodo como FALLIDO con su mensaje (AC6: trazabilidad del fallo).
  * Guarda AC7: un resultado CALCULADO ya comprometido JAMÁS se degrada — el
  * fallo se reporta al caller pero el estado persistido queda intacto.
+ *
+ * `meta` (T6): cuando el fallo pertenece a un lote masivo se registra su
+ * `origen`, `loteId` y `calculadoPor` para que el resumen y la trazabilidad
+ * distingan corridas; sin `meta` el comportamiento es el histórico.
  */
 async function marcarFallido(
   periodo: { edificacionId: string; mes: number; ano: number },
-  mensaje: string
+  mensaje: string,
+  meta?: { origen: UsoOrigen; loteId?: string | null; calculadoPor?: string | null }
 ): Promise<void> {
   const clave = {
     edificacionId_mes_ano: {
@@ -264,14 +312,23 @@ async function marcarFallido(
     const ahora = new Date()
     await tx.usoPeriodo.upsert({
       where: clave,
-      update: { estado: 'FALLIDO', error: mensaje, calculandoEn: null },
+      update: {
+        estado: 'FALLIDO',
+        error: mensaje,
+        calculandoEn: null,
+        ...(meta
+          ? { origen: meta.origen, loteId: meta.loteId ?? null, calculadoPor: meta.calculadoPor ?? null }
+          : {}),
+      },
       create: {
         edificacionId: periodo.edificacionId,
         mes: periodo.mes,
         ano: periodo.ano,
         estado: 'FALLIDO',
         error: mensaje,
-        origen: 'INDIVIDUAL',
+        origen: meta?.origen ?? 'INDIVIDUAL',
+        loteId: meta?.loteId ?? null,
+        calculadoPor: meta?.calculadoPor ?? null,
         calculandoEn: null,
         calculadoEn: ahora,
       },
@@ -385,6 +442,90 @@ async function persistirPeriodo(
   })
 }
 
+/** Fila de `uso_periodo` mínima para decidir conservación y retomada (T6). */
+type FilaPeriodoGuardada = {
+  estado: string
+  loteId: string | null
+  calculandoEn: Date | null
+}
+
+/** Periodo del intervalo con su clasificación BR4 y su fila almacenada. */
+type PeriodoClasificado = {
+  clave: string
+  mes: number
+  ano: number
+  estado: UsoPeriodoEstado | null
+  clasificacion: Clasificacion
+  equiposEsperados: number
+  equiposCalculados: number
+  advertencias: string[]
+  fila: FilaPeriodoGuardada | null
+}
+
+/**
+ * Clasificación BR4 de TODO el intervalo leyendo únicamente resultados de uso
+ * (AC5/AC3: las facturas nunca participan). Compartida por la vista previa
+ * (AC4) y el executor (T6): ambos deben ver exactamente lo mismo.
+ */
+async function clasificarIntervalo(
+  edificacionId: string,
+  desde: PeriodoRef,
+  hasta: PeriodoRef
+): Promise<PeriodoClasificado[]> {
+  const [equiposActuales, periodosAlmacenados, detallesAlmacenados] = await Promise.all([
+    prisma.equipoElectrico.count({ where: { bloque: { edificacionId } } }),
+    prisma.usoPeriodo.findMany({
+      where: { edificacionId, ano: { gte: desde.ano, lte: hasta.ano } },
+    }),
+    prisma.usoEquipoPeriodo.findMany({
+      where: { ano: { gte: desde.ano, lte: hasta.ano }, equipo: { bloque: { edificacionId } } },
+    }),
+  ])
+
+  const periodos = expandirIntervalo(desde, hasta)
+  const claves = new Set(periodos.map(clavePeriodo))
+  const guardados = new Map(
+    periodosAlmacenados
+      .filter((p) => claves.has(clavePeriodo(p)))
+      .map((p) => [clavePeriodo(p), p] as const)
+  )
+  const detalles = new Map<string, DetalleAlmacenado[]>()
+  for (const d of detallesAlmacenados) {
+    const clave = clavePeriodo({ mes: d.mes, ano: d.ano })
+    if (!claves.has(clave)) continue
+    const lista = detalles.get(clave) ?? []
+    lista.push({ estado: d.estado, horasUsoDia: d.horasUsoDia, diasUsoMes: d.diasUsoMes })
+    detalles.set(clave, lista)
+  }
+
+  return periodos.map((p) => {
+    const clave = clavePeriodo(p)
+    const guardado = guardados.get(clave) ?? null
+    const almacenado: PeriodoAlmacenado | null = guardado && {
+      estado: guardado.estado,
+      equiposEsperados: guardado.equiposEsperados,
+      calculadoEn: guardado.calculadoEn,
+      calculadoPor: guardado.calculadoPor,
+      detalles: detalles.get(clave) ?? [],
+    }
+    return {
+      clave,
+      mes: p.mes,
+      ano: p.ano,
+      estado: guardado?.estado ?? null,
+      clasificacion: clasificarPeriodos(almacenado, equiposActuales),
+      equiposEsperados: guardado?.equiposEsperados ?? equiposActuales,
+      equiposCalculados: guardado?.equiposCalculados ?? 0,
+      advertencias: parsearAdvertencias(guardado?.advertencias ?? null),
+      fila: guardado && {
+        estado: guardado.estado,
+        loteId: guardado.loteId,
+        calculandoEn: guardado.calculandoEn,
+      },
+    }
+  })
+}
+
 /** Vista previa de intervalo masivo (AC4/AC5) — SOLO LECTURA. */
 export async function prepararCalculoMasivo(
   edificacionId: string,
@@ -415,64 +556,30 @@ export async function prepararCalculoMasivo(
 
     // Una sola pasada de lecturas; las facturas SOLO alimentan la columna de
     // referencia «Con factura» (R3/AC3): nunca clasifican ni gatean periodos.
-    const [equiposActuales, periodosAlmacenados, detallesAlmacenados, facturas] =
-      await Promise.all([
-        prisma.equipoElectrico.count({ where: { bloque: { edificacionId: id } } }),
-        prisma.usoPeriodo.findMany({
-          where: { edificacionId: id, ano: { gte: desde.ano, lte: hasta.ano } },
-        }),
-        prisma.usoEquipoPeriodo.findMany({
-          where: { ano: { gte: desde.ano, lte: hasta.ano }, equipo: { bloque: { edificacionId: id } } },
-        }),
-        prisma.facturaEnergia.groupBy({
-          by: ['periodo'],
-          where: { edificacionId: id },
-          _count: { _all: true },
-        }),
-      ])
-
-    const periodos = expandirIntervalo(desde, hasta)
-    const claves = new Set(periodos.map(clavePeriodo))
-    const guardados = new Map(
-      periodosAlmacenados
-        .filter((p) => claves.has(clavePeriodo(p)))
-        .map((p) => [clavePeriodo(p), p] as const)
-    )
-    const detalles = new Map<string, DetalleAlmacenado[]>()
-    for (const d of detallesAlmacenados) {
-      const clave = clavePeriodo({ mes: d.mes, ano: d.ano })
-      if (!claves.has(clave)) continue
-      const lista = detalles.get(clave) ?? []
-      lista.push({ estado: d.estado, horasUsoDia: d.horasUsoDia, diasUsoMes: d.diasUsoMes })
-      detalles.set(clave, lista)
-    }
+    const [clasificados, facturas] = await Promise.all([
+      clasificarIntervalo(id, desde, hasta),
+      prisma.facturaEnergia.groupBy({
+        by: ['periodo'],
+        where: { edificacionId: id },
+        _count: { _all: true },
+      }),
+    ])
     const conFactura = new Set(facturas.map((f) => f.periodo))
 
-    const filas: PeriodoVistaPrevia[] = periodos.map((p) => {
-      const clave = clavePeriodo(p)
-      const guardado = guardados.get(clave) ?? null
-      const almacenado: PeriodoAlmacenado | null = guardado && {
-        estado: guardado.estado,
-        equiposEsperados: guardado.equiposEsperados,
-        calculadoEn: guardado.calculadoEn,
-        calculadoPor: guardado.calculadoPor,
-        detalles: detalles.get(clave) ?? [],
-      }
-      return {
-        clave,
-        estado: guardado?.estado ?? null,
-        clasificacion: clasificarPeriodos(almacenado, equiposActuales),
-        equiposEsperados: guardado?.equiposEsperados ?? equiposActuales,
-        equiposCalculados: guardado?.equiposCalculados ?? 0,
-        conFactura: conFactura.has(clave),
-        advertencias: parsearAdvertencias(guardado?.advertencias ?? null),
-      }
-    })
+    const periodos: PeriodoVistaPrevia[] = clasificados.map((f) => ({
+      clave: f.clave,
+      estado: f.estado,
+      clasificacion: f.clasificacion,
+      equiposEsperados: f.equiposEsperados,
+      equiposCalculados: f.equiposCalculados,
+      conFactura: conFactura.has(f.clave),
+      advertencias: f.advertencias,
+    }))
 
     // `pendientes` = periodos que el modo por defecto escribirá (mismo
     // conjunto que `seEscribiran`); fallidos/revisar son subconjuntos.
     const conteos = { existentes: 0, pendientes: 0, fallidos: 0, revisar: 0, conFactura: 0 }
-    for (const f of filas) {
+    for (const f of periodos) {
       if (f.clasificacion === 'existente-intacto') conteos.existentes += 1
       else conteos.pendientes += 1
       if (f.clasificacion === 'fallido') conteos.fallidos += 1
@@ -482,15 +589,15 @@ export async function prepararCalculoMasivo(
 
     // AC5.3: el modo por defecto solo escribe lo que NO está intacto;
     // los intactos se conservan (nunca aparecen aquí).
-    const seEscribiran = filas
+    const seEscribiran = periodos
       .filter((f) => f.clasificacion !== 'existente-intacto')
       .map((f) => f.clave)
 
     return {
       estado: 'ok',
       vistaPrevia: {
-        intervalo: { desde, hasta, cantidadMeses: periodos.length },
-        periodos: filas,
+        intervalo: { desde, hasta, cantidadMeses: clasificados.length },
+        periodos,
         conteos,
         seEscribiran,
       },
@@ -501,6 +608,18 @@ export async function prepararCalculoMasivo(
   }
 }
 
+/** Etiqueta compuesta de un equipo, con el id como respaldo histórico. */
+type DetalleConNombre = DetalleEquipo & { nombreEquipo: string }
+type FilaPorFechaConNombre = {
+  equipoId: string
+  nombreEquipo: string
+  fecha: string
+  horas: number
+}
+type TrazabilidadConNombre = ResultadoPeriodo['trazabilidad'][number] & {
+  nombreEquipo: string
+}
+
 /** Cálculo individual de un periodo (AC1/AC14). */
 export async function calcularUsoIndividual(
   edificacionId: string,
@@ -509,11 +628,11 @@ export async function calcularUsoIndividual(
   opts?: { recalculo?: boolean }
 ): Promise<
   Exito<{
-    detalle: ResultadoPeriodo['detalle']
-    porFecha: { equipoId: string; fecha: string; horas: number }[]
+    detalle: DetalleConNombre[]
+    porFecha: FilaPorFechaConNombre[]
     consolidaciones: ResultadoPeriodo['consolidaciones']
     advertencias: string[]
-    trazabilidad: ResultadoPeriodo['trazabilidad']
+    trazabilidad: TrazabilidadConNombre[]
     periodo: { estado: string }
     conservado?: boolean
   }>
@@ -577,15 +696,28 @@ export async function calcularUsoIndividual(
       detail: `Periodo ${clavePeriodo({ mes, ano })}: ${calculados} calculados, ${persistencia.equiposRevisar} en revisión.`,
     })
 
+    // Etiquetas de equipo (T6, decisión de binding): las tablas muestran
+    // «TIPO · Espacio» como texto principal y el id solo como respaldo.
+    const etiqueta = (equipoId: string): string =>
+      carga.equipoEtiquetas.get(equipoId) ?? equipoId
+
     return {
       estado: 'ok',
-      detalle: resultado.detalle,
+      detalle: resultado.detalle.map((d) => ({ ...d, nombreEquipo: etiqueta(d.equipoId) })),
       porFecha: resultado.detalle.flatMap((d) =>
-        d.porFecha.map((f) => ({ equipoId: d.equipoId, fecha: f.fecha, horas: f.horas }))
+        d.porFecha.map((f) => ({
+          equipoId: d.equipoId,
+          nombreEquipo: etiqueta(d.equipoId),
+          fecha: f.fecha,
+          horas: f.horas,
+        }))
       ),
       consolidaciones: resultado.consolidaciones,
       advertencias: resultado.advertencias,
-      trazabilidad: resultado.trazabilidad,
+      trazabilidad: resultado.trazabilidad.map((fila) => ({
+        ...fila,
+        nombreEquipo: etiqueta(fila.equipoId),
+      })),
       periodo: { estado: persistencia.estado },
     }
   } catch (error) {
@@ -598,6 +730,245 @@ export async function calcularUsoIndividual(
     } catch (falloMarcado) {
       console.error('No fue posible marcar el periodo como FALLIDO:', falloMarcado)
     }
+    return { estado: 'error', mensaje: MSJ_FALLA }
+  }
+}
+
+// ============================================================
+// T6 — ejecución masiva por lotes (design §5.3)
+// AC3 · AC6 · AC7 · AC8 · AC10 · AC11 · AC12 · AC14
+// ============================================================
+
+/** Desenlace de un periodo dentro del lote (design §5.3). */
+export type DesenlacePeriodo = 'calculado' | 'revisar' | 'fallido' | 'conservado'
+
+/** Periodo atendido (o conservado) en una invocación del lote. */
+export interface ProcesadoLote {
+  clave: string
+  resultado: DesenlacePeriodo
+  mensaje?: string
+}
+
+/** Respuesta de una invocación de `ejecutarCalculoMasivo` (design §5.3). */
+export interface EjecucionLote {
+  loteId: string
+  procesados: ProcesadoLote[]
+  restantes: number
+  continuar: boolean
+  resumenParcial: ResumenEjecucion
+}
+
+/** Entrada de la action; el esquema de validación es `ejecutarSchema` (models). */
+export interface EntradaEjecucion {
+  edificacionId: string
+  desde: PeriodoRef
+  hasta: PeriodoRef
+  loteId?: string
+}
+
+/** Lote por defecto cuando el cliente no manda uno (retomada = re-derivar). */
+function generarLoteId(): string {
+  return crypto.randomUUID()
+}
+
+/**
+ * Contadores del intervalo tras la llamada (AC8): partición EXCLUSIVA de todos
+ * los periodos, distinguiendo lo que escribió ESTE lote de lo conservado.
+ */
+async function resumirEjecucion(
+  edificacionId: string,
+  desde: PeriodoRef,
+  hasta: PeriodoRef,
+  lote: string
+): Promise<ResumenEjecucion> {
+  const clasificados = await clasificarIntervalo(edificacionId, desde, hasta)
+  const resumen: ResumenEjecucion = {
+    calculados: 0,
+    conservados: 0,
+    fallidos: 0,
+    revisar: 0,
+    pendientes: 0,
+  }
+  for (const f of clasificados) {
+    const intentadoPorEsteLote =
+      f.fila?.loteId === lote &&
+      f.fila.estado !== 'PENDIENTE' &&
+      f.fila.estado !== 'CALCULANDO'
+    if (intentadoPorEsteLote) {
+      if (f.estado === 'CALCULADO') resumen.calculados += 1
+      else if (f.estado === 'REVISAR') resumen.revisar += 1
+      else resumen.fallidos += 1
+    } else if (f.clasificacion === 'existente-intacto') resumen.conservados += 1
+    else if (f.clasificacion === 'fallido') resumen.fallidos += 1
+    else if (f.clasificacion === 'revisar') resumen.revisar += 1
+    else resumen.pendientes += 1
+  }
+  return resumen
+}
+
+/**
+ * Ejecuta el cálculo masivo por INVOCACIONES acotadas (AC11): a lo sumo
+ * `MAX_PERIODOS_POR_LLAMADA` periodos y dentro de `PRESUPUESTO_MS`, y devuelve
+ * `continuar` con los restantes para que el cliente itere. Idempotente (AC10):
+ * cada llamada re-deriva el pendiente en el servidor; lo intacto se conserva
+ * y lo ya intentado por ESTE lote no se repite (≤1 reintento por periodo por
+ * ejecución, design §4). Sin parámetro de recálculo (AC9): el recálculo es
+ * SOLO `recalcularPeriodos`. Las facturas nunca se leen aquí (AC3).
+ */
+export async function ejecutarCalculoMasivo(
+  entrada: EntradaEjecucion
+): Promise<Exito<{ ejecucion: EjecucionLote }>> {
+  try {
+    const auth = await autorizarCalculoUso()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    // Re-validación server-side (AC2): el cliente nunca dicta el intervalo.
+    const valido = ejecutarSchema.safeParse(entrada)
+    if (!valido.success) {
+      return {
+        estado: 'error',
+        mensaje: valido.error.issues[0]?.message ?? 'Datos de ejecución inválidos.',
+      }
+    }
+    const { edificacionId, desde, hasta } = valido.data
+    const lote = valido.data.loteId ?? generarLoteId()
+
+    const edificacion = await prisma.edificacion.findUnique({
+      where: { id: edificacionId },
+      select: { id: true },
+    })
+    if (!edificacion) return { estado: 'error', mensaje: 'La edificación indicada no existe.' }
+
+    // Pendientes del servidor (AC5/AC10): nada intacto, nada ya intentado por
+    // ESTE lote (su FALLIDO/REVISAR es trazabilidad, no un pendiente nuevo).
+    const clasificados = await clasificarIntervalo(edificacionId, desde, hasta)
+    const pendientes = clasificados.filter((f) => {
+      if (f.clasificacion === 'existente-intacto') return false
+      if (
+        f.fila?.loteId === lote &&
+        f.fila.estado !== 'PENDIENTE' &&
+        f.fila.estado !== 'CALCULANDO'
+      ) {
+        return false
+      }
+      return true
+    })
+
+    await auditarAccion({
+      action: 'uso.calcular_masivo.inicio',
+      targetId: edificacionId,
+      detail: `Lote ${lote}: ${clavePeriodo(desde)}–${clavePeriodo(hasta)}, ${pendientes.length} periodo(s) pendiente(s).`,
+    })
+
+    // Paso 0 (design §4): placeholder PENDIENTE de cada seleccionado no
+    // intacto, para que una ejecución interrumpida deje filas visibles. Nunca
+    // sobre un reclamo CALCULANDO vigente de OTRA ejecución (AC7).
+    for (const p of pendientes) {
+      const reclamoVigente =
+        p.fila?.estado === 'CALCULANDO' &&
+        p.fila.calculandoEn !== null &&
+        Date.now() - p.fila.calculandoEn.getTime() < CLAIM_TTL_MS
+      if (reclamoVigente) continue
+      await prisma.usoPeriodo.upsert({
+        where: { edificacionId_mes_ano: { edificacionId, mes: p.mes, ano: p.ano } },
+        update: { estado: 'PENDIENTE', loteId: lote },
+        create: {
+          edificacionId,
+          mes: p.mes,
+          ano: p.ano,
+          estado: 'PENDIENTE',
+          origen: 'MASIVO',
+          loteId: lote,
+        },
+      })
+    }
+
+    // Intactos: reportados como conservados (o calculados si ya los escribió
+    // ESTE lote en una llamada anterior de la misma ejecución).
+    const procesados: ProcesadoLote[] = []
+    for (const f of clasificados) {
+      if (f.clasificacion !== 'existente-intacto') continue
+      procesados.push({
+        clave: f.clave,
+        resultado: f.fila?.loteId === lote ? 'calculado' : 'conservado',
+      })
+    }
+
+    // Bucle de periodos: tope de N por llamada + presupuesto de Vercel (AC11).
+    const inicio = Date.now()
+    let intentados = 0
+    for (const p of pendientes) {
+      if (intentados >= MAX_PERIODOS_POR_LLAMADA) break
+      if (presupuestoRestante(Date.now(), inicio) <= 0) break
+      intentados += 1
+      try {
+        // 1–3. Contexto del periodo + núcleo puro (una pasada por mes).
+        const carga = await cargarContextoPeriodo(edificacionId, p.mes, p.ano)
+        if (!carga.ok) throw new ErrorDeCarga(carga.mensaje)
+        const resultado = calcularPeriodo({
+          edificacionId,
+          mes: p.mes,
+          ano: p.ano,
+          contexto: carga.contexto,
+        })
+        // 4. Persistencia con reclamo: UNA transacción por periodo (design §3.3).
+        const persistencia = await persistirPeriodo(
+          { edificacionId, mes: p.mes, ano: p.ano },
+          resultado,
+          { origen: 'MASIVO', calculadoPor: auth.userId, loteId: lote }
+        )
+        procesados.push({
+          clave: p.clave,
+          resultado: persistencia.estado === 'REVISAR' ? 'revisar' : 'calculado',
+        })
+      } catch (error) {
+        // 5. Un fallo NUNCA detiene el lote ni degrada lo comprometido (AC6/AC7).
+        if (error instanceof ReclamoDenegado) {
+          // Reclamo ajeno vigente: se reporta, pero ni FALLIDO ni escritura.
+          procesados.push({ clave: p.clave, resultado: 'fallido', mensaje: MSJ_CLAIM })
+          continue
+        }
+        const mensaje = error instanceof ErrorDeCarga ? error.message : MSJ_FALLA
+        if (!(error instanceof ErrorDeCarga)) {
+          console.error(`Error en el periodo ${p.clave} del lote ${lote}:`, error)
+        }
+        try {
+          await marcarFallido({ edificacionId, mes: p.mes, ano: p.ano }, mensaje, {
+            origen: 'MASIVO',
+            loteId: lote,
+            calculadoPor: auth.userId,
+          })
+        } catch (falloMarcado) {
+          console.error('No fue posible marcar el periodo como FALLIDO:', falloMarcado)
+        }
+        procesados.push({ clave: p.clave, resultado: 'fallido', mensaje })
+      }
+    }
+
+    const resumenParcial = await resumirEjecucion(edificacionId, desde, hasta, lote)
+    const restantes = pendientes.length - intentados
+
+    await auditarAccion({
+      action: 'uso.calcular_masivo.fin',
+      targetId: edificacionId,
+      detail:
+        `Lote ${lote}: ${resumenParcial.calculados} calculado(s), ` +
+        `${resumenParcial.conservados} conservado(s), ${resumenParcial.fallidos} fallido(s), ` +
+        `${resumenParcial.revisar} en revisión, ${resumenParcial.pendientes} pendiente(s).`,
+    })
+
+    return {
+      estado: 'ok',
+      ejecucion: {
+        loteId: lote,
+        procesados,
+        restantes,
+        continuar: restantes > 0,
+        resumenParcial,
+      },
+    }
+  } catch (error) {
+    console.error('Error en ejecutarCalculoMasivo:', error)
     return { estado: 'error', mensaje: MSJ_FALLA }
   }
 }

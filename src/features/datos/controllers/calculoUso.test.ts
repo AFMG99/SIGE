@@ -53,21 +53,34 @@ const t = vi.hoisted(() => {
     },
     edificaciones: new Map<string, { id: string; calendario: Record<string, unknown> | null }>(),
     bloques: new Map<string, string>(),
-    equipos: [] as { id: string; bloqueId: string; espacioId: string }[],
+    equipos: [] as {
+      id: string
+      bloqueId: string
+      espacioId: string
+      tipo: string
+      espacioNombre: string
+    }[],
     rangos: [] as { calendarioId: string; fechaInicio: Date; fechaFin: Date; tipoDia: string }[],
     horarios: [] as Record<string, unknown>[],
     facturas: [] as { edificacionId: string; periodo: string }[],
     usoPeriodos: [] as FilaPeriodo[],
     usoEquipos: [] as FilaDetalle[],
     escrituras: [] as string[],
+    lecturas: { facturas: 0 },
     auditorias: [] as { action: string; targetId: string; detail: string }[],
-    fallos: { rangos: false },
+    fallos: { rangos: false, createMany: new Set<number>() },
     seq: 0,
   }
 
   const nid = (prefijo: string): string => `${prefijo}-${String(++estado.seq).padStart(4, '0')}`
 
-  const equiposDe = (edificacionId: string): { id: string; bloqueId: string; espacioId: string }[] => {
+  const equiposDe = (edificacionId: string): {
+    id: string
+    bloqueId: string
+    espacioId: string | null
+    tipo: string
+    espacioNombre: string
+  }[] => {
     const bloques = new Set(
       Array.from(estado.bloques.entries())
         .filter(([, edif]) => edif === edificacionId)
@@ -108,7 +121,13 @@ const t = vi.hoisted(() => {
     },
     equipoElectrico: {
       findMany: async ({ where }: { where: { bloque: { edificacionId: string } } }) =>
-        equiposDe(where.bloque.edificacionId).map((e) => ({ ...e })),
+        equiposDe(where.bloque.edificacionId).map((e) => ({
+          id: e.id,
+          bloqueId: e.bloqueId,
+          espacioId: e.espacioId,
+          tipo: e.tipo,
+          espacio: { nombre: e.espacioNombre },
+        })),
       count: async ({ where }: { where: { bloque: { edificacionId: string } } }) =>
         equiposDe(where.bloque.edificacionId).length,
     },
@@ -130,6 +149,7 @@ const t = vi.hoisted(() => {
     },
     facturaEnergia: {
       groupBy: async ({ where }: { where: { edificacionId: string } }) => {
+        estado.lecturas.facturas += 1
         const porPeriodo = new Map<string, number>()
         for (const f of estado.facturas) {
           if (f.edificacionId !== where.edificacionId) continue
@@ -216,6 +236,11 @@ const t = vi.hoisted(() => {
       },
       createMany: async ({ data }: { data: Omit<FilaDetalle, 'id' | 'calculadoEn'>[] }) => {
         estado.escrituras.push('usoEquipoPeriodo.createMany')
+        // Fallo inyectado por mes (AC6): simula un fallo de BD en la
+        // persistencia de UN periodo para probar la continuación del lote.
+        if (data.length > 0 && estado.fallos.createMany.has(data[0].mes)) {
+          throw new Error('Fallo inyectado en la persistencia del periodo.')
+        }
         for (const d of data) {
           const duplicada = estado.usoEquipos.some(
             (f) => f.equipoId === d.equipoId && f.mes === d.mes && f.ano === d.ano
@@ -257,7 +282,12 @@ vi.mock('@/features/datos/controllers/auditoria', () => ({
   },
 }))
 
-import { calcularUsoIndividual, prepararCalculoMasivo } from '@/features/datos/controllers/calculoUso'
+import {
+  calcularUsoIndividual,
+  ejecutarCalculoMasivo,
+  prepararCalculoMasivo,
+} from '@/features/datos/controllers/calculoUso'
+import { PRESUPUESTO_MS } from '@/features/datos/models/calculoUso'
 
 // ============================================================
 // Fixtures deterministas
@@ -280,7 +310,8 @@ function reiniciar(): void {
   e.usoEquipos = []
   e.escrituras = []
   e.auditorias = []
-  e.fallos = { rangos: false }
+  e.lecturas.facturas = 0
+  e.fallos = { rangos: false, createMany: new Set<number>() }
   e.seq = 0
 }
 
@@ -322,9 +353,20 @@ function nuevoBloque(edificacionId: string, codigo: string): string {
   return id
 }
 
-function nuevoEquipo(bloqueId: string, clave: string): string {
+function nuevoEquipo(
+  bloqueId: string,
+  clave: string,
+  tipo = 'HVAC',
+  espacioNombre?: string
+): string {
   const id = `eq-${clave}-${bloqueId}`
-  t.estado.equipos.push({ id, bloqueId, espacioId: `esp-${bloqueId}` })
+  t.estado.equipos.push({
+    id,
+    bloqueId,
+    espacioId: `esp-${bloqueId}`,
+    tipo,
+    espacioNombre: espacioNombre ?? `Espacio ${clave}`,
+  })
   return id
 }
 
@@ -345,6 +387,8 @@ interface OpcionesHorario {
   horaInicio?: number
   horaFin?: number
   diasSemana?: string[]
+  desde?: Date | null
+  hasta?: Date | null
 }
 
 function nuevoHorario(opciones: OpcionesHorario): void {
@@ -358,8 +402,8 @@ function nuevoHorario(opciones: OpcionesHorario): void {
     diasSemana: opciones.diasSemana ?? ['LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB', 'DOM'],
     horaInicio: opciones.horaInicio ?? 6,
     horaFin: opciones.horaFin ?? 14,
-    desde: null,
-    hasta: null,
+    desde: opciones.desde ?? null,
+    hasta: opciones.hasta ?? null,
   })
 }
 
@@ -877,5 +921,459 @@ describe('calcularUsoIndividual — pipeline individual (AC1/AC14)', () => {
     expect(fallo2.estado).toBe('error')
     expect(t.estado.usoPeriodos[0].estado).toBe('CALCULADO') // intacto
     expect(t.estado.usoPeriodos[0].error).toBeNull()
+  })
+})
+
+// ============================================================
+// T6 — ejecutarCalculoMasivo: lote masivo por llamadas acotadas
+// (AC3 · AC6 · AC7 · AC8 · AC9 · AC10 · AC11 · AC12 · AC14)
+// ============================================================
+
+const MSJ_FALLA = 'No fue posible calcular las horas de uso. Intente de nuevo.'
+
+/** Campus determinista: calendario 2024 + bloque A + N equipos + horario 8h. */
+function campusBasico(
+  opciones: { equipos?: number; usarHorariosXe?: boolean; horarioHasta?: Date } = {}
+): {
+  id: string
+  equipos: string[]
+} {
+  const { id, calendarioId } = nuevaEdificacion({ usarHorariosXe: opciones.usarHorariosXe })
+  rangoAnual(calendarioId, 2024)
+  const bloque = nuevoBloque(id, 'A')
+  const equipos: string[] = []
+  for (let i = 1; i <= (opciones.equipos ?? 1); i++) {
+    equipos.push(nuevoEquipo(bloque, String(i)))
+  }
+  nuevoHorario({ edificacionId: id, hasta: opciones.horarioHasta ?? null })
+  return { id, equipos }
+}
+
+/** Periodo intacto sembrado a mano (lote ajeno), como si otra corrida lo dejó. */
+function sembrarIntacto(id: string, equipos: string[], mes: number, ano: number): Date {
+  const calculadoEn = new Date('2024-04-01T00:00:00Z')
+  t.estado.usoPeriodos.push({
+    id: `up-seed-${mes}`,
+    edificacionId: id,
+    mes,
+    ano,
+    estado: 'CALCULADO',
+    equiposEsperados: equipos.length,
+    equiposCalculados: equipos.length,
+    equiposRevisar: 0,
+    advertencias: '[]',
+    error: null,
+    origen: 'MASIVO',
+    loteId: 'lote-previo',
+    calculadoEn,
+    calculadoPor: 'usr-previo',
+    calculandoEn: null,
+  })
+  for (const equipoId of equipos) {
+    t.estado.usoEquipos.push({
+      id: `det-seed-${mes}-${equipoId}`,
+      equipoId,
+      mes,
+      ano,
+      horasUsoDia: 8,
+      diasUsoMes: 31,
+      estado: 'CALCULADO',
+      horarioGanador: 'EDIFICACION/Turno mañana',
+      motivoRevision: null,
+      calculadoEn,
+    })
+  }
+  return calculadoEn
+}
+
+describe('ejecutarCalculoMasivo — lote masivo (T6)', () => {
+  it('AC14/AC2: sin permiso, sin sesión o con intervalo inválido ⇒ error sin escrituras ni auditoría', async () => {
+    const { id } = campusBasico()
+    const desde = { mes: 1, ano: 2024 }
+    const hasta = { mes: 2, ano: 2024 }
+
+    t.estado.permitido = false
+    const denegado = await ejecutarCalculoMasivo({ edificacionId: id, desde, hasta })
+    expect(denegado).toMatchObject({ estado: 'error', mensaje: MSJ_PERMISO })
+
+    t.estado.permitido = true
+    t.estado.sinSesion = true
+    const sinSesion = await ejecutarCalculoMasivo({ edificacionId: id, desde, hasta })
+    expect(sinSesion).toMatchObject({ estado: 'error', mensaje: MSJ_SESION })
+
+    t.estado.sinSesion = false
+    const invertido = await ejecutarCalculoMasivo({
+      edificacionId: id,
+      desde: { mes: 6, ano: 2024 },
+      hasta: { mes: 1, ano: 2024 },
+    })
+    expect(invertido.estado).toBe('error')
+
+    const inexistente = await ejecutarCalculoMasivo({
+      edificacionId: 'edif-que-no-existe',
+      desde,
+      hasta,
+    })
+    expect(inexistente).toMatchObject({ estado: 'error', mensaje: 'La edificación indicada no existe.' })
+
+    expect(t.estado.escrituras).toEqual([])
+    expect(t.estado.auditorias).toEqual([])
+  })
+
+  it('AC3: procesa meses sin factura sin consultar facturas; audita inicio/fin y propaga el lote', async () => {
+    const { id } = campusBasico()
+    // 2024-01 NO tiene factura; 2024-02 sí (solo referencia, R3/AC3).
+    t.estado.facturas.push({ edificacionId: id, periodo: '2024-02' })
+
+    const res = await ejecutarCalculoMasivo({
+      edificacionId: id,
+      desde: { mes: 1, ano: 2024 },
+      hasta: { mes: 2, ano: 2024 },
+      loteId: 'lote-cliente',
+    })
+    expect(res.estado).toBe('ok')
+    if (res.estado !== 'ok') return
+
+    expect(res.ejecucion.loteId).toBe('lote-cliente')
+    expect(res.ejecucion.procesados.map((p) => p.clave)).toEqual(['2024-01', '2024-02'])
+    expect(res.ejecucion.procesados.every((p) => p.resultado === 'calculado')).toBe(true)
+    expect(res.ejecucion.restantes).toBe(0)
+    expect(res.ejecucion.continuar).toBe(false)
+
+    // El mes sin factura quedó CALCULADO con la misma forma que el con factura.
+    const enero = t.estado.usoPeriodos.find((f) => f.mes === 1)
+    const febrero = t.estado.usoPeriodos.find((f) => f.mes === 2)
+    expect(enero).toMatchObject({ estado: 'CALCULADO', loteId: 'lote-cliente', origen: 'MASIVO' })
+    expect(febrero).toMatchObject({ estado: 'CALCULADO', equiposCalculados: 1 })
+    expect(t.estado.usoEquipos.filter((f) => f.mes === 1)).toHaveLength(1)
+
+    // AC3: el executor NUNCA lee facturas (la referencia vive solo en la vista previa).
+    expect(t.estado.lecturas.facturas).toBe(0)
+
+    // Trazabilidad del lote (AC14): auditoría de inicio y de fin.
+    expect(t.estado.auditorias.map((a) => a.action)).toEqual([
+      'uso.calcular_masivo.inicio',
+      'uso.calcular_masivo.fin',
+    ])
+    expect(t.estado.auditorias[0].detail).toContain('lote-cliente')
+    expect(t.estado.auditorias[1].detail).toContain('lote-cliente')
+  })
+
+  it('AC11: cada llamada procesa a lo sumo 3 periodos y continúa con un lote nuevo por corrida', async () => {
+    const { id } = campusBasico({ equipos: 2 })
+    const desde = { mes: 1, ano: 2024 }
+    const hasta = { mes: 6, ano: 2024 }
+
+    const primera = await ejecutarCalculoMasivo({ edificacionId: id, desde, hasta })
+    expect(primera.estado).toBe('ok')
+    if (primera.estado !== 'ok') return
+    expect(primera.ejecucion.procesados.map((p) => p.clave)).toEqual([
+      '2024-01',
+      '2024-02',
+      '2024-03',
+    ])
+    expect(primera.ejecucion.restantes).toBe(3)
+    expect(primera.ejecucion.continuar).toBe(true)
+    expect(t.estado.usoPeriodos.filter((f) => f.estado === 'CALCULADO')).toHaveLength(3)
+
+    const segunda = await ejecutarCalculoMasivo({ edificacionId: id, desde, hasta })
+    expect(segunda.estado).toBe('ok')
+    if (segunda.estado !== 'ok') return
+    // Lote generado por el servidor cuando el cliente no manda uno.
+    expect(primera.ejecucion.loteId).toBeTruthy()
+    expect(segunda.ejecucion.loteId).toBeTruthy()
+    expect(segunda.ejecucion.loteId).not.toBe(primera.ejecucion.loteId)
+    // Los tres ya escritos por la corrida se reportan como conservados de esta
+    // llamada; los tres nuevos se calculan (AC11: retomar desde el pendiente).
+    expect(
+      segunda.ejecucion.procesados.filter((p) => p.resultado === 'calculado').map((p) => p.clave)
+    ).toEqual(['2024-04', '2024-05', '2024-06'])
+    expect(
+      segunda.ejecucion.procesados.filter((p) => p.resultado === 'conservado').map((p) => p.clave)
+    ).toEqual(['2024-01', '2024-02', '2024-03'])
+    expect(segunda.ejecucion.restantes).toBe(0)
+    expect(segunda.ejecucion.continuar).toBe(false)
+    expect(t.estado.usoPeriodos.filter((f) => f.estado === 'CALCULADO')).toHaveLength(6)
+
+    // El periodo escrito por la primera llamada quedó con SU lote.
+    expect(t.estado.usoPeriodos.find((f) => f.mes === 3)?.loteId).toBe(primera.ejecucion.loteId)
+  })
+
+  it('AC11: con el presupuesto agotado se detiene con continuar=true y restantes>0', async () => {
+    const { id } = campusBasico()
+    const base = 1_700_000_000_000
+    const reloj = vi.spyOn(Date, 'now')
+    reloj
+      .mockReturnValueOnce(base) // instante de inicio del lote
+      .mockReturnValueOnce(base + 1_000) // 1ª comprobación: aún hay presupuesto
+      .mockReturnValue(base + PRESUPUESTO_MS + 1) // todo lo demás: agotado
+
+    try {
+      const res = await ejecutarCalculoMasivo({
+        edificacionId: id,
+        desde: { mes: 1, ano: 2024 },
+        hasta: { mes: 6, ano: 2024 },
+      })
+      expect(res.estado).toBe('ok')
+      if (res.estado !== 'ok') return
+      expect(res.ejecucion.procesados.map((p) => p.clave)).toEqual(['2024-01'])
+      expect(res.ejecucion.restantes).toBe(5)
+      expect(res.ejecucion.continuar).toBe(true)
+      expect(t.estado.usoPeriodos.filter((f) => f.estado === 'CALCULADO')).toHaveLength(1)
+    } finally {
+      reloj.mockRestore()
+    }
+  })
+
+  it('AC6: el fallo de N lo deja FALLIDO con su mensaje y el lote continúa con N+1', async () => {
+    const { id } = campusBasico()
+    t.estado.fallos.createMany.add(2) // la persistencia de 2024-02 revienta
+
+    const res = await ejecutarCalculoMasivo({
+      edificacionId: id,
+      desde: { mes: 1, ano: 2024 },
+      hasta: { mes: 3, ano: 2024 },
+      loteId: 'lote-ac6',
+    })
+    expect(res.estado).toBe('ok')
+    if (res.estado !== 'ok') return
+
+    expect(res.ejecucion.procesados).toEqual([
+      { clave: '2024-01', resultado: 'calculado' },
+      { clave: '2024-02', resultado: 'fallido', mensaje: MSJ_FALLA },
+      { clave: '2024-03', resultado: 'calculado' },
+    ])
+    expect(res.ejecucion.restantes).toBe(0)
+    expect(res.ejecucion.continuar).toBe(false)
+    expect(res.ejecucion.resumenParcial).toEqual({
+      calculados: 2,
+      conservados: 0,
+      fallidos: 1,
+      revisar: 0,
+      pendientes: 0,
+    })
+
+    // El periodo fallido queda trazable (mensaje + lote) y N+1 CALCULADO.
+    expect(t.estado.usoPeriodos.find((f) => f.mes === 2)).toMatchObject({
+      estado: 'FALLIDO',
+      error: MSJ_FALLA,
+      loteId: 'lote-ac6',
+      origen: 'MASIVO',
+      calculandoEn: null,
+    })
+    expect(t.estado.usoPeriodos.find((f) => f.mes === 3)?.estado).toBe('CALCULADO')
+    expect(t.estado.usoEquipos.some((f) => f.mes === 2)).toBe(false)
+  })
+
+  it('AC7: un fallo jamás toca los periodos intactos (fila y detalle byte a byte)', async () => {
+    const { id, equipos } = campusBasico({ equipos: 2 })
+    const calculadoEn = sembrarIntacto(id, equipos, 1, 2024)
+    const antes = structuredClone({
+      periodos: t.estado.usoPeriodos,
+      detalles: t.estado.usoEquipos,
+      escrituras: t.estado.escrituras.length,
+    })
+
+    t.estado.fallos.createMany.add(2)
+    const res = await ejecutarCalculoMasivo({
+      edificacionId: id,
+      desde: { mes: 1, ano: 2024 },
+      hasta: { mes: 2, ano: 2024 },
+    })
+    expect(res.estado).toBe('ok')
+    if (res.estado !== 'ok') return
+
+    // 2024-01 intacto: conservado SIN placeholder ni reescritura alguna.
+    expect(t.estado.usoPeriodos.find((f) => f.mes === 1)).toEqual(antes.periodos[0])
+    // Igualdad de valor (no de identidad): el respaldo del $transaction del
+    // falso prisma restaura clonas estructurales, así que el Date cambia de
+    // instancia pero NUNCA de instante — que es lo que exige AC7.
+    expect(t.estado.usoPeriodos.find((f) => f.mes === 1)?.calculadoEn).toEqual(calculadoEn)
+    expect(t.estado.usoEquipos.filter((f) => f.mes === 1)).toEqual(
+      antes.detalles.filter((f) => f.mes === 1)
+    )
+    expect(res.ejecucion.procesados).toEqual([
+      { clave: '2024-01', resultado: 'conservado' },
+      { clave: '2024-02', resultado: 'fallido', mensaje: MSJ_FALLA },
+    ])
+    // Solo la transacción del periodo fallido escribió.
+    expect(t.estado.usoPeriodos.find((f) => f.mes === 2)?.estado).toBe('FALLIDO')
+  })
+
+  it('AC10: segunda corrida sobre el mismo intervalo ⇒ 0 calculados, N conservados, cero escrituras', async () => {
+    const { id } = campusBasico({ equipos: 2 })
+    const desde = { mes: 1, ano: 2024 }
+    const hasta = { mes: 3, ano: 2024 }
+
+    const primera = await ejecutarCalculoMasivo({ edificacionId: id, desde, hasta })
+    expect(primera.estado).toBe('ok')
+    const escriturasTrasPrimera = t.estado.escrituras.length
+    const calculadoEn = t.estado.usoPeriodos.map((f) => f.calculadoEn)
+    const detalleTrasPrimera = structuredClone(t.estado.usoEquipos)
+
+    const segunda = await ejecutarCalculoMasivo({ edificacionId: id, desde, hasta })
+    expect(segunda.estado).toBe('ok')
+    if (segunda.estado !== 'ok') return
+
+    expect(segunda.ejecucion.procesados).toEqual([
+      { clave: '2024-01', resultado: 'conservado' },
+      { clave: '2024-02', resultado: 'conservado' },
+      { clave: '2024-03', resultado: 'conservado' },
+    ])
+    expect(segunda.ejecucion.restantes).toBe(0)
+    expect(segunda.ejecucion.continuar).toBe(false)
+    expect(segunda.ejecucion.resumenParcial).toEqual({
+      calculados: 0,
+      conservados: 3,
+      fallidos: 0,
+      revisar: 0,
+      pendientes: 0,
+    })
+    // Ni una sola escritura nueva: filas, timestamps y detalle intactos.
+    expect(t.estado.escrituras.length).toBe(escriturasTrasPrimera)
+    expect(t.estado.usoPeriodos.map((f) => f.calculadoEn)).toEqual(calculadoEn)
+    expect(t.estado.usoEquipos).toEqual(detalleTrasPrimera)
+    expect(t.estado.usoEquipos).toHaveLength(6) // 2 equipos × 3 meses, sin duplicados
+  })
+
+  it('AC8: el resumen parcial particiona el intervalo (calculados/conservados/fallidos/revisar/pendientes)', async () => {
+    // Xe ON + horario vigente SOLO hasta marzo ⇒ en abril ningún equipo tiene
+    // horario ganador ⇒ sin filas ⇒ periodo REVISAR (BR5).
+    const { id, equipos } = campusBasico({
+      equipos: 2,
+      usarHorariosXe: true,
+      horarioHasta: new Date(Date.UTC(2024, 2, 31)),
+    })
+    sembrarIntacto(id, equipos, 1, 2024)
+    t.estado.fallos.createMany.add(3) // 2024-03 falla en la persistencia
+
+    const res = await ejecutarCalculoMasivo({
+      edificacionId: id,
+      desde: { mes: 1, ano: 2024 },
+      hasta: { mes: 5, ano: 2024 },
+    })
+    expect(res.estado).toBe('ok')
+    if (res.estado !== 'ok') return
+
+    expect(res.ejecucion.procesados).toEqual([
+      { clave: '2024-01', resultado: 'conservado' },
+      { clave: '2024-02', resultado: 'calculado' },
+      { clave: '2024-03', resultado: 'fallido', mensaje: MSJ_FALLA },
+      { clave: '2024-04', resultado: 'revisar' },
+    ])
+    expect(res.ejecucion.restantes).toBe(1) // 2024-05 aún sin procesar
+    expect(res.ejecucion.continuar).toBe(true)
+    // Los cinco buckets particionan el intervalo sin solaparse (AC8).
+    expect(res.ejecucion.resumenParcial).toEqual({
+      calculados: 1,
+      conservados: 1,
+      fallidos: 1,
+      revisar: 1,
+      pendientes: 1,
+    })
+    const suma = Object.values(res.ejecucion.resumenParcial).reduce((a, b) => a + b, 0)
+    expect(suma).toBe(5)
+  })
+
+  it('AC9: sin parámetro de recálculo; un periodo intacto se conserva aunque el payload lo pida', async () => {
+    const { id, equipos } = campusBasico({ equipos: 2 })
+    const calculadoEn = sembrarIntacto(id, equipos, 1, 2024)
+    const escrituras = t.estado.escrituras.length
+
+    const payload = {
+      edificacionId: id,
+      desde: { mes: 1, ano: 2024 },
+      hasta: { mes: 1, ano: 2024 },
+      // El cliente podría mandar un parámetro de recálculo: la action lo ignora
+      // (AC9: el recálculo es otra acción, jamás este executor).
+      recalculo: true,
+    }
+    const res = await ejecutarCalculoMasivo(payload)
+    expect(res.estado).toBe('ok')
+    if (res.estado !== 'ok') return
+    expect(res.ejecucion.procesados).toEqual([{ clave: '2024-01', resultado: 'conservado' }])
+    expect(t.estado.escrituras.length).toBe(escrituras)
+    expect(t.estado.usoPeriodos[0].calculadoEn).toBe(calculadoEn)
+    expect(t.estado.usoPeriodos[0].loteId).toBe('lote-previo')
+  })
+
+  it('AC7: un reclamo ajeno fresco se reporta fallido sin escribir ni marcar FALLIDO', async () => {
+    const { id } = campusBasico()
+    t.estado.usoPeriodos.push({
+      id: 'up-clash',
+      edificacionId: id,
+      mes: 1,
+      ano: 2024,
+      estado: 'CALCULANDO',
+      equiposEsperados: 1,
+      equiposCalculados: 0,
+      equiposRevisar: 0,
+      advertencias: null,
+      error: null,
+      origen: 'MASIVO',
+      loteId: 'lote-ajeno',
+      calculadoEn: null,
+      calculadoPor: 'usr-otro',
+      calculandoEn: new Date(),
+    })
+
+    const res = await ejecutarCalculoMasivo({
+      edificacionId: id,
+      desde: { mes: 1, ano: 2024 },
+      hasta: { mes: 2, ano: 2024 },
+    })
+    expect(res.estado).toBe('ok')
+    if (res.estado !== 'ok') return
+
+    expect(res.ejecucion.procesados[0]).toEqual({
+      clave: '2024-01',
+      resultado: 'fallido',
+      mensaje: 'Hay un cálculo de este periodo en curso. Intente de nuevo en unos minutos.',
+    })
+    expect(res.ejecucion.procesados[1]).toEqual({ clave: '2024-02', resultado: 'calculado' })
+    // El reclamo ajeno sigue CALCULANDO con su lote: ni placeholder ni FALLIDO.
+    expect(t.estado.usoPeriodos.find((f) => f.mes === 1)).toMatchObject({
+      estado: 'CALCULANDO',
+      loteId: 'lote-ajeno',
+      error: null,
+    })
+  })
+
+  it('AC12: la ruta masiva persiste los mismos campos que la individual', async () => {
+    const { id } = campusBasico({ equipos: 2 })
+
+    const individual = await calcularUsoIndividual(id, 3, 2024)
+    expect(individual.estado).toBe('ok')
+    const sinRuido = (fila: Record<string, unknown>) => {
+      const { id: _id, calculadoEn: _en, calculadoPor: _por, ...resto } = fila
+      return resto
+    }
+    const detalleIndividual = t.estado.usoEquipos.map(sinRuido)
+    const periodoIndividual = sinRuido(t.estado.usoPeriodos[0] as unknown as Record<string, unknown>)
+
+    // Se limpia el mundo para repetir el mismo periodo por la ruta masiva.
+    t.estado.usoPeriodos = []
+    t.estado.usoEquipos = []
+    t.estado.escrituras = []
+
+    const masiva = await ejecutarCalculoMasivo({
+      edificacionId: id,
+      desde: { mes: 3, ano: 2024 },
+      hasta: { mes: 3, ano: 2024 },
+    })
+    expect(masiva.estado).toBe('ok')
+    if (masiva.estado !== 'ok') return
+    expect(masiva.ejecucion.procesados).toEqual([{ clave: '2024-03', resultado: 'calculado' }])
+
+    const porEquipo = (a: Record<string, unknown>, b: Record<string, unknown>) =>
+      String(a.equipoId).localeCompare(String(b.equipoId))
+    expect(t.estado.usoEquipos.map(sinRuido).sort(porEquipo)).toEqual(
+      detalleIndividual.slice().sort(porEquipo)
+    )
+    // UsoPeriodo: estado + contadores + advertencias idénticos (sin origen/lote).
+    const { origen: _o, loteId: _l, ...periodoSinMetadatos } = periodoIndividual
+    const periodoMasivo = sinRuido(t.estado.usoPeriodos[0] as unknown as Record<string, unknown>)
+    const { origen: _o2, loteId: _l2, ...periodoMasivoSinMetadatos } = periodoMasivo
+    expect(periodoMasivoSinMetadatos).toEqual(periodoSinMetadatos)
   })
 })

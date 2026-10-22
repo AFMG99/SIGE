@@ -28,6 +28,7 @@ import type {
   ResultadoCreacionEspacio,
 } from '@/features/datos/controllers/edificaciones'
 import type { ResultadoCalculoGde, Exito } from '@/features/datos/controllers/calendario'
+import type { EjecucionLote, ProcesadoLote } from '@/features/datos/controllers/calculoUso'
 import type { EventoInfo } from '@/features/datos/models/eventos'
 import type { DatosNuevoAjuste } from '@/features/datos/controllers/ajustes'
 import type {
@@ -40,7 +41,8 @@ import type {
 import { advertenciaMinimos } from '@/features/datos/models/lineasBase'
 import { resultadoEquiposDemo, resultadoFacturasDemo, resultadoVariablesDemo } from '../__fixtures__/resultado'
 import { bloquesDemo, edificacionesDemo, espaciosDemo } from '../__fixtures__/catalogo'
-import type { PeriodoRef, VistaPrevia } from '@/features/datos/models/calculoUso'
+import type { PeriodoRef, ResumenEjecucion, VistaPrevia } from '@/features/datos/models/calculoUso'
+import { MAX_PERIODOS_POR_LLAMADA } from '@/features/datos/models/calculoUso'
 import {
   EDIFICACION_SIN_CONEXION,
   resultadoIndividualDemo,
@@ -969,6 +971,9 @@ export async function prepararCalculoMasivo(
   if (edificacionId === EDIFICACION_SIN_CONEXION) {
     return { estado: 'error', mensaje: 'No fue posible generar la vista previa. Intente de nuevo.' }
   }
+  // Una nueva vista previa reconstruye el mundo del doble (la real relee la
+  // BD): así cada story/test empieza con los mismos pendientes.
+  ejecucionDemo.delete(edificacionId)
   return { estado: 'ok', vistaPrevia: vistaPreviaDemo(edificacionId, desde, hasta) }
 }
 
@@ -978,4 +983,129 @@ export async function calcularUsoIndividual(
   ano: number
 ): Promise<Exito<ResultadoIndividualDemo>> {
   return resultadoIndividualDemo(edificacionId, mes, ano)
+}
+
+// ── Ejecución masiva (T6): doble del lote `ejecutarCalculoMasivo` ────────
+//
+// Espejo del contrato real, en memoria: hasta `MAX_PERIODOS_POR_LLAMADA`
+// periodos por llamada, `continuar` con los restantes para que el hook itere,
+// los intactos se reenvían en CADA llamada (el cliente los deduplica) y la
+// clasificación BR4 de la vista previa decide el desenlace de cada periodo:
+// `fallido` vuelve a fallar en cada corrida (trazable y reintentable),
+// `revisar` termina en revisión y el resto queda CALCULADO. Cada llamada
+// tarda `TARDA_MS` para que el progreso y «Detener» sean observables.
+//
+// El estado por edificación se reinicia en `prepararCalculoMasivo` (ver arriba).
+
+const TARDA_MS = 300
+
+type EstadoDemo = {
+  /** Claves ya calculadas con éxito por cualquier corrida (⇒ «conservado»). */
+  exitos: Set<string>
+  /** Por lote: desenlace de cada intento de ESA corrida (≤1 por periodo). */
+  intentados: Map<string, Map<string, ProcesadoLote['resultado']>>
+}
+
+const ejecucionDemo = new Map<string, EstadoDemo>()
+
+function estadoDe(edificacionId: string): EstadoDemo {
+  let estado = ejecucionDemo.get(edificacionId)
+  if (!estado) {
+    estado = { exitos: new Set(), intentados: new Map() }
+    ejecucionDemo.set(edificacionId, estado)
+  }
+  return estado
+}
+
+function resumirDemo(
+  vista: VistaPrevia,
+  estado: EstadoDemo,
+  lote: string
+): ResumenEjecucion {
+  const intentos = estado.intentados.get(lote) ?? new Map<string, ProcesadoLote['resultado']>()
+  const resumen: ResumenEjecucion = {
+    calculados: 0,
+    conservados: 0,
+    fallidos: 0,
+    revisar: 0,
+    pendientes: 0,
+  }
+  for (const p of vista.periodos) {
+    const intento = intentos.get(p.clave)
+    if (intento === 'calculado') resumen.calculados += 1
+    else if (intento === 'conservado') resumen.conservados += 1
+    else if (intento === 'revisar') resumen.revisar += 1
+    else if (intento === 'fallido') resumen.fallidos += 1
+    else if (estado.exitos.has(p.clave) || p.clasificacion === 'existente-intacto')
+      resumen.conservados += 1
+    else if (p.clasificacion === 'fallido') resumen.fallidos += 1
+    else if (p.clasificacion === 'revisar') resumen.revisar += 1
+    else resumen.pendientes += 1
+  }
+  return resumen
+}
+
+export async function ejecutarCalculoMasivo(entrada: {
+  edificacionId: string
+  desde: PeriodoRef
+  hasta: PeriodoRef
+  loteId?: string
+}): Promise<Exito<{ ejecucion: EjecucionLote }>> {
+  await new Promise((resolve) => setTimeout(resolve, TARDA_MS))
+  if (!entrada?.edificacionId) {
+    return { estado: 'error', mensaje: 'La edificación indicada no existe.' }
+  }
+
+  const { edificacionId, desde, hasta } = entrada
+  const lote = entrada.loteId ?? 'lote-demo'
+  const vista = vistaPreviaDemo(edificacionId, desde, hasta)
+  const estado = estadoDe(edificacionId)
+
+  const intentosEsteLote =
+    estado.intentados.get(lote) ?? new Map<string, ProcesadoLote['resultado']>()
+  estado.intentados.set(lote, intentosEsteLote)
+
+  // Pendientes reales de esta corrida: la vista previa menos lo ya intentado
+  // por ESTE lote (los intactos jamás entran: `seEscribiran` los excluye).
+  const pendientes = vista.seEscribiran.filter((clave) => !intentosEsteLote.has(clave))
+  const tomados = pendientes.slice(0, MAX_PERIODOS_POR_LLAMADA)
+
+  // Intactos: reenviados en CADA llamada (espejo de la action real).
+  const procesados: ProcesadoLote[] = vista.periodos
+    .filter((p) => p.clasificacion === 'existente-intacto')
+    .map((p) => ({ clave: p.clave, resultado: 'conservado' as const }))
+
+  for (const clave of tomados) {
+    const original = vista.periodos.find((p) => p.clave === clave)?.clasificacion ?? 'nuevo'
+    if (estado.exitos.has(clave)) {
+      procesados.push({ clave, resultado: 'conservado' })
+      intentosEsteLote.set(clave, 'conservado')
+    } else if (original === 'fallido') {
+      procesados.push({
+        clave,
+        resultado: 'fallido',
+        mensaje: 'No fue posible calcular las horas de uso. Intente de nuevo.',
+      })
+      intentosEsteLote.set(clave, 'fallido')
+    } else if (original === 'revisar') {
+      procesados.push({ clave, resultado: 'revisar' })
+      intentosEsteLote.set(clave, 'revisar')
+    } else {
+      estado.exitos.add(clave)
+      procesados.push({ clave, resultado: 'calculado' })
+      intentosEsteLote.set(clave, 'calculado')
+    }
+  }
+
+  const restantes = pendientes.length - tomados.length
+  return {
+    estado: 'ok',
+    ejecucion: {
+      loteId: lote,
+      procesados,
+      restantes,
+      continuar: restantes > 0,
+      resumenParcial: resumirDemo(vista, estado, lote),
+    },
+  }
 }
