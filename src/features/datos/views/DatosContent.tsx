@@ -142,9 +142,9 @@ export function DatosContent({
     : 'resumen'
   const [sidebarOpen, setSidebarOpen] = React.useState(true)
   /** Sub-vista de Edificaciones: catálogo (infraestructura), calendario de
-   *  festivos/eventos o configuración operativa (6d1: ex-drawer). */
+   *  festivos/eventos, configuración operativa o cálculo de uso (6d1: ex-drawer). */
   const [vistaEdificaciones, setVistaEdificaciones] = React.useState<
-    'infraestructura' | 'calendario' | 'configuracion'
+    'infraestructura' | 'calendario' | 'configuracion' | 'calculo-uso'
   >('infraestructura')
   /**
    * S9: edificación seleccionada en la sub-vista «Calendario» — estado
@@ -469,6 +469,18 @@ export function DatosContent({
                   >
                     Configuración operativa
                   </button>
+                  <button
+                    type="button"
+                    aria-pressed={vistaEdificaciones === 'calculo-uso'}
+                    onClick={() => setVistaEdificaciones('calculo-uso')}
+                    className={`focus-ring min-h-10 cursor-pointer rounded-lg px-3 text-sm font-medium ${
+                      vistaEdificaciones === 'calculo-uso'
+                        ? 'bg-emerald-600 text-white'
+                        : 'border border-gray-300 bg-white text-gray-700 hover:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-gray-200'
+                    }`}
+                  >
+                    Cálculo de uso
+                  </button>
                 </div>
               </div>
 
@@ -522,6 +534,15 @@ export function DatosContent({
                     puedeCargar={puedeCargar}
                   />
                 </div>
+              ) : vistaEdificaciones === 'calculo-uso' ? (
+                !puedeCargar ? (
+                  <div className="ui-callout ui-callout-info" role="status">
+                    Su rol tiene permisos de <strong>solo lectura</strong> en este módulo. Puede
+                    consultar el cálculo de uso, pero no ejecutarlo.
+                  </div>
+                ) : (
+                  <CalculoUso edificaciones={edificacionesCat} puedeCargar={puedeCargar} />
+                )
               ) : !puedeCargar ? (
                 <div className="ui-callout ui-callout-info" role="status">
                   Su rol tiene permisos de <strong>solo lectura</strong> en este módulo. Puede

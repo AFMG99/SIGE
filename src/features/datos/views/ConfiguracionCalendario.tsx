@@ -182,9 +182,12 @@ export function ConfiguracionCalendario({
       valor: `bloque:${b.id}`,
       etiqueta: `Bloque ${b.codigo}${b.nombre ? ` — ${b.nombre}` : ''}`,
     })),
-    ...espaciosEdif.map((s) => ({ valor: `espacio:${s.id}`, etiqueta: `Espacio ${s.nombre}` })),
+    ...espaciosEdif.map((s) => ({
+      valor: `espacio:${s.id}:${s.bloqueId}`,
+      etiqueta: `Espacio ${s.nombre}`,
+    })),
     ...equiposEdif.map((q) => ({
-      valor: `equipo:${q.id}`,
+      valor: `equipo:${q.id}:${q.espacioId}:${q.bloqueId}`,
       etiqueta: `Equipo ${q.tipo} en ${q.espacio}`,
     })),
   ]
@@ -213,22 +216,24 @@ export function ConfiguracionCalendario({
       setErrorHorario('La hora de fin debe ser posterior a la de inicio.')
       return
     }
-    const [tipo, id] = horario.ambito.split(':')
+    const partes = horario.ambito.split(':')
+    const tipo = partes[0]
     setCreandoHorario(true)
     try {
+      let ambito: { bloqueId?: string | null; espacioId?: string | null; equipoId?: string | null } | undefined
+      if (tipo === 'bloque') {
+        ambito = { bloqueId: partes[1] }
+      } else if (tipo === 'espacio') {
+        ambito = { bloqueId: partes[2], espacioId: partes[1] }
+      } else if (tipo === 'equipo') {
+        ambito = { bloqueId: partes[3], espacioId: partes[2], equipoId: partes[1] }
+      }
       const res = await crearHorarioEquipo(edificacionId, {
         nombre: horario.nombre.trim(),
         diasSemana: horario.dias,
         horaInicio: inicio,
         horaFin: fin,
-        ambito:
-          horario.ambito && id
-            ? {
-                bloqueId: tipo === 'bloque' ? id : null,
-                espacioId: tipo === 'espacio' ? id : null,
-                equipoId: tipo === 'equipo' ? id : null,
-              }
-            : undefined,
+        ambito,
       })
       if (res.estado === 'error') {
         setErrorHorario(res.mensaje)
