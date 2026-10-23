@@ -325,3 +325,33 @@ export const DetenerEjecucion: Story = {
     expect(canvas.queryByRole('button', { name: 'Detener' })).toBeNull()
   },
 }
+
+export const RecalcularDialogo: Story = {
+  name: 'Recalcular resultados existentes · diálogo destructivo (AC9)',
+  play: async ({ canvas, userEvent }) => {
+    await elegirEdificacion(canvas, userEvent, 'ed-campus-00000001')
+    await fijarIntervaloSeisMeses(canvas, userEvent)
+    await canvas.findByText('Resultados existentes: 1')
+
+    // El botón de recálculo aparece SOLO con resultados existentes y siempre
+    // separado del CTA por defecto (AC9).
+    const botonRecalc = await canvas.findByRole('button', {
+      name: 'Recalcular resultados existentes',
+    })
+    await userEvent.click(botonRecalc)
+
+    // Diálogo destructivo (portal): avisa que se sobrescribirán los existentes.
+    const dialogo = await screen.findByRole('dialog', { name: 'Recalcular resultados existentes' })
+    expect(dialogo.textContent).toContain('5 periodo(s)')
+    expect(dialogo.textContent).toContain('¿Desea continuar?')
+
+    // Cancelar cierra el diálogo sin recalcular.
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    // Confirmar invoca el recálculo y muestra el toast de cierre (AC9).
+    await userEvent.click(await canvas.findByRole('button', { name: 'Recalcular resultados existentes' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Recalcular' }))
+    await screen.findByText(/Se recalcularon 5 periodo\(s\)/)
+  },
+}

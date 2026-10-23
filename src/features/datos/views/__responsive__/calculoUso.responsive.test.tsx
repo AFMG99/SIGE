@@ -245,5 +245,58 @@ describe('CalculoUso — desborde horizontal y targets táctiles', () => {
 
       expect(desborde(document.documentElement)).toBeLessThanOrEqual(1)
     })
+
+    it('recálculo explícito: botón y diálogo destructivo sin desborde, ≥40px bajo lg', async () => {
+      renderVista()
+
+      await vi.waitFor(() => {
+        expect(document.querySelector('#calculo-uso-edificacion')).not.toBeNull()
+      })
+      await elegirEdificacion('ed-campus-00000001')
+
+      // Vista previa de enero–junio del año previo: 5 periodos existentes.
+      elegirSelect('calculo-uso-mes-inicial', '1')
+      elegirSelect('calculo-uso-ano-inicial', String(ANO_PREVIO))
+      elegirSelect('calculo-uso-mes-final', '6')
+      elegirSelect('calculo-uso-ano-final', String(ANO_PREVIO))
+      botonCon(document, 'Vista previa').click()
+      await vi.waitFor(() => {
+        expect(document.body.innerText).toContain('Periodos pendientes: 5')
+      })
+
+      // El botón de recálculo solo existe con periodos existentes; ≥40px bajo lg.
+      const recalcular = await vi.waitFor(() => {
+        const el = botonCon(document, 'Recalcular resultados existentes')
+        expect(el.disabled).toBe(false)
+        return el
+      })
+      if (width < 1024) {
+        expect(recalcular.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+      }
+      expect(desborde(document.documentElement)).toBeLessThanOrEqual(1)
+
+      // El diálogo destructivo se abre en portal: sus botones también ≥40px.
+      recalcular.click()
+      const dialogo = await vi.waitFor(() => {
+        const el = document.querySelector<HTMLElement>('[role="dialog"]')
+        expect(el, 'diálogo de recálculo').not.toBeNull()
+        return el as HTMLElement
+      })
+      expect(dialogo.textContent).toContain('5 periodo(s)')
+
+      const confirmar = botonCon(dialogo, 'Recalcular')
+      const cancelar = botonCon(dialogo, 'Cancelar')
+      if (width < 1024) {
+        expect(confirmar.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+        expect(cancelar.getBoundingClientRect().height).toBeGreaterThanOrEqual(39.5)
+      }
+
+      // Confirmar empuja el toast de éxito y cierra el diálogo; nada desborda.
+      confirmar.click()
+      await vi.waitFor(() => {
+        expect(document.body.innerText).toMatch(/Se recalcularon 5 periodo\(s\)/)
+      })
+      expect(desborde(document.documentElement)).toBeLessThanOrEqual(1)
+    })
   })
 })

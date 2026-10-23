@@ -286,6 +286,7 @@ import {
   calcularUsoIndividual,
   ejecutarCalculoMasivo,
   prepararCalculoMasivo,
+  recalcularPeriodos,
 } from '@/features/datos/controllers/calculoUso'
 import { PRESUPUESTO_MS } from '@/features/datos/models/calculoUso'
 
@@ -1375,5 +1376,77 @@ describe('ejecutarCalculoMasivo — lote masivo (T6)', () => {
     const periodoMasivo = sinRuido(t.estado.usoPeriodos[0] as unknown as Record<string, unknown>)
     const { origen: _o2, loteId: _l2, ...periodoMasivoSinMetadatos } = periodoMasivo
     expect(periodoMasivoSinMetadatos).toEqual(periodoSinMetadatos)
+  })
+})
+
+// ============================================================
+// T7 — recalcularPeriodos: recálculo explícito y confirmado (AC9/AC14)
+// ============================================================
+
+describe('recalcularPeriodos — recálculo explícito (AC9)', () => {
+  it('AC9/AC14: confirmado ausente o false ⇒ rechazado sin escrituras ni auditoría', async () => {
+    const { id, equipos } = campusBasico({ equipos: 2 })
+    sembrarIntacto(id, equipos, 1, 2024)
+    const escrituras = t.estado.escrituras.length
+
+    const sinConfirmar = await recalcularPeriodos({
+      edificacionId: id,
+      periodos: [{ mes: 1, ano: 2024 }],
+      // @ts-expect-error testing rejection of non-true literal
+      confirmado: false,
+    })
+    expect(sinConfirmar).toMatchObject({ estado: 'error', mensaje: 'Confirme el recálculo para continuar' })
+    expect(t.estado.escrituras.length).toBe(escrituras)
+    expect(t.estado.auditorias).toEqual([])
+  })
+
+  it('AC9: sobrescribe un periodo intacto (que el modo por defecto conserva) con origen RECALCULO y audita antes→después', async () => {
+    const { id, equipos } = campusBasico({ equipos: 2 })
+    const calculadoEnPrevio = sembrarIntacto(id, equipos, 1, 2024)
+
+    const res = await recalcularPeriodos({
+      edificacionId: id,
+      periodos: [{ mes: 1, ano: 2024 }],
+      confirmado: true,
+    })
+    expect(res.estado).toBe('ok')
+    if (res.estado !== 'ok') return
+
+    // Recalculado con su desenlace y contadores antes/después.
+    expect(res.recalculados).toHaveLength(1)
+    expect(res.recalculados[0].clave).toBe('2024-01')
+    expect(res.recalculados[0].resultado).toBe('calculado')
+    expect(res.recalculados[0].antes.equiposCalculados).toBe(2)
+    expect(res.recalculados[0].despues.equiposCalculados).toBe(2)
+
+    // La fila intacta fue REESCRIBIDA: origen RECALCULO, calculadoEn nuevo.
+    const fila = t.estado.usoPeriodos.find((f) => f.mes === 1 && f.ano === 2024)
+    expect(fila?.origen).toBe('RECALCULO')
+    expect(fila?.estado).toBe('CALCULADO')
+    expect(fila?.calculadoEn).not.toEqual(calculadoEnPrevio)
+
+    // Auditoría uso.recalcular con antes→después por periodo (AC14).
+    const auditoria = t.estado.auditorias.find((a) => a.action === 'uso.recalcular')
+    expect(auditoria).toBeDefined()
+    expect(auditoria?.targetId).toBe(id)
+    expect(auditoria?.detail).toContain('2024-01')
+    expect(auditoria?.detail).toContain('2→2 equipos')
+  })
+
+  it('AC9: un periodo sin resultados previos ⇒ error; el recálculo nunca crea periodos nuevos', async () => {
+    const { id } = campusBasico({ equipos: 1 })
+    const escrituras = t.estado.escrituras.length
+
+    const res = await recalcularPeriodos({
+      edificacionId: id,
+      periodos: [{ mes: 5, ano: 2024 }],
+      confirmado: true,
+    })
+    expect(res.estado).toBe('error')
+    if (res.estado === 'error') {
+      expect(res.mensaje).toContain('2024-05')
+    }
+    expect(t.estado.escrituras.length).toBe(escrituras)
+    expect(t.estado.usoPeriodos).toHaveLength(0)
   })
 })

@@ -23,7 +23,10 @@
  * la columna «Factura» es solo referencia (R3: nunca gatea periodos).
  */
 
+import { useState } from 'react'
 import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
+import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
+import { useToast } from '@/shared/views/ui/ToastProvider'
 import { clavePeriodo } from '@/features/datos/models/calculoUso'
 import type {
   Consolidaciones,
@@ -39,6 +42,7 @@ import {
   ANOS_UI,
   MESES,
   etiquetaClasificacion,
+  periodoDesdeClave,
   periodoEnCurso,
   useCalculoMasivo,
 } from './useCalculoMasivo'
@@ -423,6 +427,7 @@ function ResumenFinal({
 }
 
 export function CalculoUso({ edificaciones }: CalculoUsoProps) {
+  const { showToast } = useToast()
   const {
     edificacionId,
     cambiarEdificacion,
@@ -449,7 +454,12 @@ export function CalculoUso({ edificaciones }: CalculoUsoProps) {
     resumen,
     ejecutar,
     detener,
+    recalculando,
+    recalcular,
   } = useCalculoMasivo()
+
+  /** Diálogo destructivo del recálculo explícito (AC9). */
+  const [dialogoRecalc, setDialogoRecalc] = useState(false)
 
   const clave = clavePeriodo({ mes, ano } satisfies PeriodoRef)
   const pendientes = vistaPrevia?.seEscribiran.length ?? 0
@@ -457,6 +467,8 @@ export function CalculoUso({ edificaciones }: CalculoUsoProps) {
   const procesadosDelIntervalo = vistaPrevia
     ? procesados.filter((p) => vistaPrevia.seEscribiran.includes(p.clave)).length
     : 0
+  // Periodos con resultado almacenado (AC9): el recálculo solo aplica a estos.
+  const periodosExistentes = (vistaPrevia?.periodos ?? []).filter((p) => p.clasificacion !== 'nuevo')
 
   return (
     <div className="space-y-6">
@@ -707,6 +719,43 @@ export function CalculoUso({ edificaciones }: CalculoUsoProps) {
                       </p>
                     )}
                   </div>
+
+                  {/* Recálculo explícito (AC9): SIEMPRE separado del CTA por
+                      defecto y reservado a periodos con resultado almacenado. */}
+                  {periodosExistentes.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setDialogoRecalc(true)}
+                        disabled={ejecutando || recalculando}
+                        className="ui-btn ui-btn-danger-outline min-h-10"
+                      >
+                        Recalcular resultados existentes
+                      </button>
+                      {recalculando && (
+                        <p role="status" className="ui-muted basis-full text-xs">
+                          Recalculando {periodosExistentes.length} periodo(s) existente(s)…
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <ConfirmDialog
+                    isOpen={dialogoRecalc}
+                    onClose={() => setDialogoRecalc(false)}
+                    onConfirm={() => {
+                      recalcular(periodosExistentes.map((p) => periodoDesdeClave(p.clave)))
+                    }}
+                    title="Recalcular resultados existentes"
+                    description={
+                      `Este proceso sobrescribirá los resultados existentes de ` +
+                      `${periodosExistentes.length} periodo(s) de uso con un cálculo nuevo; ` +
+                      'los valores actuales se reemplazarán. ¿Desea continuar?'
+                    }
+                    confirmText="Recalcular"
+                    cancelText="Cancelar"
+                    variant="destructive"
+                  />
 
                   {ejecutando && (
                     <div className="ui-callout ui-callout-info" role="status">
