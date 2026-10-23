@@ -21,6 +21,7 @@ import {
   calcularUsoIndividual,
   ejecutarCalculoMasivo,
   prepararCalculoMasivo,
+  recalcularPeriodos,
 } from '@/features/datos/controllers/calculoUso'
 import type { ProcesadoLote } from '@/features/datos/controllers/calculoUso'
 import type {
@@ -96,6 +97,12 @@ export function periodoEnCurso(
   return seEscribiran.find((clave) => !atendidas.has(clave)) ?? null
 }
 
+/** Reconstruye `{ mes, ano }` desde una clave `YYYY-MM` de la vista previa (AC9). */
+export function periodoDesdeClave(clave: string): PeriodoRef {
+  const [ano, mes] = clave.split('-').map(Number)
+  return { ano, mes }
+}
+
 /** Payload con `estado: 'ok'` de `calcularUsoIndividual`, inferido de la action. */
 type ResultadoIndividual = Extract<
   Awaited<ReturnType<typeof calcularUsoIndividual>>,
@@ -129,6 +136,8 @@ export function useCalculoMasivo() {
   const canceladoRef = useRef(false)
   /** Guarda síncrona contra doble click antes del siguiente render. */
   const enCursoRef = useRef(false)
+  /** Recálculo explícito en curso (AC9): solo un «Recalcular» a la vez. */
+  const [recalculando, setRecalculando] = useState(false)
 
   // Al desmontar (cambio de sección/ruta) se cancela el lote: la petición en
   // vuelo se fusiona, pero NO se dispara ninguna siguiente invocación. Sin
@@ -270,6 +279,43 @@ export function useCalculoMasivo() {
     canceladoRef.current = true
   }, [])
 
+  /**
+   * Recálculo EXPLÍCITO y confirmado de periodos existentes (AC9). El diálogo
+   * destructivo vive en la vista; aquí solo se invoca la action con
+   * `confirmado: true` y se refresca la vista previa con los nuevos estados.
+   */
+  const recalcular = useCallback(
+    async (periodos: PeriodoRef[]) => {
+      if (!edificacionId || periodos.length === 0 || recalculando) return
+      setRecalculando(true)
+      try {
+        const respuesta = await recalcularPeriodos({
+          edificacionId,
+          periodos,
+          confirmado: true,
+        })
+        if (respuesta.estado === 'error') {
+          showToast(respuesta.mensaje, 'error')
+          return
+        }
+        const fallidos = respuesta.recalculados.filter((r) => r.resultado === 'fallido').length
+        showToast(
+          fallidos > 0
+            ? `Recálculo finalizado con ${fallidos} periodo(s) fallido(s).`
+            : respuesta.mensaje,
+          fallidos > 0 ? 'error' : 'success'
+        )
+        // Refrescar la vista previa: los estados/refrescos mostrados quedan al día.
+        await previsualizar()
+      } catch {
+        showToast('No fue posible recalcular los periodos. Intente de nuevo.', 'error')
+      } finally {
+        setRecalculando(false)
+      }
+    },
+    [edificacionId, recalculando, previsualizar, showToast]
+  )
+
   return {
     edificacionId,
     cambiarEdificacion,
@@ -296,5 +342,7 @@ export function useCalculoMasivo() {
     resumen,
     ejecutar,
     detener,
+    recalculando,
+    recalcular,
   }
 }

@@ -26,6 +26,7 @@ import {
   intervaloSchema,
   periodoSchema,
   presupuestoRestante,
+  recalcularSchema,
   type Clasificacion,
   type ContextoPeriodo,
   type DetalleAlmacenado,
@@ -33,6 +34,7 @@ import {
   type PeriodoAlmacenado,
   type PeriodoRef,
   type PeriodoVistaPrevia,
+  type RecalcularPeriodosInput,
   type ResumenEjecucion,
   type ResultadoPeriodo,
   type UsoOrigen,
@@ -970,5 +972,134 @@ export async function ejecutarCalculoMasivo(
   } catch (error) {
     console.error('Error en ejecutarCalculoMasivo:', error)
     return { estado: 'error', mensaje: MSJ_FALLA }
+  }
+}
+
+// ============================================================
+// T7 — recálculo explícito y confirmado (design §5.4) — AC9 · AC14
+// ============================================================
+
+/** Desenlace de un periodo recalculado (design §5.4). */
+export type DesenlaceRecalculo = 'calculado' | 'revisar' | 'fallido'
+
+/** Periodo recalculado con sus contadores antes/después (AC9, auditoría). */
+export interface PeriodoRecalculado {
+  clave: string
+  resultado: DesenlaceRecalculo
+  antes: { equiposCalculados: number }
+  despues: { equiposCalculados: number }
+}
+
+const MSJ_RECALCULO_FALLA = 'No fue posible recalcular los periodos. Intente de nuevo.'
+
+/**
+ * Recálculo EXPLÍCITO y confirmado de periodos existentes (AC9). Es la ÚNICA
+ * ruta que sobrescribe resultados —incluso intactos— que el modo por defecto
+ * conservaría; `ejecutarCalculoMasivo` y `calcularUsoIndividual` jamás aceptan
+ * un parámetro de recálculo. Exige `confirmado: true` (literal Zod), valida
+ * que cada periodo pedido EXISTA (el recálculo solo reemplaza resultados
+ * existentes, nunca inventa periodos), lo recalcula por periodo con origen
+ * `RECALCULO` y audita antes/después (AC14).
+ */
+export async function recalcularPeriodos(
+  entrada: RecalcularPeriodosInput
+): Promise<Exito<{ recalculados: PeriodoRecalculado[]; mensaje: string }>> {
+  try {
+    const auth = await autorizarCalculoUso()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    const valido = recalcularSchema.safeParse(entrada)
+    if (!valido.success) {
+      return {
+        estado: 'error',
+        mensaje: valido.error.issues[0]?.message ?? 'Datos de recálculo inválidos.',
+      }
+    }
+    const { edificacionId, periodos } = valido.data
+
+    const edificacion = await prisma.edificacion.findUnique({
+      where: { id: edificacionId },
+      select: { id: true },
+    })
+    if (!edificacion) return { estado: 'error', mensaje: 'La edificación indicada no existe.' }
+
+    // Snapshot previo (design §5.4): cada periodo pedido DEBE existir; el
+    // recálculo reemplaza resultados existentes, nunca los crea desde cero.
+    const previas = await prisma.usoPeriodo.findMany({
+      where: { edificacionId, mes: { in: periodos.map((p) => p.mes) } },
+    })
+    const porClave = new Map(previas.map((f) => [clavePeriodo(f), f] as const))
+    const faltantes = periodos.filter((p) => !porClave.has(clavePeriodo(p)))
+    if (faltantes.length > 0) {
+      return {
+        estado: 'error',
+        mensaje:
+          `No existen resultados de uso para el/los periodo(s) ${faltantes
+            .map(clavePeriodo)
+            .join(', ')}. Calcúlelos antes de recalcular.`,
+      }
+    }
+
+    const recalculados: PeriodoRecalculado[] = []
+    for (const p of periodos) {
+      const clave = clavePeriodo(p)
+      const previa = porClave.get(clave)
+      const antes = { equiposCalculados: previa?.equiposCalculados ?? 0 }
+      try {
+        // Contexto → núcleo puro → persistencia con reclamo (una tx por periodo).
+        const carga = await cargarContextoPeriodo(edificacionId, p.mes, p.ano)
+        if (!carga.ok) throw new ErrorDeCarga(carga.mensaje)
+        const resultado = calcularPeriodo({
+          edificacionId,
+          mes: p.mes,
+          ano: p.ano,
+          contexto: carga.contexto,
+        })
+        const persistencia = await persistirPeriodo(
+          { edificacionId, mes: p.mes, ano: p.ano },
+          resultado,
+          { origen: 'RECALCULO', calculadoPor: auth.userId, loteId: null }
+        )
+        recalculados.push({
+          clave,
+          resultado: persistencia.estado === 'REVISAR' ? 'revisar' : 'calculado',
+          antes,
+          despues: { equiposCalculados: persistencia.equiposCalculados },
+        })
+      } catch (error) {
+        // Reclamo ajeno fresco: no se recalcula este periodo; se reporta intacto.
+        if (error instanceof ReclamoDenegado) {
+          recalculados.push({ clave, resultado: 'fallido', antes, despues: antes })
+          continue
+        }
+        console.error(`Error al recalcular el periodo ${clave}:`, error)
+        try {
+          await marcarFallido({ edificacionId, mes: p.mes, ano: p.ano }, MSJ_RECALCULO_FALLA)
+        } catch (falloMarcado) {
+          console.error('No fue posible marcar el periodo como FALLIDO:', falloMarcado)
+        }
+        recalculados.push({ clave, resultado: 'fallido', antes, despues: antes })
+      }
+    }
+
+    // Auditoría (AC14): quién recalculó qué, con antes→después por periodo.
+    await auditarAccion({
+      action: 'uso.recalcular',
+      targetId: edificacionId,
+      detail:
+        `Periodos ${recalculados.map((r) => r.clave).join(', ')}: ` +
+        recalculados
+          .map((r) => `${r.clave} ${r.antes.equiposCalculados}→${r.despues.equiposCalculados} equipos`)
+          .join('; '),
+    })
+
+    return {
+      estado: 'ok',
+      recalculados,
+      mensaje: `Se recalcularon ${recalculados.length} periodo(s).`,
+    }
+  } catch (error) {
+    console.error('Error en recalcularPeriodos:', error)
+    return { estado: 'error', mensaje: MSJ_RECALCULO_FALLA }
   }
 }

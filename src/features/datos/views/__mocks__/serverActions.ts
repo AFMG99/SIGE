@@ -28,7 +28,11 @@ import type {
   ResultadoCreacionEspacio,
 } from '@/features/datos/controllers/edificaciones'
 import type { ResultadoCalculoGde, Exito } from '@/features/datos/controllers/calendario'
-import type { EjecucionLote, ProcesadoLote } from '@/features/datos/controllers/calculoUso'
+import type {
+  EjecucionLote,
+  PeriodoRecalculado,
+  ProcesadoLote,
+} from '@/features/datos/controllers/calculoUso'
 import type { EventoInfo } from '@/features/datos/models/eventos'
 import type { DatosNuevoAjuste } from '@/features/datos/controllers/ajustes'
 import type {
@@ -1107,5 +1111,33 @@ export async function ejecutarCalculoMasivo(entrada: {
       continuar: restantes > 0,
       resumenParcial: resumirDemo(vista, estado, lote),
     },
+  }
+}
+
+// ── Recálculo explícito (T7): doble de `recalcularPeriodos` (AC9) ────────
+//
+// Espejo del contrato real: exige `confirmado: true`, recalcula cada periodo
+// pedido con origen `RECALCULO` y devuelve el antes/después. En el doble el
+// antes y el después coinciden (mismo inventario), pero la acción sí se
+// invoca y refresca la vista previa para que el diálogo sea observable.
+export async function recalcularPeriodos(entrada: {
+  edificacionId: string
+  periodos: { mes: number; ano: number }[]
+  confirmado: true
+}): Promise<Exito<{ recalculados: PeriodoRecalculado[]; mensaje: string }>> {
+  await new Promise((resolve) => setTimeout(resolve, TARDA_MS))
+  if (!entrada?.confirmado) {
+    return { estado: 'error', mensaje: 'Confirme el recálculo para continuar' }
+  }
+  const recalculados: PeriodoRecalculado[] = entrada.periodos.map((p) => ({
+    clave: `${p.ano}-${String(p.mes).padStart(2, '0')}`,
+    resultado: 'calculado',
+    antes: { equiposCalculados: 2 },
+    despues: { equiposCalculados: 2 },
+  }))
+  return {
+    estado: 'ok',
+    recalculados,
+    mensaje: `Se recalcularon ${recalculados.length} periodo(s).`,
   }
 }

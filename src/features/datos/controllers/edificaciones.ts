@@ -518,6 +518,24 @@ export async function eliminarBloque(id: string): Promise<ResultadoGestion> {
       return { estado: 'error', mensaje: 'El bloque indicado ya no existe.' }
     }
 
+    // Pre-check de resultados de uso (T7): `UsoEquipoPeriodo.equipo` es
+    // Restrict y `EquipoElectrico → Bloque` es Cascade, así que borrar el
+    // bloque estallaría en un P2003 crudo. Se bloquea ANTES de los motivos
+    // clásicos porque la existencia de filas de uso implica equipos > 0, y
+    // este mensaje es más específico para el usuario.
+    const usoBloque = await prisma.usoEquipoPeriodo.count({
+      where: { equipo: { bloqueId: bloque.id } },
+    })
+    if (usoBloque > 0) {
+      return {
+        estado: 'error',
+        mensaje:
+          `No se puede eliminar el bloque "${bloque.codigo} — ${bloque.nombre}": ` +
+          `existen ${usoBloque === 1 ? '1 cálculo' : `${usoBloque} cálculos`} de uso de horas ` +
+          'asociados. Elimínelos o recalcule primero en Cálculo de uso › Resultados.',
+      }
+    }
+
     const conteos: ConteosBloque = {
       espacios: bloque._count.espacios,
       equipos: bloque._count.equipos,
@@ -594,6 +612,28 @@ export async function eliminarEdificacion(id: string): Promise<ResultadoGestion>
     })
     if (!edificacion) {
       return { estado: 'error', mensaje: 'La edificación indicada ya no existe.' }
+    }
+
+    // Pre-check de resultados de uso (T7): `UsoPeriodo.edificacionId` es
+    // Restrict (directo) y `UsoEquipoPeriodo.equipo` es Restrict mientras
+    // `EquipoElectrico → Bloque` es Cascade (cascada vía bloques). Borrar la
+    // edificación estallaría en un P2003 crudo; se bloquea ANTES de los
+    // motivos clásicos porque la existencia de uso implica equipos > 0.
+    const [usoDirecto, usoEnCascada] = await Promise.all([
+      prisma.usoPeriodo.count({ where: { edificacionId: edificacion.id } }),
+      prisma.usoEquipoPeriodo.count({
+        where: { equipo: { bloque: { edificacionId: edificacion.id } } },
+      }),
+    ])
+    const usoTotal = usoDirecto + usoEnCascada
+    if (usoTotal > 0) {
+      return {
+        estado: 'error',
+        mensaje:
+          `No se puede eliminar la edificación "${edificacion.nombre}": ` +
+          `existen ${usoTotal === 1 ? '1 cálculo' : `${usoTotal} cálculos`} de uso de horas ` +
+          'asociados. Elimínelos o recalcule primero en Cálculo de uso › Resultados.',
+      }
     }
 
     const total: ConteosBloque = { espacios: 0, equipos: 0, variables: 0, lineasBase: 0, ajustes: 0 }
