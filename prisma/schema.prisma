@@ -1,4 +1,3 @@
-// Prisma Schema for PostgreSQL Authentication
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,49 +7,33 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserStatus {
-  ACTIVE
-  INACTIVE
-  PENDING
-}
-
 model User {
-  id                    String                    @id @default(cuid())
-  email                 String                    @unique
-  passwordHash          String?
-  name                  String?
-  role                  Role                      @default(COMUNIDAD_UNIVERSITARIA)
-  status                UserStatus                @default(ACTIVE)
-  phone                 String?
-  lastLoginAt           DateTime?
-  twoFactorEnabled      Boolean                   @default(false)
-  // Admin-forced 2FA requirement (on/off switch in the admin SecurityTab).
-  // Independent of the role policy: an optional-2FA user with this flag is
-  // redirected to /twofa/setup exactly like a mandatory role.
-  twoFactorRequired     Boolean                   @default(false)
-  // TOTP secret encrypted with AES-256-GCM (TOTP_ENCRYPTION_KEY env).
-  // Null when the user has never started enrollment. Only trusted for
-  // login once totpConfirmedAt is set — setup alone never enables 2FA.
-  totpSecretEnc         String?
-  totpPendingAt         DateTime?
-  totpConfirmedAt       DateTime?
-  // Replay protection: highest TOTP time step accepted for this user.
-  // Codes at or below this step are rejected even if cryptographically valid.
-  totpLastUsedStep      Int?
-  // Rate limiting for TOTP verification (replica-safe, lives in the DB).
-  twoFactorFailedAttempts Int                   @default(0)
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
+  passwordHash            String?
+  name                    String?
+  role                    Role                     @default(COMUNIDAD_UNIVERSITARIA)
+  status                  UserStatus               @default(ACTIVE)
+  phone                   String?
+  lastLoginAt             DateTime?
+  twoFactorEnabled        Boolean                  @default(false)
+  emailVerified           DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  totpConfirmedAt         DateTime?
+  totpLastUsedStep        Int?
+  totpPendingAt           DateTime?
+  totpSecretEnc           String?
+  twoFactorFailedAttempts Int                      @default(0)
   twoFactorLockedUntil    DateTime?
-  // Account settings (self-service, /dashboard/configuracion)
-  avatarUrl               String?                 // data-URL (WebP ~256px) — base64, no external storage
-  timezone                String                  @default("America/Bogota")
-  notificationsEmail      Boolean                 @default(true)
-  notificationsInApp      Boolean                 @default(true)
-  emailVerified         DateTime?
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime                  @updatedAt
-  sessions              Session[]
-  permissionOverrides   UserPermissionOverride[]
-  twoFactorBackupCodes  TwoFactorBackupCode[]
+  twoFactorRequired       Boolean                  @default(false)
+  avatarUrl               String?
+  notificationsEmail      Boolean                  @default(true)
+  notificationsInApp      Boolean                  @default(true)
+  timezone                String                   @default("America/Bogota")
+  permissionOverrides     UserPermissionOverride[]
+  sessions                Session[]
+  twoFactorBackupCodes    TwoFactorBackupCode[]
 
   @@map("users")
 }
@@ -58,8 +41,6 @@ model User {
 model TwoFactorBackupCode {
   id        String    @id @default(cuid())
   userId    String
-  // SHA-256 hash of the normalized code; the plaintext is shown to the
-  // user exactly once at enrollment and never stored.
   codeHash  String
   usedAt    DateTime?
   createdAt DateTime  @default(now())
@@ -70,15 +51,16 @@ model TwoFactorBackupCode {
 }
 
 model UserPermissionOverride {
-  id              String   @id @default(cuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  moduleId        String
-  action          String
-  expiresAt       DateTime?
-  grantedBy       String
-  grantedByEmail  String
-  createdAt       DateTime @default(now())
+  id             String    @id @default(cuid())
+  userId         String
+  moduleId       String
+  action         String
+  expiresAt      DateTime?
+  grantedBy      String
+  grantedByEmail String
+  createdAt      DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([userId, moduleId, action])
   @@index([userId])
   @@index([expiresAt])
@@ -88,11 +70,9 @@ model Session {
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
-  // Raw User-Agent captured at login — shown in the user's own session list
-  // ("Sesiones activas") so people can spot devices they don't recognise.
-  userAgent String?
   expiresAt DateTime
   createdAt DateTime @default(now())
+  userAgent String?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -114,84 +94,46 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-enum Role {
-  ADMIN_TI // Administrador (TI)
-  GESTOR_ENERGETICO // Gestor Energético
-  COORD_INFRAESTRUCTURA // Coord. Infraestructura
-  DIRECTIVO // Directivo
-  COMUNIDAD_UNIVERSITARIA // Comunidad Universitaria
-}
-
-// ============================================================
-// SIGE-TdeA — Modelos del módulo de carga energética
-// Resolución UPME 0016/2024
-// ============================================================
-
 model Edificacion {
-  id        String   @id @default(cuid())
-  nombre    String
-  // Código del catálogo CATALOGO_EDIFICACIONES (ej. EDUCATIVO_CAMPUS)
-  tipo      String
-  // Área total de la edificación en m² — variable relevante de la línea base
-  // (Resolución UPME 0016/2024, §7.3). Nullable: las edificaciones preexistentes
-  // conservan NULL hasta que el usuario la complete (compatibilidad sin migración).
-  area      Float?
-  // Coordenadas de la edificación: necesarias para la fuente climática
-  // (Open-Meteo) que alimenta el cálculo de la GDE.
-  lat       Float?
-  lon       Float?
-  // Nombre visible de la ubicación elegida con el geocoding por ciudad/zona
-  // (S1, Fase 6): «Ciudad, Departamento». Nullable (aditivo): las filas con
-  // coordenadas manuales preexistentes conservan NULL hasta volver a guardar.
-  ubicacionNombre String?
-  createdAt DateTime @default(now())
-
-  bloques    Bloque[]
-  facturas   FacturaEnergia[]
-  lineasBase LineaBaseEnergia[]
-  calendario CalendarioOperativo?
-  horarios   HorarioEquipo[]
-  eventos    Evento[]
-
-  // Módulo 4 — Alertas de consumo inusual (HU-08)
+  id                 String               @id @default(cuid())
+  nombre             String
+  tipo               String
+  createdAt          DateTime             @default(now())
+  area               Float?
+  lat                Float?
+  lon                Float?
+  ubicacionNombre    String?
   alertas            AlertaConsumo[]
+  bloques            Bloque[]
+  calendario         CalendarioOperativo?
   configUmbralAlerta ConfigUmbralAlerta?
   evaluacionAlerta   EvaluacionAlerta?
-
-  // Cálculo de uso por periodo («Cálculo de uso»): resultados mensuales por
-  // edificación. Aditivo (D1): las columnas legado de EquipoElectrico no cambian.
-  usoPeriodos UsoPeriodo[]
+  eventos            Evento[]
+  facturas           FacturaEnergia[]
+  horarios           HorarioEquipo[]
+  lineasBase         LineaBaseEnergia[]
+  usoPeriodos        UsoPeriodo[]
 
   @@map("edificaciones")
 }
 
-// Horario de funcionamiento de un grupo de equipos de la edificación
-// (Resolución UPME 0016/2024, §7.1/§7.3: horarios de operación). Días de la
-// semana (códigos LUN..DOM en array de Postgres) + franja horaria diaria.
-// Sin cruce de medianoche: una franja que pasa de 23:00 a 06:00 se registra
-// como dos filas. Validación de dominio en features/datos/models/horarios.ts.
 model HorarioEquipo {
-  id            String   @id @default(cuid())
+  id            String           @id @default(cuid())
   edificacionId String
-  // Ámbito jerárquico (aditivo — S12): todos nulos = horario de la edificación
-  // completa (las filas preexistentes); si no, el nivel activo es el más
-  // específico de la cascada equipo → espacio → bloque → edificación.
-  bloqueId   String?
-  espacioId  String?
-  equipoId   String?
-  nombre     String
-  diasSemana String[]
-  horaInicio Int
-  horaFin    Int
-  // Vigencia (aditiva): nula en filas preexistentes; `hasta` nula = abierta.
-  desde  DateTime? @db.Date
-  hasta  DateTime? @db.Date
-  createdAt DateTime @default(now())
-
-  edificacion Edificacion     @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
-  bloque      Bloque?         @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
-  espacio     Espacio?        @relation(fields: [espacioId], references: [id], onDelete: Cascade)
-  equipo      EquipoElectrico? @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+  nombre        String
+  diasSemana    String[]
+  horaInicio    Int
+  horaFin       Int
+  createdAt     DateTime         @default(now())
+  bloqueId      String?
+  desde         DateTime?        @db.Date
+  equipoId      String?
+  espacioId     String?
+  hasta         DateTime?        @db.Date
+  bloque        Bloque?          @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  edificacion   Edificacion      @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  equipo        EquipoElectrico? @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+  espacio       Espacio?         @relation(fields: [espacioId], references: [id], onDelete: Cascade)
 
   @@index([edificacionId])
   @@index([bloqueId])
@@ -200,84 +142,52 @@ model HorarioEquipo {
   @@map("horarios_equipo")
 }
 
-// Calendario operativo configurable por edificación (UPME 0016/2024 §7.1/§7.3:
-// horarios de operación). La configuración fija el horario operativo diario (H)
-// y la temperatura base de climatización (Tb, típicamente 3 °C bajo el confort:
-// 20/23/25 °C); los RangoCalendario describen qué días son operativos.
 model CalendarioOperativo {
-  id                  String   @id @default(cuid())
-  edificacionId       String   @unique
-  // Hora de inicio del día operativo (0-23) y duración en horas (1-24): define
-  // las horas H sobre las que se promedia la temperatura en la fórmula GDE.
+  id                  String            @id @default(cuid())
+  edificacionId       String            @unique
   horaInicioOperacion Int
   horasOperacionDia   Int
-  // Temperatura base Tb en °C.
   temperaturaBase     Float
-  // Opt-in S4 (Fase 6): usar las horas de uso derivadas de los horarios
-  // vigentes como Xe en el cálculo NUEVO de la GDE (la fórmula no cambia,
-  // solo la fuente de Xe). Apagado por defecto; los resultados históricos
-  // jamás se recalculan ni se sobrescriben retroactivamente.
-  usarHorariosXe      Boolean @default(false)
-  // S2 (política de operatividad): domingos y festivos de Colombia operativos
-  // por edificación. ON/ON por defecto = comportamiento legado bit a bit;
-  // los flags solo restringen (nunca convierten un día no operativo en uno
-  // operativo). Se aplican vía operativoEnFecha (uso, Xe de GDE y panel).
-  domingosOperativos  Boolean @default(true)
-  festivosOperativos  Boolean @default(true)
-  createdAt           DateTime @default(now())
-
-  edificacion Edificacion     @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
-  rangos      RangoCalendario[]
+  createdAt           DateTime          @default(now())
+  usarHorariosXe      Boolean           @default(false)
+  domingosOperativos  Boolean           @default(true)
+  festivosOperativos  Boolean           @default(true)
+  edificacion         Edificacion       @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  rangos              RangoCalendario[]
 
   @@map("calendarios_operativos")
 }
 
-// Rango de fechas con tipo de día (catálogo CATALOGO_TIPOS_DIA): LECTIVO/HABIL
-// son operativos; VACACIONES/FESTIVOS no. Plantillas (p. ej. la del TdeA tomada
-// de docs/calendario-*.pdf) son solo datos iniciales editables — sin fechas
-// fijas en la lógica.
 model RangoCalendario {
-  id           String   @id @default(cuid())
+  id           String              @id @default(cuid())
   calendarioId String
-  fechaInicio  DateTime @db.Date
-  fechaFin     DateTime @db.Date
+  fechaInicio  DateTime            @db.Date
+  fechaFin     DateTime            @db.Date
   tipoDia      String
   nombre       String?
-  createdAt    DateTime @default(now())
-
-  calendario CalendarioOperativo @relation(fields: [calendarioId], references: [id], onDelete: Cascade)
+  createdAt    DateTime            @default(now())
+  calendario   CalendarioOperativo @relation(fields: [calendarioId], references: [id], onDelete: Cascade)
 
   @@index([calendarioId])
   @@map("rangos_calendario")
 }
 
-// Evento del calendario por edificación (S7/S8 — Fase 6): tipo del catálogo
-// CATALOGO_TIPOS_EVENTO (INSTITUCIONAL/ACADEMICO/MANTENIMIENTO/EXCEPCION),
-// nombre, descripción opcional y rango de ocurrencia (`fechaFin` null = día
-// único; el rango ES la vigencia, sin segunda ventana — pin L8). Ámbito
-// jerárquico con la misma cascada que los horarios: todos nulos = edificación
-// completa. Herencia (S8): un evento de un nivel superior se ve en sus
-// niveles inferiores (función pura en features/datos/models/eventos.ts).
-// FKs con Restrict: un evento trazable bloquea el borrado de su objetivo.
 model Evento {
-  id            String   @id @default(cuid())
+  id            String           @id @default(cuid())
   edificacionId String
   tipo          String
   nombre        String
   descripcion   String?
-  fechaInicio   DateTime @db.Date
-  // null = día único (mismo almacenamiento que RangoCalendario: @db.Date).
-  fechaFin      DateTime? @db.Date
-  // Ámbito jerárquico: el nivel activo es el más específico de la cascada.
-  bloqueId   String?
-  espacioId  String?
-  equipoId   String?
-  createdAt  DateTime @default(now())
-
-  edificacion Edificacion      @relation(fields: [edificacionId], references: [id], onDelete: Restrict)
-  bloque      Bloque?          @relation(fields: [bloqueId], references: [id], onDelete: Restrict)
-  espacio     Espacio?         @relation(fields: [espacioId], references: [id], onDelete: Restrict)
-  equipo      EquipoElectrico? @relation(fields: [equipoId], references: [id], onDelete: Restrict)
+  fechaInicio   DateTime         @db.Date
+  fechaFin      DateTime?        @db.Date
+  bloqueId      String?
+  espacioId     String?
+  equipoId      String?
+  createdAt     DateTime         @default(now())
+  bloque        Bloque?          @relation(fields: [bloqueId], references: [id], onDelete: Restrict)
+  edificacion   Edificacion      @relation(fields: [edificacionId], references: [id])
+  equipo        EquipoElectrico? @relation(fields: [equipoId], references: [id], onDelete: Restrict)
+  espacio       Espacio?         @relation(fields: [espacioId], references: [id], onDelete: Restrict)
 
   @@index([edificacionId])
   @@index([fechaInicio])
@@ -285,62 +195,56 @@ model Evento {
 }
 
 model Bloque {
-  id                   String   @id @default(cuid())
-  codigo               String   @unique
-  nombre               String
-  areaUtil             Float
+  id                    String              @id @default(cuid())
+  codigo                String              @unique
+  nombre                String
+  areaUtil              Float
   factorInfraestructura Float
-  edificacionId        String
-  createdAt            DateTime @default(now())
-
-  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
-
-  equipos    EquipoElectrico[]
-  espacios   Espacio[]
-  variables  VariableOperativa[]
-  lineasBase LineaBaseEnergia[]
-  ajustes    AjusteEnergetico[]
-  horarios   HorarioEquipo[]
-  eventos    Evento[]
+  edificacionId         String
+  createdAt             DateTime            @default(now())
+  ajustes               AjusteEnergetico[]
+  edificacion           Edificacion         @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  equipos               EquipoElectrico[]
+  espacios              Espacio[]
+  eventos               Evento[]
+  horarios              HorarioEquipo[]
+  lineasBase            LineaBaseEnergia[]
+  variables             VariableOperativa[]
 
   @@index([edificacionId])
   @@map("bloques")
 }
 
 model Espacio {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   bloqueId  String
   nombre    String
-  createdAt DateTime @default(now())
-
-  bloque  Bloque   @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
-  equipos EquipoElectrico[]
-  horarios HorarioEquipo[]
-  eventos  Evento[]
+  createdAt DateTime          @default(now())
+  equipos   EquipoElectrico[]
+  bloque    Bloque            @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  eventos   Evento[]
+  horarios  HorarioEquipo[]
 
   @@unique([bloqueId, nombre])
   @@map("espacios")
 }
 
 model EquipoElectrico {
-  id             String   @id @default(cuid())
-  bloqueId       String
-  espacioId      String
-  tipo           String
-  cantidad       Int
+  id              String             @id @default(cuid())
+  bloqueId        String
+  espacioId       String
+  tipo            String
+  cantidad        Int
   potenciaNominal Float
-  horasUsoDia    Int
-  diasUsoMes     Int
-  usenIndicador  String
-  createdAt      DateTime @default(now())
-
-  bloque  Bloque  @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
-  espacio Espacio @relation(fields: [espacioId], references: [id], onDelete: Cascade)
-  horarios HorarioEquipo[]
-  eventos  Evento[]
-
-  // Resultados de cálculo de uso por periodo (Restringido: no se borran en cascada)
-  usoPeriodos UsoEquipoPeriodo[]
+  horasUsoDia     Int
+  diasUsoMes      Int
+  usenIndicador   String
+  createdAt       DateTime           @default(now())
+  bloque          Bloque             @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  espacio         Espacio            @relation(fields: [espacioId], references: [id], onDelete: Cascade)
+  eventos         Evento[]
+  horarios        HorarioEquipo[]
+  usoPeriodos     UsoEquipoPeriodo[]
 
   @@unique([bloqueId, espacioId, tipo])
   @@index([bloqueId])
@@ -349,20 +253,16 @@ model EquipoElectrico {
 }
 
 model FacturaEnergia {
-  id                String   @id @default(cuid())
-  // Obligatoria tras el backfill (scripts/backfill-facturas-edificacion.mjs).
-  edificacionId     String
-  periodo           String
-  diasFacturados    Int
-  consumoKwh        Float
+  id                 String      @id @default(cuid())
+  edificacionId      String
+  periodo            String
+  diasFacturados     Int
+  consumoKwh         Float
   consumoNormalizado Float
-  costoCop          Float
-  creadoAt          DateTime @default(now())
-  actualizadoAt     DateTime @default(now()) @updatedAt
-
-  // Restrict (no Cascade): la BD nunca borra facturas en silencio al
-  // eliminar una edificación; el bloqueo amigable lo hace la app.
-  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Restrict)
+  costoCop           Float
+  creadoAt           DateTime    @default(now())
+  actualizadoAt      DateTime    @default(now()) @updatedAt
+  edificacion        Edificacion @relation(fields: [edificacionId], references: [id])
 
   @@unique([periodo, edificacionId])
   @@index([edificacionId])
@@ -370,17 +270,16 @@ model FacturaEnergia {
 }
 
 model VariableOperativa {
-  id                        String   @id @default(cuid())
-  bloqueId                  String
-  mes                       Int
-  ano                       Int
-  poblacionFija             Int
-  poblacionFlotante         Int
-  diasLectivosLaborales     Int
-  gradesDiaEnfriamiento     Float
-  createdAt                 DateTime @default(now())
-
-  bloque Bloque @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  id                    String   @id @default(cuid())
+  bloqueId              String
+  mes                   Int
+  ano                   Int
+  poblacionFija         Int
+  poblacionFlotante     Int
+  diasLectivosLaborales Int
+  gradesDiaEnfriamiento Float
+  createdAt             DateTime @default(now())
+  bloque                Bloque   @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
 
   @@unique([bloqueId, mes, ano])
   @@index([bloqueId])
@@ -388,93 +287,64 @@ model VariableOperativa {
 }
 
 model LineaBaseEnergia {
-  id              String   @id @default(cuid())
+  id              String       @id @default(cuid())
   bloqueId        String?
-  edificacionId   String?
   tipo            String
   coeficientes    Json
   r2              Float?
   pValue          Float?
   rangosConfianza Float
-  createdAt       DateTime @default(now())
+  createdAt       DateTime     @default(now())
+  edificacionId   String?
+  bloque          Bloque?      @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  edificacion     Edificacion? @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
 
-  bloque      Bloque?      @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
-  edificacion Edificacion? @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
-
-  // Alcance exactamente uno por fila (XOR validado en aplicación: Prisma no
-  // expone CHECK): una línea base por bloque y tipo, o una por edificación
-  // completa y tipo. En Postgres los NULL no colisionan en únicos, así que
-  // conviven ambas llaves sin migrar datos existentes.
   @@unique([bloqueId, tipo])
   @@unique([edificacionId, tipo])
   @@map("lineas_base_energia")
 }
 
 model AjusteEnergetico {
-  id           String   @id @default(cuid())
-  bloqueId     String
-  tipo         String
-  modelo       String?  // VALOR_ABSOLUTO | COCIENTE | ESTADISTICO (para referencias Anexo 4)
-  descripcion  String
+  id            String   @id @default(cuid())
+  bloqueId      String
+  tipo          String
+  modelo        String?
+  descripcion   String
   periodoInicio DateTime
-  periodoFin   DateTime
-  valorAjuste  Float
-  direccion    String?  // 'incremento' | 'reduccion' (default 'reduccion' para Anexo 4)
+  periodoFin    DateTime
+  valorAjuste   Float
+  direccion     String?
   observaciones String?
-  createdAt    DateTime @default(now())
-
-  bloque Bloque @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  bloque        Bloque   @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
 
   @@index([bloqueId])
   @@map("ajustes_energeticos")
 }
 
-// ============================================================
-// SIGE-TdeA — Módulo 4: Alertas de consumo inusual (HU-08)
-// ------------------------------------------------------------
-// La tabla de alertas es una CACHÉ DERIVADA de la última evaluación del
-// histórico: cada fila representa un período que HOY supera el umbral. Cuando
-// un período deja de cumplirlo, la fila se borra (sin soft-delete, como el
-// resto del esquema). El `estado` es la disposición del usuario y sobrevive a
-// los recálculos: el upsert nunca lo sobrescribe, así que una alerta
-// descartada no revive mientras su período siga siendo inusual. El rastro de
-// cada descarte queda en `AuditLog`.
-// ============================================================
-
 model AlertaConsumo {
-  id            String @id @default(cuid())
+  id            String      @id @default(cuid())
   edificacionId String
-  // 'YYYY-MM' — mismo grano que FacturaEnergia (una alerta por período).
-  periodo String
-  mes     Int
-  ano     Int
-
-  // Lectura del período con la que se disparó la alerta.
+  periodo       String
+  mes           Int
+  ano           Int
   consumoKwh    Float
   bandaInf      Float
   bandaSup      Float
   desviacionPct Float
-  // 'alza' | 'caida'. La v1 solo genera 'alza' (HU-08: «supere el umbral»);
-  // la columna queda lista para extender la regla sin migrar.
-  direccion String
+  direccion     String
   /// 'alta' | 'media' | 'baja' — exceso normalizado al semiancho de banda.
-  severidad String
-
-  // Snapshot del umbral aplicado: sin esto la alerta no es auditable
-  // (permite responder «¿por qué me disparé?» aunque la config cambie).
-  umbralPct Int
-  umbralK   Float
-
+  severidad     String
+  umbralPct     Int
+  umbralK       Float
   /// 'nueva' | 'leida' | 'descartada' — disposición del usuario.
-  estado     String    @default("nueva")
-  leidaPorId String?
-  leidaAt    DateTime?
-  nota       String?
-
-  createdAt     DateTime @default(now())
-  actualizadoAt DateTime @default(now()) @updatedAt
-
-  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  estado        String      @default("nueva")
+  leidaPorId    String?
+  leidaAt       DateTime?
+  nota          String?
+  createdAt     DateTime    @default(now())
+  actualizadoAt DateTime    @default(now()) @updatedAt
+  edificacion   Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
 
   @@unique([edificacionId, periodo])
   @@index([estado])
@@ -483,85 +353,39 @@ model AlertaConsumo {
   @@map("alertas_consumo")
 }
 
-// Umbral configurable por edificación (default = criterio normativo UPME:
-// ±10 % ec. 3 y ±2·DesvEst ec. 4-5). Mismo patrón de unicidad que
-// CalendarioOperativo.
 model ConfigUmbralAlerta {
-  id            String   @id @default(cuid())
-  edificacionId String   @unique
-  pct           Int      @default(10)
-  k             Float    @default(2)
+  id            String      @id @default(cuid())
+  edificacionId String      @unique
+  pct           Int         @default(10)
+  k             Float       @default(2)
   /// false = no se generan alertas nuevas (no borra las existentes).
-  activo        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-
-  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  activo        Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  edificacion   Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
 
   @@map("config_umbral_alerta")
 }
 
-// Estado de la última evaluación de una edificación: la firma delata si los
-// datos de entrada (facturas, variables, ajustes, config, motor) cambiaron
-// desde entonces. La comparación es barata (aggregates, sin motor Python), así
-// que la página decide mostrar o no el aviso de «evaluación desactualizada».
 model EvaluacionAlerta {
-  id                 String @id @default(cuid())
-  edificacionId      String @unique
+  id                 String      @id @default(cuid())
+  edificacionId      String      @unique
   firma              String
   periodosEvaluables Int
   /// Meses sin banda suficiente: no evaluables (no son «no inusuales»).
-  noEvaluables Int
-
-  evaluadoEn    DateTime  @default(now())
-  evaluadoPorId String?
-
-  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  noEvaluables       Int
+  evaluadoEn         DateTime    @default(now())
+  evaluadoPorId      String?
+  edificacion        Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
 
   @@map("evaluaciones_alerta")
 }
 
-// ============================================================
-// Cálculo masivo de horas de uso («Cálculo de uso» en Datos)
-// Tablas aditivas por periodo: conviven con las columnas legado
-// horasUsoDia/diasUsoMes de EquipoElectrico (decisión D1: sin
-// backfill, sin espejo y sin cambio de lector). Solo las
-// controllers de calculoUso las escriben o leen.
-// ============================================================
-
-// Estado del cálculo de un periodo (edificación + mes):
-// PENDIENTE = placeholder de un lote; CALCULANDO = reclamo transitorio con
-// calculandoEn (vencido a CLAIM_TTL_MS = 5 min ⇒ retomable); CALCULADO =
-// íntegro; FALLIDO = error guardado en `error`; REVISAR = calculado con
-// equipos sin horario vigente / sin días operativos.
-enum UsoPeriodoEstado {
-  PENDIENTE
-  CALCULANDO
-  CALCULADO
-  FALLIDO
-  REVISAR
-}
-
-// Qué escribió la fila: cálculo individual, lote masivo o recálculo explícito.
-enum UsoOrigen {
-  INDIVIDUAL
-  MASIVO
-  RECALCULO
-}
-
-// Estado del detalle por equipo: CALCULADO, o REVISAR con motivo en la fila.
-enum UsoEquipoEstado {
-  CALCULADO
-  REVISAR
-}
-
-// Resultado de cálculo de uso de UNA edificación en UN mes (grano de idempotencia).
 model UsoPeriodo {
   id                String           @id @default(cuid())
   edificacionId     String
   mes               Int
   ano               Int
   estado            UsoPeriodoEstado @default(PENDIENTE)
-  // Contadores de integridad: equipos en alcance al calcular vs. calculados / en revisión.
   equiposEsperados  Int              @default(0)
   equiposCalculados Int              @default(0)
   equiposRevisar    Int              @default(0)
@@ -572,20 +396,13 @@ model UsoPeriodo {
   calculadoEn       DateTime?
   calculadoPor      String?
   calculandoEn      DateTime?
+  edificacion       Edificacion      @relation(fields: [edificacionId], references: [id])
 
-  edificacion Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Restrict)
-
-  // Nota: este modelo no tiene relación Prisma con UsoEquipoPeriodo (el grano de
-  // detalle se enlaza lógicamente por (mes, ano) + la edificación vía bloque, y
-  // el borrado de detalle usa filtros anidados sobre equipo.bloque.edificacionId).
   @@unique([edificacionId, mes, ano])
   @@index([edificacionId, estado])
   @@map("uso_periodo")
 }
 
-// Resultado de cálculo de uso de UN equipo en UN mes (grano de idempotencia).
-// Sin filas (nunca relleno con ceros) cuando el equipo no tiene horario
-// vigente o días operativos: el motivo vive en motivoRevision.
 model UsoEquipoPeriodo {
   id             String          @id @default(cuid())
   equipoId       String
@@ -597,10 +414,42 @@ model UsoEquipoPeriodo {
   horarioGanador String?
   motivoRevision String?
   calculadoEn    DateTime        @default(now())
-
-  equipo EquipoElectrico @relation(fields: [equipoId], references: [id], onDelete: Restrict)
+  equipo         EquipoElectrico @relation(fields: [equipoId], references: [id])
 
   @@unique([equipoId, mes, ano])
   @@index([mes, ano])
   @@map("uso_equipo_periodo")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum Role {
+  ADMIN_TI
+  GESTOR_ENERGETICO
+  COORD_INFRAESTRUCTURA
+  DIRECTIVO
+  COMUNIDAD_UNIVERSITARIA
+}
+
+enum UsoPeriodoEstado {
+  PENDIENTE
+  CALCULANDO
+  CALCULADO
+  FALLIDO
+  REVISAR
+}
+
+enum UsoOrigen {
+  INDIVIDUAL
+  MASIVO
+  RECALCULO
+}
+
+enum UsoEquipoEstado {
+  CALCULADO
+  REVISAR
 }
