@@ -1,7 +1,6 @@
 import type { SidebarItem } from '@/shared/views/sidebar/SidebarNav'
 import {
   IconAjuste,
-  IconCalculo,
   IconEdificacion,
   IconEquipo,
   IconFactura,

@@ -1,6 +1,11 @@
 import { redirect } from 'next/navigation'
-import { getOverrideActions, requireModuleAccess } from '@/shared/models/authz'
-import { ModulePlaceholder } from '@/shared/views/ModulePlaceholder'
+import { requireModuleAccess } from '@/shared/models/authz'
+import { getDatosEspaciales } from '@/features/espacial/controllers/getDatosEspaciales'
+import { EspacialDashboard } from '@/features/espacial/views/EspacialDashboard'
+
+// Forzar que Next.js consulte la base de datos en tiempo real en cada carga
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function EspacialPage() {
   const user = await requireModuleAccess('plans')
@@ -8,14 +13,8 @@ export default async function EspacialPage() {
     redirect('/dashboard')
   }
 
-  const temporalActions = await getOverrideActions(user.id, 'plans')
+  const edificaciones = await getDatosEspaciales()
 
-  return (
-    <ModulePlaceholder
-      title="Representación espacial"
-      moduleId="plans"
-      role={user.role}
-      temporalActions={temporalActions}
-    />
-  )
+  return <EspacialDashboard edificaciones={edificaciones} />
 }
+

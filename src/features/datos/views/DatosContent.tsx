@@ -681,17 +681,6 @@ export function DatosContent({
             </React.Suspense>
           )}
 
-          {/* Sección: Cálculo de uso — individual + vista previa (spec §5, T5).
-              El cálculo requiere permiso de carga: sin él hay estado vacío. */}
-          {activeId === 'calculo-uso' &&
-            (!puedeCargar ? (
-              <div className="ui-empty">No tiene permiso para calcular horas de uso.</div>
-            ) : (
-              <React.Suspense fallback={<SectionSkeleton />}>
-                <CalculoUso edificaciones={edificacionesCat} puedeCargar={puedeCargar} />
-              </React.Suspense>
-            ))}
-
           {/* Sección: Ajustes — carga, visualización y gestión con referencia Anexo 4 */}
           {activeId === 'ajustes' && (
             <React.Suspense fallback={<SectionSkeleton />}>

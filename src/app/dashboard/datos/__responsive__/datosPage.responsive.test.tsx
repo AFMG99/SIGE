@@ -101,6 +101,9 @@ vi.mock('@/features/datos/controllers/horarios', () =>
 vi.mock('@/features/datos/controllers/eventos', () =>
   import('@/features/datos/views/__mocks__/serverActions')
 )
+vi.mock('@/features/datos/controllers/calculoUso', () =>
+  import('@/features/datos/views/__mocks__/serverActions')
+)
 
 // --- Backend doubles: authorized session + the full Prisma surface ----------
 const estado = vi.hoisted(() => ({
