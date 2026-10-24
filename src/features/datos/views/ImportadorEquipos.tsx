@@ -33,6 +33,7 @@ import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
 import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
+import { CalculoUsoOpcional } from './CalculoUsoOpcional'
 import type {
   BloqueInfo,
   CalendarioInfo,
@@ -239,6 +240,7 @@ export function ImportadorEquipos({
   onIrAlCatalogo,
   puedeCargar,
   resultadoInicial,
+  edificacionInicial,
 }: {
   bloques: BloqueInfo[]
   /** Configuración operativa por edificación (fuente de Xe, 6d4). */
@@ -261,6 +263,8 @@ export function ImportadorEquipos({
    * resultado sin ejecutar la importación. En producción no se envía.
    */
   resultadoInicial?: ResultadoCompletado
+  /** Edificación preseleccionada para documentar el paso 4 (Storybook). */
+  edificacionInicial?: string
 }) {
   const { showToast } = useToast()
   const inputArchivoRef = useRef<HTMLInputElement | null>(null)
@@ -273,7 +277,7 @@ export function ImportadorEquipos({
   const [aviso, setAviso] = useState<string | null>(null)
 
   // Segmentación: edificación (obligatoria) + valores globales
-  const [edificacionSel, setEdificacionSel] = useState('')
+  const [edificacionSel, setEdificacionSel] = useState(edificacionInicial ?? '')
   // Mes/año de referencia del bloque de uso (6d4); por defecto el mes actual.
   const [usoMes, setUsoMes] = useState(new Date().getMonth() + 1)
   const [usoAno, setUsoAno] = useState(new Date().getFullYear())
@@ -2100,6 +2104,13 @@ export function ImportadorEquipos({
                 )}
               </ul>
             </div>
+          )}
+
+          {edificacionSel && (
+            <CalculoUsoOpcional
+              edificacionId={edificacionSel}
+              edificacionNombre={edificacionActual?.nombre}
+            />
           )}
 
           <div className="flex flex-wrap items-center gap-4">

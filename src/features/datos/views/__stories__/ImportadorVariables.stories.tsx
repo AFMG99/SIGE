@@ -10,6 +10,7 @@ import {
   horariosEquipoDemo,
   rangosCalendarioDemo,
 } from '../__fixtures__/catalogo'
+import { EDIFICACION_CAMPUS } from '../__fixtures__/calculoUso'
 import { resultadoVariablesDemo } from '../__fixtures__/resultado'
 import { archivoVariables, elegirListbox, opcionesListbox, subirArchivo } from './ayuda'
 
@@ -115,7 +116,7 @@ export const Paso3VistaPrevia: Story = {
 
 export const Paso4Resultado: Story = {
   name: 'Paso 4 · Resultado de la importación',
-  args: { resultadoInicial: resultadoVariablesDemo },
+  args: { resultadoInicial: resultadoVariablesDemo, edificacionInicial: EDIFICACION_CAMPUS },
 }
 
 export const EliminarBloqueConDatos: Story = {

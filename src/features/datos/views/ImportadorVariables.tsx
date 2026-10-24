@@ -34,6 +34,7 @@ import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
 import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
+import { CalculoUsoOpcional } from './CalculoUsoOpcional'
 import type {
   BloqueInfo,
   CalendarioInfo,
@@ -352,6 +353,7 @@ export function ImportadorVariables({
   onIrAlCatalogo,
   puedeCargar,
   resultadoInicial,
+  edificacionInicial,
   calendarios = [],
   rangos = [],
   horarios = [],
@@ -370,6 +372,8 @@ export function ImportadorVariables({
    * resultado sin ejecutar la importación. En producción no se envía.
    */
   resultadoInicial?: ResultadoVariablesCompletado
+  /** Edificación preseleccionada para documentar el paso 4 (Storybook). */
+  edificacionInicial?: string
   /** Configuración operativa por edificación (Cálculo de la GDE, S2). */
   calendarios?: CalendarioInfo[]
   /** Rangos de fechas con tipo de día de todos los calendarios. */
@@ -389,7 +393,7 @@ export function ImportadorVariables({
   const [aviso, setAviso] = useState<string | null>(null)
 
   // Segmentación: edificación obligatoria + bloque global opcional
-  const [edificacionSel, setEdificacionSel] = useState('')
+  const [edificacionSel, setEdificacionSel] = useState(edificacionInicial ?? '')
   const [bloqueGlobal, setBloqueGlobal] = useState('')
 
   // Drawer de creación de bloques (patrón "Nuevo usuario": panel lateral con portal)
@@ -2212,6 +2216,13 @@ export function ImportadorVariables({
                 )}
               </ul>
             </div>
+          )}
+
+          {edificacionSel && (
+            <CalculoUsoOpcional
+              edificacionId={edificacionSel}
+              edificacionNombre={edificacionActual?.nombre}
+            />
           )}
 
           <div className="flex flex-wrap items-center gap-4">
