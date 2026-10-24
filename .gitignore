@@ -83,4 +83,12 @@ id_ed25519*
 .atl/
 odd/
 audit_report.md
+audit_report_tmp.md
 report_t4_analysis.md
+answers.md
+respuesta_actual.md
+handoff_*.md
+
+# Instrucciones y docs temporales de auditoría/IA
+docs/INSTRUCCIONES_OPENCODE_ASISTENTE_IA.md
+docs/calendario-*.pdf
