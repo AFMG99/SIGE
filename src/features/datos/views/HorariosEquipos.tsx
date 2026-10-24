@@ -5,9 +5,12 @@
  * inventario muestra (1) los horarios que le aplican — declarando el nivel de
  * cada uno (equipo / espacio / bloque / edificación) con su franja, días y
  * vigencia, sin filtrar por vigencia porque la sección es de trazabilidad — y
- * (2) las horas de uso derivadas «esta semana»: unión de franjas por día,
- * calculada solo con los horarios vigentes durante la semana en curso
- * (`resumenHorasUsoDeSemana` → `horasDeUsoEnFecha`).
+ * (2) las horas de uso derivadas «esta semana»: primero se descartan las filas
+ * sin vigencia en la semana en curso (`horariosVigentesEnSemana`) y después
+ * manda el nivel más específico (`horariosDelNivelGanador`), con la unión de
+ * franjas dentro de ese nivel y sin sumar entre niveles — exactamente la misma
+ * regla que aplica el motor de cálculo (`calcularPeriodo`), para que la vista
+ * y el valor guardado nunca discrepen.
  *
  * La captura de horarios NO vive aquí: sigue en el drawer «Calendario
  * operativo» (sección Edificaciones). Todo dato entra por props y el cálculo
@@ -20,6 +23,8 @@ import {
   formatearFranja,
   formatearVigenciaCorta,
   horariosAplicablesAEquipo,
+  horariosDelNivelGanador,
+  horariosVigentesEnSemana,
   resumenHorasUsoDeSemana,
   type CodigoAmbito,
 } from '../models/horarios'
@@ -87,7 +92,13 @@ export function HorariosEquipos({ equipos, horarios }: HorariosEquiposProps) {
             equipoId: equipo.id,
           }
           const aplicables = horariosAplicablesAEquipo(horarios, contexto)
-          const resumen = resumenHorasUsoDeSemana(aplicables.map((a) => a.horario))
+          // Cálculo: solo filas vigentes esta semana y solo el nivel ganador
+          // (equipo → espacio → bloque → edificación). Nunca se suman niveles.
+          const vigentes = horariosVigentesEnSemana(horarios)
+          const aplicablesVigentes = horariosAplicablesAEquipo(vigentes, contexto)
+          const nivelGanador = aplicablesVigentes[0]?.nivel
+          const ganadores = horariosDelNivelGanador(vigentes, contexto)
+          const resumen = resumenHorasUsoDeSemana(ganadores)
 
           return (
             <article key={equipo.id} className="ui-card space-y-3 p-4">
@@ -129,6 +140,13 @@ export function HorariosEquipos({ equipos, horarios }: HorariosEquiposProps) {
                         </li>
                       ))}
                     </ul>
+                    {nivelGanador && (
+                      <p className="ui-muted text-xs">
+                        Cálculo: manda el nivel {NIVEL_ETIQUETA[nivelGanador]} ·{' '}
+                        {nombreObjetivo(nivelGanador, equipo)}. Las filas de otros niveles
+                        quedan como trazabilidad y no suman horas.
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">

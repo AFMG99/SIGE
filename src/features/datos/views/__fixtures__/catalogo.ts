@@ -134,7 +134,9 @@ export const horariosEquipoDemo: HorarioEquipoInfo[] = [
     desde: null,
     hasta: null,
   },
-  // Fila de equipo: precondicionamiento del HVAC del Aula 101.
+  // Fila de equipo: precondicionamiento del HVAC del Aula 101. OJO: el nivel
+  // EQUIPO reemplaza (no extiende) lo heredado; si se quisiera sumar una franja
+  // extra habría que crear otra fila del MISMO nivel (equipo).
   {
     id: 'hq-campus-equipo-hvac',
     edificacionId: 'ed-campus-00000001',

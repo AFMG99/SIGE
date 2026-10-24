@@ -67,14 +67,22 @@ export const HorasDeUsoEstaSemana: Story = {
 
     await expect(await within(card).findByText('Horas de uso · esta semana')).toBeVisible()
 
-    // Unión de las 5 filas aplicables: L–V 06–22 = 16 h, Sáb 07–19 = 12 h, Dom = 0.
-    await expect(await within(card).findByText('Lun 16 h')).toBeVisible()
-    await expect(await within(card).findByText('Sáb 12 h')).toBeVisible()
+    // Manda el nivel más específico con vigencia: la fila de EQUIPO
+    // (L–V 06–08 = 2 h). Espacio, bloque y edificación quedan como
+    // trazabilidad y NO suman horas entre niveles.
+    await expect(await within(card).findByText('Lun 2 h')).toBeVisible()
+    await expect(await within(card).findByText('Sáb 0 h')).toBeVisible()
     await expect(await within(card).findByText('Dom 0 h')).toBeVisible()
 
     // Total semanal etiquetado explícitamente como periodo «esta semana».
-    await expect(await within(card).findByText('Total semanal 92 h')).toBeVisible()
+    await expect(await within(card).findByText('Total semanal 10 h')).toBeVisible()
     await expect(await within(card).findByText('(esta semana)')).toBeVisible()
+
+    // La tarjeta declara qué nivel manda, para que las filas de otros niveles
+    // no se lean como horas adicionales.
+    await expect(
+      await within(card).findByText(/Cálculo: manda el nivel Equipo/)
+    ).toBeVisible()
   },
 }
 
@@ -90,8 +98,9 @@ export const VigenciaExcluidaDelResumen: Story = {
     await expect(await within(card).findByText('A-102 — verano 2025')).toBeVisible()
     await expect(await within(card).findByText(/01\/06\/2025 – 15\/08\/2025/)).toBeVisible()
 
-    // …pero la vigencia vencida no aporta horas: solo cuentan las filas de
-    // edificación (06–20 y 07–19) → L–V 14 h, Sáb 12 h, total 82 h.
+    // …pero la vigencia vencida no aporta horas: se filtra antes de resolver el
+    // nivel ganador, así que manda la edificación (06–20 y 07–19) → L–V 14 h,
+    // Sáb 12 h, total 82 h.
     await expect(await within(card).findByText('Lun 14 h')).toBeVisible()
     await expect(await within(card).findByText('Total semanal 82 h')).toBeVisible()
   },

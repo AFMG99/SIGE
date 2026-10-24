@@ -13,6 +13,11 @@ import {
 } from './calculoUso'
 import type { ContextoPeriodo, HorarioContexto, PeriodoAlmacenado, ResultadoPeriodo, UsoOrigen } from './calculoUso'
 import type { RangoFechas } from './calendario'
+import {
+  horariosDelNivelGanador,
+  horariosVigentesEnSemana,
+  resumenHorasUsoDeSemana,
+} from './horarios'
 
 /** Periodo CALCULADO con todos los marcadores de integridad BR4 en orden. */
 const periodoIntacto = (): PeriodoAlmacenado => ({
@@ -393,6 +398,44 @@ describe('calcularPeriodo (AC1)', () => {
     expect(r.advertencias).toEqual(['Sin días operativos'])
     // El horario SÍ está vigente: la trazabilidad lo sigue resolviendo.
     expect(r.trazabilidad.map((t) => t.nivelGanador)).toEqual(['ESPACIO', 'EDIFICACION'])
+  })
+})
+
+describe('paridad vista ≡ motor: horas de «esta semana» derivadas del nivel ganador', () => {
+  // Semana completa dentro de marzo 2024: lunes 04 → domingo 10.
+  const LUNES = '2024-03-04'
+
+  it('las horas por día de la vista coinciden con las del motor para la misma semana', () => {
+    const horarios: HorarioContexto[] = [
+      HORARIO_EDIFICACION,
+      HORARIO_ESPACIO,
+      {
+        edificacionId: 'edi-1',
+        bloqueId: 'blo-1',
+        nombre: 'Bloque marzo',
+        diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
+        horaInicio: 7,
+        horaFin: 20,
+      },
+    ]
+
+    const motor = calcularMarzo(contextoMarzo({ horarios }))
+    const detalle = motor.detalle.find((d) => d.equipoId === 'eq-1')
+    expect(detalle).toBeDefined()
+
+    const ganadores = horariosDelNivelGanador(horariosVigentesEnSemana(horarios, LUNES), {
+      edificacionId: 'edi-1',
+      bloqueId: 'blo-1',
+      espacioId: 'esp-1',
+      equipoId: 'eq-1',
+    })
+    const vista = resumenHorasUsoDeSemana(ganadores, LUNES)
+
+    const motorEnLaSemana = detalle!.porFecha.filter(
+      (d) => d.fecha >= vista.lunes && d.fecha <= vista.domingo
+    )
+    expect(motorEnLaSemana).toHaveLength(7)
+    expect(motorEnLaSemana.map((d) => d.horas)).toEqual(vista.dias.map((d) => d.horas))
   })
 })
 

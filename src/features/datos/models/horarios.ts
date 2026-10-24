@@ -370,14 +370,37 @@ export function lunesDeSemana(fechaIso?: string): string {
   return fecha.toISOString().slice(0, 10)
 }
 
+/** Domingo de la semana que empieza en `lunesIso` (UTC). */
+function domingoDeSemana(lunesIso: string): string {
+  const domingoFecha = new Date(`${lunesIso}T00:00:00Z`)
+  domingoFecha.setUTCDate(domingoFecha.getUTCDate() + 6)
+  return domingoFecha.toISOString().slice(0, 10)
+}
+
+/**
+ * Horarios cuya vigencia se solapa con la semana que empieza en `lunesIso`
+ * (por defecto la semana en curso). Es el filtro que define qué filas puede
+ * usar el cálculo de «esta semana»: una fila vencida sigue apareciendo en la
+ * trazabilidad, pero no aporta horas ni debe ganar la resolución de nivel
+ * (si ganara, taparía un nivel superior todavía vigente). Función pura.
+ */
+export function horariosVigentesEnSemana<
+  T extends Pick<HorarioHorasUso, 'desde' | 'hasta'>
+>(horarios: T[], lunesIso?: string): T[] {
+  const lunes = lunesDeSemana(lunesIso)
+  const domingo = domingoDeSemana(lunes)
+  return horarios.filter((h) => (!h.hasta || h.hasta >= lunes) && (!h.desde || h.desde <= domingo))
+}
+
 /**
  * Horas de uso por día de la semana (L…D) y total semanal (S3), etiquetados
  * como «esta semana»: la vigencia hace que las horas dependan del periodo, así
  * que el resumen se ancla a una semana concreta (por defecto la en curso,
  * lunes → domingo). Solo aportan horas los horarios con vigencia solapada a la
- * semana; dentro de cada día se reutiliza `horasDeUsoEnFecha`, que respeta
- * vigencia inclusiva, `diasSemana` y la unión de franjas (el solape entre
- * horarios nunca se cuenta dos veces). Función pura, sin I/O ni Prisma.
+ * semana (`horariosVigentesEnSemana`); dentro de cada día se reutiliza
+ * `horasDeUsoEnFecha`, que respeta vigencia inclusiva, `diasSemana` y la unión
+ * de franjas (el solape entre horarios nunca se cuenta dos veces). Función
+ * pura, sin I/O ni Prisma.
  */
 export function resumenHorasUsoDeSemana(
   horarios: HorarioHorasUso[],
@@ -385,13 +408,9 @@ export function resumenHorasUsoDeSemana(
 ): ResumenHorasUso {
   const lunes = lunesDeSemana(lunesIso)
   const lunesFecha = new Date(`${lunes}T00:00:00Z`)
-  const domingoFecha = new Date(lunesFecha)
-  domingoFecha.setUTCDate(domingoFecha.getUTCDate() + 6)
-  const domingo = domingoFecha.toISOString().slice(0, 10)
+  const domingo = domingoDeSemana(lunes)
 
-  const vigentesEnSemana = horarios.filter(
-    (h) => (!h.hasta || h.hasta >= lunes) && (!h.desde || h.desde <= domingo)
-  )
+  const vigentesEnSemana = horariosVigentesEnSemana(horarios, lunes)
 
   const dias: DiaHorasUso[] = CATALOGO_DIAS.map((d, i) => {
     const fecha = new Date(lunesFecha)

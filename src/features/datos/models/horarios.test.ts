@@ -4,6 +4,7 @@ import {
   horarioEquipoSchema,
   horariosAplicablesAEquipo,
   horariosDelNivelGanador,
+  horariosVigentesEnSemana,
   horasDeUsoEnFecha,
   formatearDias,
   formatearFranja,
@@ -570,6 +571,144 @@ describe('resumenHorasUsoDeSemana (S3: horas de uso «esta semana»)', () => {
     )
     expect(r.dias[0].horas).toBe(6)
     expect(r.total).toBe(6)
+  })
+})
+
+describe('horariosVigentesEnSemana (filtro de vigencia previo al nivel ganador)', () => {
+  // 2026-10-19 es lunes y 2026-10-25 el domingo de esa misma semana.
+  const lunes = '2026-10-19'
+
+  const fila = (desde: string | null, hasta: string | null) => ({ desde, hasta })
+
+  it('conserva abiertas y vigentes en la semana; descarta vencidas y futuras', () => {
+    const abierta = fila(null, null)
+    const vencida = fila(null, '2026-10-18') // domingo anterior
+    const futura = fila('2026-10-26', null) // lunes siguiente
+    const dentro = fila('2026-10-21', '2026-10-22')
+
+    expect(horariosVigentesEnSemana([abierta, vencida, futura, dentro], lunes)).toEqual([
+      abierta,
+      dentro,
+    ])
+  })
+
+  it('la vigencia es inclusiva en los dos bordes de la semana', () => {
+    const terminaElLunes = fila(null, '2026-10-19')
+    const empiezaElDomingo = fila('2026-10-25', null)
+
+    expect(horariosVigentesEnSemana([terminaElLunes, empiezaElDomingo], lunes)).toEqual([
+      terminaElLunes,
+      empiezaElDomingo,
+    ])
+  })
+
+  it('ancla cualquier fecha a la semana que la contiene', () => {
+    const soloElViernes = fila('2026-10-23', '2026-10-23')
+
+    expect(horariosVigentesEnSemana([soloElViernes], '2026-10-23')).toEqual([soloElViernes])
+    expect(horariosVigentesEnSemana([soloElViernes], '2026-10-26')).toEqual([])
+  })
+
+  it('sin fecha ancla a la semana en curso sin romperse', () => {
+    expect(horariosVigentesEnSemana([fila(null, null)])).toHaveLength(1)
+  })
+})
+
+describe('regresión Aula 202 (TdeA › Bloque-5): manda el nivel, no la suma entre niveles', () => {
+  const lunes = '2026-10-19'
+
+  const contexto: ContextoEquipo = {
+    edificacionId: 'edi-tdea',
+    bloqueId: 'bloque-5',
+    espacioId: 'aula-202',
+    equipoId: 'eq-aula-202',
+  }
+
+  type FilaAula = HorarioConAmbito & HorarioHorasUso & { nombre: string }
+
+  const fila = (extra: Partial<FilaAula>): FilaAula => ({
+    nombre: 'Horario',
+    edificacionId: 'edi-tdea',
+    bloqueId: null,
+    espacioId: null,
+    equipoId: null,
+    diasSemana: [],
+    horaInicio: 0,
+    horaFin: 0,
+    desde: null,
+    hasta: null,
+    ...extra,
+  })
+
+  // Datos reales cargados en BD para el Aula 202.
+  const espacio = [
+    fila({ nombre: 'Lun 14–16', espacioId: 'aula-202', diasSemana: ['LUN'], horaInicio: 14, horaFin: 16 }),
+    fila({ nombre: 'Lun/Vie 18–22', espacioId: 'aula-202', diasSemana: ['LUN', 'VIE'], horaInicio: 18, horaFin: 22 }),
+    fila({ nombre: 'Mar 16–22', espacioId: 'aula-202', diasSemana: ['MAR'], horaInicio: 16, horaFin: 22 }),
+    fila({ nombre: 'Mié/Jue 10–22', espacioId: 'aula-202', diasSemana: ['MIE', 'JUE'], horaInicio: 10, horaFin: 22 }),
+    fila({ nombre: 'Sáb 6–18', espacioId: 'aula-202', diasSemana: ['SAB'], horaInicio: 6, horaFin: 18 }),
+  ]
+  const bloque = [
+    fila({
+      nombre: 'Bloque L–V 7–22',
+      bloqueId: 'bloque-5',
+      diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
+      horaInicio: 7,
+      horaFin: 22,
+    }),
+    fila({
+      nombre: 'Bloque Sáb 6–18',
+      bloqueId: 'bloque-5',
+      diasSemana: ['SAB'],
+      horaInicio: 6,
+      horaFin: 18,
+    }),
+  ]
+  const edificacion = [
+    fila({
+      nombre: 'Edificación L–V 6–20',
+      diasSemana: ['LUN', 'MAR', 'MIE', 'JUE', 'VIE'],
+      horaInicio: 6,
+      horaFin: 20,
+    }),
+  ]
+
+  const horarios = [...edificacion, ...bloque, ...espacio]
+
+  const ganadoresDeLaSemana = () =>
+    horariosDelNivelGanador(horariosVigentesEnSemana(horarios, lunes), contexto)
+
+  it('el lunes son 6 h del espacio, no 15 h de la unión con el bloque', () => {
+    const ganadores = ganadoresDeLaSemana()
+    expect(ganadores.every((h) => h.espacioId === 'aula-202')).toBe(true)
+    expect(resumenHorasUsoDeSemana(ganadores, lunes).dias[0].horas).toBe(6)
+  })
+
+  it('el total semanal del aula es 52 h, no 87 h', () => {
+    const r = resumenHorasUsoDeSemana(ganadoresDeLaSemana(), lunes)
+    expect(r.dias.map((d) => d.horas)).toEqual([6, 6, 12, 12, 4, 12, 0])
+    expect(r.total).toBe(52)
+  })
+
+  it('una fila de espacio vencida no tapa el horario vigente del bloque', () => {
+    const vencida = fila({
+      nombre: 'Espacio vencido',
+      espacioId: 'aula-202',
+      diasSemana: ['LUN'],
+      horaInicio: 14,
+      horaFin: 16,
+      hasta: '2026-10-11',
+    })
+
+    const ganadores = horariosDelNivelGanador(
+      horariosVigentesEnSemana([...bloque, vencida], lunes),
+      contexto
+    )
+
+    // Sin el filtro semanal la fila vencida ganaría y taparía el bloque; con él
+    // manda el bloque (L–V 7–22 = 15 h), que sí está vigente.
+    expect(ganadores.every((h) => h.bloqueId === 'bloque-5')).toBe(true)
+    expect(resumenHorasUsoDeSemana(ganadores, lunes).dias[0].horas).toBe(15)
   })
 })
 
