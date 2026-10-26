@@ -80,17 +80,29 @@ export const Paso3VistaPrevia: Story = {
     await userEvent.click(continuar)
 
     await expect(await canvas.findByText(/listo para importar/i)).toBeVisible()
-    await expect(canvas.getByRole('button', { name: /importar \d+ filas/i })).toBeVisible()
+    // La vista previa deja de importar directo: el flujo pasa por cálculos opcionales.
+    await expect(
+      canvas.getByRole('button', { name: /continuar a cálculos opcionales/i })
+    ).toBeVisible()
   },
 }
 
-export const Paso4Resultado: Story = {
-  name: 'Paso 4 · Resultado de la importación',
-  args: { resultadoInicial: resultadoEquiposDemo, edificacionInicial: EDIFICACION_CAMPUS },
+/**
+ * Valor numérico de una `.ui-stat` del paso de cálculo: la etiqueta es el
+ * segundo `<p>` de la tarjeta y el número el primero.
+ */
+async function valorDeStat(
+  canvas: { findByText: (m: string, o?: object, w?: object) => Promise<HTMLElement> },
+  etiqueta: string
+): Promise<string> {
+  const etiquetaEl = await canvas.findByText(etiqueta)
+  const tarjeta = etiquetaEl.closest('.ui-stat')
+  const valor = tarjeta?.querySelector('p')
+  return valor?.textContent?.trim() ?? ''
 }
 
-export const ImportacionExitosa: Story = {
-  name: 'Flujo completo · Edificación → resultado',
+export const Paso4Calculos: Story = {
+  name: 'Paso 4 · Cálculo de uso: vista previa y ejecución (6d4)',
   play: async ({ canvas, canvasElement, userEvent }) => {
     await elegirEdificacion(canvas, userEvent)
     await subirArchivo(canvasElement, userEvent, archivoEquipos())
@@ -101,6 +113,109 @@ export const ImportacionExitosa: Story = {
       { timeout: 5000 }
     )
     await userEvent.click(continuar)
+    await userEvent.click(
+      await canvas.findByRole(
+        'button',
+        { name: /continuar a cálculos opcionales/i },
+        { timeout: 5000 }
+      )
+    )
+
+    // Intervalo enero–junio: el doble determinista reparte las seis
+    // clasificaciones BR4 del campus (1 intacto + 5 pendientes).
+    await userEvent.selectOptions(canvas.getByLabelText(/^mes inicial$/i), '1')
+    await userEvent.selectOptions(canvas.getByLabelText(/^mes final$/i), '6')
+
+    await userEvent.click(await canvas.findByRole('button', { name: /revisar periodos/i }))
+
+    // Vista previa de solo lectura (modo «solo-vacios» por defecto): el
+    // periodo intacto no se reescribe.
+    await expect(await canvas.findByText(/resultados existentes: 1/i)).toBeVisible()
+    await expect(await canvas.findByText(/periodos pendientes: 5/i)).toBeVisible()
+    await expect(await canvas.findByText(/se calcularán ahora: 5/i)).toBeVisible()
+
+    await userEvent.click(
+      await canvas.findByRole('button', { name: /ejecutar cálculo \(5 periodos\)/i })
+    )
+
+    // Ejecución por lotes (2 llamadas del doble) → resumen final.
+    await expect(
+      await canvas.findByText('Resultado del cálculo', {}, { timeout: 5000 })
+    ).toBeVisible()
+    expect(await valorDeStat(canvas, 'Calculados')).toBe('3')
+    expect(await valorDeStat(canvas, 'Conservados')).toBe('1')
+    expect(await valorDeStat(canvas, 'Fallidos')).toBe('1')
+    expect(await valorDeStat(canvas, 'En revisión')).toBe('1')
+  },
+}
+
+export const ModoCalculoUso: Story = {
+  name: 'Paso 4 · «Solo vacíos» excluye intactos, «reemplazar» los incluye',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await elegirEdificacion(canvas, userEvent)
+    await subirArchivo(canvasElement, userEvent, archivoEquipos())
+
+    const continuar = await canvas.findByRole(
+      'button',
+      { name: /continuar a vista previa/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(continuar)
+    await userEvent.click(
+      await canvas.findByRole(
+        'button',
+        { name: /continuar a cálculos opcionales/i },
+        { timeout: 5000 }
+      )
+    )
+
+    await userEvent.selectOptions(canvas.getByLabelText(/^mes inicial$/i), '1')
+    await userEvent.selectOptions(canvas.getByLabelText(/^mes final$/i), '6')
+
+    // Modo por defecto: el periodo existente intacto queda fuera de la escritura.
+    await userEvent.click(await canvas.findByRole('button', { name: /revisar periodos/i }))
+    await expect(await canvas.findByText(/se calcularán ahora: 5/i)).toBeVisible()
+
+    // «Reemplazar existentes» incluye también el intacto.
+    await userEvent.selectOptions(canvas.getByLabelText(/^modo$/i), 'reemplazar')
+    await userEvent.click(await canvas.findByRole('button', { name: /revisar periodos/i }))
+    await expect(await canvas.findByText(/se calcularán ahora: 6/i)).toBeVisible()
+  },
+}
+
+export const Paso5Resultado: Story = {
+  name: 'Paso 5 · Resultado de la importación',
+  args: { resultadoInicial: resultadoEquiposDemo, edificacionInicial: EDIFICACION_CAMPUS },
+}
+
+export const ImportacionExitosa: Story = {
+  name: 'Flujo completo · Edificación → cálculos opcionales → resultado',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await elegirEdificacion(canvas, userEvent)
+    await subirArchivo(canvasElement, userEvent, archivoEquipos())
+
+    const continuar = await canvas.findByRole(
+      'button',
+      { name: /continuar a vista previa/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(continuar)
+
+    // Vista previa navega al paso de cálculos (obligatorio pasar por él).
+    const aCalculos = await canvas.findByRole(
+      'button',
+      { name: /continuar a cálculos opcionales/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(aCalculos)
+
+    // El cálculo es opcional: se puede saltar directo a la importación.
+    const aImportacion = await canvas.findByRole(
+      'button',
+      { name: /continuar a importación/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(aImportacion)
 
     const importar = await canvas.findByRole(
       'button',
@@ -155,109 +270,7 @@ export const SoloLectura: Story = {
   },
 }
 
-export const UsoDesdeCalendario: Story = {
-  name: '6d4 · Uso de equipos auto-completado desde el calendario',
-  play: async ({ canvas, userEvent }) => {
-    await elegirEdificacion(canvas, userEvent)
-    // Ingreso manual: 5 filas vacías → vista previa editable.
-    await userEvent.click(await canvas.findByRole('button', { name: /ingreso manual/i }))
-
-    // El bloque de uso aparece porque el campus tiene configuración operativa.
-    const completar = await canvas.findByRole('button', {
-      name: /completar horas y días de uso desde el calendario/i,
-    })
-    // Mes por defecto = actual (fuera de rangos en las fixtures); elegimos junio:
-    // período académico hasta el 13/06 → 13 días operativos a H = 12 h.
-    await userEvent.selectOptions(canvas.getByLabelText(/^mes$/i), '6')
-
-    // Override manual: la fila 2 conserva sus 9 h escritas a mano.
-    const manual = canvas.getByLabelText('Fila 2, Horas de uso por día') as HTMLInputElement
-    await userEvent.clear(manual)
-    await userEvent.type(manual, '9')
-
-    await userEvent.click(completar)
-
-    // Celdas vacías completadas con la media de Xe del mes elegido.
-    const horas1 = canvas.getByLabelText('Fila 1, Horas de uso por día') as HTMLInputElement
-    const dias1 = canvas.getByLabelText('Fila 1, Días de uso por mes') as HTMLInputElement
-    expect(horas1.value).toBe('12')
-    expect(dias1.value).toBe('13')
-    // La fila 2 solo recibió el día vacío: su valor manual sigue intacto.
-    expect(
-      (canvas.getByLabelText('Fila 2, Horas de uso por día') as HTMLInputElement).value
-    ).toBe('9')
-    expect((canvas.getByLabelText('Fila 2, Días de uso por mes') as HTMLInputElement).value).toBe(
-      '13'
-    )
-    // Confirmación de la operación (5 filas: 4 completamente vacías + la de la fila 2).
-    // El aviso entra con `animate-slide-up` (0,5 s, arranca en opacity 0): la
-    // visibilidad se ESPERA. Comprobar en el mismo tick lo vuelve una carrera
-    // contra la animación.
-    await waitFor(() =>
-      expect(canvas.getByText(/Se completaron 5 filas/i)).toBeVisible()
-    )
-  },
-}
-
-export const OverrideHorariosPorAmbito: Story = {
-  name: 'S1 · Horario efectivo por ámbito: espacio > bloque > edificación',
-  args: {
-    // Xe ON para el campus: el cálculo usa los horarios vigentes por fila.
-    calendarios: calendariosDemo.map((c) =>
-      c.edificacionId === 'ed-campus-00000001' ? { ...c, usarHorariosXe: true } : c
-    ),
-  },
-  play: async ({ canvas, userEvent }) => {
-    await elegirEdificacion(canvas, userEvent)
-    await userEvent.click(await canvas.findByRole('button', { name: /ingreso manual/i }))
-    // Rango lectivo 01/06–13/06 (13 días operativos; sábados 6 y 13).
-    await userEvent.selectOptions(canvas.getByLabelText(/^mes$/i), '6')
-
-    // Fila 1: Aula 101 — tiene horario propio (SAB 08–14): manda él.
-    await elegirListbox(canvas.getByLabelText('Fila 1, Bloque'), 'bk-campus-a101-001', userEvent)
-    await userEvent.type(canvas.getByLabelText('Fila 1, Espacio'), 'Aula 101')
-    // Fila 2: solo bloque A-101 (LUN–VIE 06–22): hereda del bloque.
-    await elegirListbox(canvas.getByLabelText('Fila 2, Bloque'), 'bk-campus-a101-001', userEvent)
-    // Fila 3: sin bloque ni espacio: hereda de la edificación (unión de sus dos horarios).
-    // Fila 4: bloque A-102 solo tiene el horario vencido (2025): como no está
-    // vigente en junio 2026, el nivel BLOQUE no manda y cae a la edificación.
-    await elegirListbox(canvas.getByLabelText('Fila 4, Bloque'), 'bk-campus-a102-001', userEvent)
-
-    await userEvent.click(
-      await canvas.findByRole('button', {
-        name: /completar horas y días de uso desde el calendario/i,
-      })
-    )
-
-    // Fila 1 (ESPACIO SAB 08–14): corre solo los sábados 6 y 13 → 12 h / 2 días = 6 h.
-    expect(
-      (canvas.getByLabelText('Fila 1, Horas de uso por día') as HTMLInputElement).value
-    ).toBe('6')
-    expect(
-      (canvas.getByLabelText('Fila 1, Días de uso por mes') as HTMLInputElement).value
-    ).toBe('2')
-    // Fila 2 (BLOQUE LUN–VIE 06–22): 10 hábiles × 16 h → 16 h y 10 días
-    // (si se sumaran los niveles, los sábados aportarían y daría 15/12).
-    expect(
-      (canvas.getByLabelText('Fila 2, Horas de uso por día') as HTMLInputElement).value
-    ).toBe('16')
-    expect(
-      (canvas.getByLabelText('Fila 2, Días de uso por mes') as HTMLInputElement).value
-    ).toBe('10')
-    // Fila 3 (EDIFICACIÓN): 10 hábiles × 14 h + 2 sábados × 12 h = 164 h
-    // sobre 12 días (el domingo 7 no corre) → 14 h y 12 días.
-    expect(
-      (canvas.getByLabelText('Fila 3, Horas de uso por día') as HTMLInputElement).value
-    ).toBe('14')
-    expect(
-      (canvas.getByLabelText('Fila 3, Días de uso por mes') as HTMLInputElement).value
-    ).toBe('12')
-    // Fila 4: el horario vencido del A-102 no cuenta → mismos números que la edificación.
-    expect(
-      (canvas.getByLabelText('Fila 4, Horas de uso por día') as HTMLInputElement).value
-    ).toBe('14')
-    expect(
-      (canvas.getByLabelText('Fila 4, Días de uso por mes') as HTMLInputElement).value
-    ).toBe('12')
-  },
-}
+// La jerarquía de horarios (espacio > bloque > edificación) y el modo
+// «reemplazar/solo-vacios» ahora se prueban en el paso «Cálculos opcionales»
+// (Paso4Calculos y ModoCalculoUso); la precedencia por nivel vive en los tests
+// unitarios de models/horarios.test.ts y models/calculoUso.test.ts.

@@ -21,6 +21,7 @@ import {
   periodoEnCurso,
   useCalculoMasivo,
 } from './useCalculoMasivo'
+import type { ModoCalculoUso } from '@/features/datos/models/calculoUso'
 
 export type CalculoUsoOpcionalProps = {
   /** Edificación recién importada; el cálculo se limita a ella. */
@@ -43,6 +44,8 @@ export function CalculoUsoOpcional({
     setMesFinal,
     anoFinal,
     setAnoFinal,
+    modo,
+    setModo,
     vistaPrevia,
     previaCargando,
     previsualizar,
@@ -79,8 +82,10 @@ export function CalculoUsoOpcional({
       <p className="ui-muted mt-1 text-xs">
         {edificacionNombre ? `Edificación: ${edificacionNombre}. ` : ''}
         Deriva las horas y los días de uso del calendario y de los horarios
-        vigentes para los periodos importados. Solo escribe periodos sin
-        resultado; los existentes se conservan sin cambios.
+        vigentes para los periodos importados.
+        {modo === 'solo-vacios'
+          ? ' Solo escribe periodos sin resultado; los existentes se conservan.'
+          : ' Reemplaza los valores de todos los periodos seleccionados.'}
       </p>
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
@@ -150,6 +155,21 @@ export function CalculoUsoOpcional({
                 {a}
               </option>
             ))}
+          </select>
+        </div>
+        <div className="flex items-end">
+          <label htmlFor="calculo-opcional-modo" className="ui-label w-full">
+            Modo
+          </label>
+          <select
+            id="calculo-opcional-modo"
+            value={modo}
+            onChange={(e) => setModo(e.target.value as ModoCalculoUso)}
+            className="ui-input mt-1 min-h-10 w-full"
+            disabled={previaCargando || ejecutando}
+          >
+            <option value="solo-vacios">Solo campos vacíos</option>
+            <option value="reemplazar">Reemplazar existentes</option>
           </select>
         </div>
         <div className="flex items-end">

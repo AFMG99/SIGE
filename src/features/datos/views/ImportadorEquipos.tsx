@@ -73,9 +73,6 @@ const MESES = [
   'diciembre',
 ]
 
-/** Años ofrecidos por el selector de uso: el actual ± 1. */
-const ANOS_USO = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1]
-
 type CampoId =
   | 'bloque'
   | 'espacio'
@@ -86,7 +83,7 @@ type CampoId =
   | 'diasUsoMes'
   | 'usenIndicador'
 type CampoFila = CampoId
-type Paso = 'carga' | 'mapeo' | 'vista' | 'resultado'
+type Paso = 'carga' | 'mapeo' | 'vista' | 'calculos' | 'resultado'
 
 interface DefCampo {
   id: CampoId
@@ -278,9 +275,6 @@ export function ImportadorEquipos({
 
   // Segmentación: edificación (obligatoria) + valores globales
   const [edificacionSel, setEdificacionSel] = useState(edificacionInicial ?? '')
-  // Mes/año de referencia del bloque de uso (6d4); por defecto el mes actual.
-  const [usoMes, setUsoMes] = useState(new Date().getMonth() + 1)
-  const [usoAno, setUsoAno] = useState(new Date().getFullYear())
   const [bloqueGlobal, setBloqueGlobal] = useState('')
   const [espacioGlobal, setEspacioGlobal] = useState('')
 
@@ -655,71 +649,6 @@ export function ImportadorEquipos({
     : []
   const horariosDeEdif = horarios.filter((h) => h.edificacionId === edificacionSel)
 
-  /**
-   * Completa SOLO las celdas vacías de «Horas de uso por día» y «Días de uso
-   * por mes» con el calendario operativo del mes elegido (media de Xe sobre
-   * los días operativos). Lo escrito a mano se conserva: el valor manual
-   * siempre manda (override). Ninguna fila descartada se toca.
-   */
-  const completarUsoDesdeCalendario = () => {
-    if (!edificacionSel || !calendarioDeEdif) return
-    let completadas = 0
-    const nuevas = filas.map((fila) => {
-      if (fila.descartada) return fila
-      const faltaHoras = !fila.datos.horasUsoDia.trim()
-      const faltaDias = !fila.datos.diasUsoMes.trim()
-      if (!faltaHoras && !faltaDias) return fila
-      const bloqueId = resolverBloque(bloqueEfectivo(fila))
-      const nombreEspacio = normalizar(espacioEfectivo(fila))
-      const candidatos = nombreEspacio
-        ? espacios.filter((s) => normalizar(s.nombre) === nombreEspacio)
-        : []
-      // Con bloque resuelto solo cuenta el espacio de ESE bloque; sin bloque,
-      // el primer espacio homónimo del catálogo.
-      const espacioId = (
-        bloqueId ? candidatos.find((s) => s.bloqueId === bloqueId) : candidatos[0]
-      )?.id ?? ''
-      // S1: el nivel más específico con horario vigente ese mes manda; dentro
-      // del nivel se unen sus horarios y entre niveles no se suman.
-      const horariosFila = horariosDelNivelGanador(
-        horariosDeEdif,
-        { edificacionId: edificacionSel, bloqueId, espacioId },
-        { mes: usoMes, ano: usoAno }
-      )
-      const calc = usoEquiposDelMes({
-        rangos: rangosDeEdif,
-        config: calendarioDeEdif,
-        horarios: horariosFila,
-        usarHorariosXe: calendarioDeEdif.usarHorariosXe ?? false,
-        mes: usoMes,
-        ano: usoAno,
-        // S2: domingos/festivos operativos de la edificación (default ON).
-        politica: {
-          domingosOperativos: calendarioDeEdif.domingosOperativos ?? true,
-          festivosOperativos: calendarioDeEdif.festivosOperativos ?? true,
-        },
-      })
-      if (!calc) return fila
-      const datos = { ...fila.datos }
-      if (faltaHoras) datos.horasUsoDia = String(calc.horasUsoDia)
-      if (faltaDias) datos.diasUsoMes = String(calc.diasUsoMes)
-      completadas += 1
-      return { ...fila, datos }
-    })
-    if (completadas === 0) {
-      showToast(
-        'No se completó ninguna celda: el mes elegido no tiene días operativos o las filas no tienen campos de uso vacíos.',
-        'error'
-      )
-      return
-    }
-    setFilas(nuevas)
-    showToast(
-      `Se completaron ${completadas} filas desde el calendario (${MESES[usoMes - 1]} de ${usoAno}).`,
-      'success'
-    )
-  }
-
   const validaciones = useMemo(() => {
     const mapa = new Map<string, ValidacionFila>()
     const claves = new Map<string, number>()
@@ -989,13 +918,15 @@ export function ImportadorEquipos({
       ? [
           { id: 'carga', etiqueta: '1. Edificación y carga' },
           { id: 'vista', etiqueta: '2. Vista previa' },
-          { id: 'resultado', etiqueta: '3. Importación' },
+          { id: 'calculos', etiqueta: '3. Cálculos opcionales' },
+          { id: 'resultado', etiqueta: '4. Importación' },
         ]
       : [
           { id: 'carga', etiqueta: '1. Edificación y carga' },
           { id: 'mapeo', etiqueta: '2. Mapeo' },
           { id: 'vista', etiqueta: '3. Vista previa' },
-          { id: 'resultado', etiqueta: '4. Importación' },
+          { id: 'calculos', etiqueta: '4. Cálculos opcionales' },
+          { id: 'resultado', etiqueta: '5. Importación' },
         ]
   const ordenPasos: Paso[] = pasos.map((p) => p.id)
   const pasoActual = ordenPasos.indexOf(paso)
@@ -1004,6 +935,11 @@ export function ImportadorEquipos({
     carga: <IconCarga />,
     mapeo: <IconMapeo />,
     vista: <IconVistaPrevia />,
+    calculos: (
+      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg>
+    ),
     resultado: <IconImportar />,
   }
 
@@ -1638,70 +1574,6 @@ export function ImportadorEquipos({
             </div>
           </div>
 
-          {/* Uso desde el calendario (6d4/S5): opt-in que completa SOLO las
-              celdas vacías; lo escrito a mano se conserva (override). */}
-          {edificacionSel && calendarioDeEdif && puedeCargar && (
-            <div className="ui-card">
-              <h3 className="ui-title text-sm">Uso de equipos desde el calendario</h3>
-              <p className="ui-muted mt-1 text-xs">
-                «Horas de uso por día» y «Días de uso por mes» derivan del calendario operativo:
-                media de Xe sobre los días operativos del mes elegido, con los horarios del ámbito
-                de cada fila. El botón completa solo las celdas vacías: cualquier valor escrito a
-                mano se conserva y manda.
-              </p>
-              <div className="mt-3 flex flex-wrap items-end gap-3">
-                <div>
-                  <label htmlFor="uso-mes" className="ui-label">
-                    Mes
-                  </label>
-                  <select
-                    id="uso-mes"
-                    value={usoMes}
-                    onChange={(e) => setUsoMes(Number(e.target.value))}
-                    className="ui-input mt-1"
-                  >
-                    {MESES.map((m, i) => (
-                      <option key={m} value={i + 1}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="uso-ano" className="ui-label">
-                    Año
-                  </label>
-                  <select
-                    id="uso-ano"
-                    value={usoAno}
-                    onChange={(e) => setUsoAno(Number(e.target.value))}
-                    className="ui-input mt-1"
-                  >
-                    {ANOS_USO.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  onClick={completarUsoDesdeCalendario}
-                  className="ui-btn ui-btn-secondary"
-                >
-                  Completar horas y días de uso desde el calendario
-                </button>
-                <p className="ui-muted basis-full text-xs">
-                  Xe{' '}
-                  {calendarioDeEdif.usarHorariosXe
-                    ? 'desde los horarios vigentes'
-                    : `= ${calendarioDeEdif.horasOperacionDia} h (H fija)`}{' '}
-                  · fuente: la configuración operativa de la edificación.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Tabla editable */}
           <div className="ui-table-shell">
             <div className="overflow-x-auto">
@@ -2002,6 +1874,73 @@ export function ImportadorEquipos({
 
               <button
                 type="button"
+                onClick={() => setPaso('calculos')}
+                disabled={payload.length === 0}
+                className="ui-btn ui-btn-primary"
+              >
+                Continuar a cálculos opcionales
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ PASO 4: CÁLCULOS OPCIONALES ============ */}
+      {paso === 'calculos' && (
+        <div className="space-y-4">
+          {/* Volver a vista previa */}
+          <button
+            type="button"
+            onClick={() => setPaso('vista')}
+            className="focus-ring inline-flex cursor-pointer items-center gap-2 rounded text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Volver a vista previa
+          </button>
+
+          {edificacionSel && (
+            <CalculoUsoOpcional
+              edificacionId={edificacionSel}
+              edificacionNombre={edificacionActual?.nombre}
+            />
+          )}
+
+          {/* Continuar a importación */}
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setPaso('resultado')}
+              className="ui-btn ui-btn-primary"
+            >
+              Continuar a importación
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============ PASO 5: RESULTADO ============ */}
+      {/* Confirmación de importación (llega desde el paso de cálculos) */}
+      {paso === 'resultado' && !resultado && (
+        <div className="space-y-4">
+          <div className="ui-card">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                <p>
+                  Listo para importar: <strong className="text-emerald-700 dark:text-emerald-400">{payload.length}</strong>{' '}
+                  filas válidas
+                  {resumen.conError + resumen.duplicadas > 0 && (
+                    <span>
+                      {' '}
+                      · se omitirán {resumen.conError + resumen.duplicadas} con error o duplicadas
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              <button
+                type="button"
                 onClick={() => void ejecutarImportacion(false)}
                 disabled={payload.length === 0 || importando}
                 className="ui-btn ui-btn-primary"
@@ -2035,7 +1974,6 @@ export function ImportadorEquipos({
         </div>
       )}
 
-      {/* ============ PASO 4: RESULTADO ============ */}
       {paso === 'resultado' && resultado && (
         <div className="space-y-4">
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
@@ -2106,11 +2044,26 @@ export function ImportadorEquipos({
             </div>
           )}
 
-          {edificacionSel && (
-            <CalculoUsoOpcional
-              edificacionId={edificacionSel}
-              edificacionNombre={edificacionActual?.nombre}
-            />
+          {progreso !== null && (
+            <div className="ui-card" aria-live="polite">
+              <div className="ui-muted flex items-center justify-between text-xs">
+                <span>{progreso < 100 ? 'Guardando registros…' : 'Listo'}</span>
+                <span>{progreso}%</span>
+              </div>
+              <div
+                className="ui-progress mt-1"
+                role="progressbar"
+                aria-valuenow={progreso}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Progreso de importación"
+              >
+                <div
+                  className="ui-progress-fill"
+                  style={{ width: `${progreso}%` }}
+                />
+              </div>
+            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-4">

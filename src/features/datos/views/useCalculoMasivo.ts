@@ -26,6 +26,7 @@ import {
 import type { ProcesadoLote } from '@/features/datos/controllers/calculoUso'
 import type {
   Clasificacion,
+  ModoCalculoUso,
   PeriodoRef,
   ResumenEjecucion,
   VistaPrevia,
@@ -132,6 +133,8 @@ export function useCalculoMasivo() {
   const [ejecutando, setEjecutando] = useState(false)
   const [procesados, setProcesados] = useState<ProcesadoLote[]>([])
   const [resumen, setResumen] = useState<ResumenEjecucion | null>(null)
+  /** Modo de cálculo: 'solo-vacios' (default) o 'reemplazar'. */
+  const [modo, setModo] = useState<ModoCalculoUso>('solo-vacios')
   /** Cancelación pedida por «Detener»: corta tras la llamada en vuelo. */
   const canceladoRef = useRef(false)
   /** Guarda síncrona contra doble click antes del siguiente render. */
@@ -156,6 +159,7 @@ export function useCalculoMasivo() {
     setResultado(null)
     setProcesados([])
     setResumen(null)
+    setModo('solo-vacios')
   }, [])
 
   /** Vista previa del intervalo (spec §6.2) — la action es de solo lectura. */
@@ -170,7 +174,7 @@ export function useCalculoMasivo() {
     try {
       const desde: PeriodoRef = { mes: mesInicial, ano: anoInicial }
       const hasta: PeriodoRef = { mes: mesFinal, ano: anoFinal }
-      const respuesta = await prepararCalculoMasivo(edificacionId, desde, hasta)
+      const respuesta = await prepararCalculoMasivo(edificacionId, desde, hasta, modo)
       if (respuesta.estado === 'error') {
         showToast(respuesta.mensaje, 'error')
         return
@@ -181,7 +185,7 @@ export function useCalculoMasivo() {
     } finally {
       setPreviaCargando(false)
     }
-  }, [edificacionId, mesInicial, anoInicial, mesFinal, anoFinal, showToast])
+  }, [edificacionId, mesInicial, anoInicial, mesFinal, anoFinal, modo, showToast])
 
   /** Cálculo individual del periodo elegido (spec §5 «Cálculo individual»). */
   const calcular = useCallback(async () => {
@@ -233,7 +237,7 @@ export function useCalculoMasivo() {
     try {
       for (;;) {
         if (canceladoRef.current) break
-        const respuesta = await ejecutarCalculoMasivo({ edificacionId, desde, hasta, loteId })
+        const respuesta = await ejecutarCalculoMasivo({ edificacionId, desde, hasta, loteId, modo })
         if (respuesta.estado === 'error') {
           falloLocal = true
           showToast(respuesta.mensaje, 'error')
@@ -272,7 +276,7 @@ export function useCalculoMasivo() {
         ultimoResumen.fallidos > 0 ? 'error' : 'success'
       )
     }
-  }, [edificacionId, vistaPrevia, showToast])
+  }, [edificacionId, vistaPrevia, modo, showToast])
 
   /** Pide detener el lote: corta después de la invocación en vuelo. */
   const detener = useCallback(() => {
@@ -331,6 +335,8 @@ export function useCalculoMasivo() {
     setMesFinal,
     anoFinal,
     setAnoFinal,
+    modo,
+    setModo,
     vistaPrevia,
     previaCargando,
     previsualizar,

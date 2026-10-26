@@ -51,33 +51,74 @@ export const Paso1Carga: Story = {
   name: 'Paso 1 · Edificación y carga',
 }
 
+/**
+ * Valor numérico de una `.ui-stat` del paso de cálculo: la etiqueta es el
+ * segundo `<p>` de la tarjeta y el número el primero.
+ */
+async function valorDeStat(
+  canvas: { findByText: (m: string, o?: object, w?: object) => Promise<HTMLElement> },
+  etiqueta: string
+): Promise<string> {
+  const etiquetaEl = await canvas.findByText(etiqueta)
+  const tarjeta = etiquetaEl.closest('.ui-stat')
+  const valor = tarjeta?.querySelector('p')
+  return valor?.textContent?.trim() ?? ''
+}
+
 export const CalculoGde: Story = {
-  name: 'Cálculo de la GDE: entradas efectivas y botón único (S2)',
+  name: 'Paso 4 · Cálculo de variables: días y GDE independientes (S2)',
   play: async ({ canvas, canvasElement, userEvent }) => {
-    const screen = within(canvasElement.ownerDocument.body)
     await elegirEdificacion(canvas, userEvent)
+    await subirArchivo(canvasElement, userEvent, archivoVariables())
 
-    // Fórmula visible + entradas efectivas ANTES de guardar.
-    await expect(await canvas.findByText('GDE = Σ (Tp − Tb) · Xe')).toBeVisible()
-    await expect(canvas.getByText('06:00–18:00 (12 h/día)')).toBeVisible()
-    await expect(canvas.getByText('Xe = H (fijo, 12 h)')).toBeVisible()
-    // Periodo por defecto (octubre 2026): fuera de los rangos del fixture.
+    const continuar = await canvas.findByRole(
+      'button',
+      { name: /continuar a vista previa/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(continuar)
+    await userEvent.click(
+      await canvas.findByRole(
+        'button',
+        { name: /continuar a cálculos opcionales/i },
+        { timeout: 5000 }
+      )
+    )
+
+    // Paso de cálculo con dos cálculos independientes, cada uno con su modo.
     await expect(
-      canvas.getByText(/Configurado · 0 día\(s\) operativo\(s\) en octubre de 2026/)
+      await canvas.findByText('Cálculo de Variables Operativas (opcional)')
+    ).toBeVisible()
+    await expect(canvas.getByText('Modo: Días lectivos/laborales')).toBeVisible()
+    await expect(canvas.getByText('Modo: GDE')).toBeVisible()
+
+    // Independencia: deshabilitar días NO deshabilita la GDE.
+    await userEvent.click(canvas.getByLabelText('Días lectivos/laborales'))
+    await expect(canvas.queryByText('Modo: Días lectivos/laborales')).toBeNull()
+    await expect(canvas.getByText('Modo: GDE')).toBeVisible()
+    await userEvent.click(canvas.getByLabelText('Días lectivos/laborales'))
+
+    await userEvent.click(await canvas.findByRole('button', { name: /revisar periodos/i }))
+
+    // Vista previa determinista (mock): 3 combinaciones bloque×mes, 2 con
+    // días vacíos y 3 con GDE; 1 sin variable operativa.
+    await expect(await canvas.findByText(/Se escribirán días: 2/)).toBeVisible()
+    await expect(await canvas.findByText(/Se escribirán GDE: 3/)).toBeVisible()
+    await expect(
+      await canvas.findByText(/1 combinaciones bloque×mes no tienen variable operativa/)
     ).toBeVisible()
 
-    // Mes de marzo 2026: dentro del rango lectivo → 31 días operativos.
-    await userEvent.selectOptions(canvas.getByLabelText(/^mes/i), '3')
-    await expect(
-      await canvas.findByText(/31 día\(s\) operativo\(s\) en marzo de 2026/)
-    ).toBeVisible()
+    await userEvent.click(
+      await canvas.findByRole('button', { name: /ejecutar cálculos \(3 periodos\)/i })
+    )
 
-    // Un solo botón: calcula en el servidor y registra (mocks deterministas).
-    const boton = await canvas.findByRole('button', { name: /calcular y guardar gde/i })
-    await userEvent.click(boton)
-    await expect(await canvas.findByText('41,2 °C·día', {}, { timeout: 3000 })).toBeVisible()
-    await expect(await canvas.findByText(/Registrada en variables operativas/)).toBeVisible()
-    await screen.findByText(/registrada en 2 variables operativas/i, {}, { timeout: 3000 })
+    // Ejecución (único lote del mock) → resumen con ambos cálculos.
+    await expect(
+      await canvas.findByText('Resultado del cálculo', {}, { timeout: 5000 })
+    ).toBeVisible()
+    expect(await valorDeStat(canvas, 'Días calculados')).toBe('2')
+    expect(await valorDeStat(canvas, 'GDE calculadas')).toBe('3')
+    expect(await valorDeStat(canvas, 'GDE fallidas')).toBe('0')
   },
 }
 
@@ -108,14 +149,17 @@ export const Paso3VistaPrevia: Story = {
     await userEvent.click(continuar)
 
     await expect(await canvas.findByText(/listo para importar/i)).toBeVisible()
-    await expect(canvas.getByRole('button', { name: /importar \d+ filas/i })).toBeVisible()
+    // La vista previa deja de importar directo: el flujo pasa por cálculos opcionales.
+    await expect(
+      canvas.getByRole('button', { name: /continuar a cálculos opcionales/i })
+    ).toBeVisible()
     // La última fila del CSV trae mes 13: debe aparecer marcada con error.
     await expect(await canvas.findByText('Mes inválido en la fila')).toBeVisible()
   },
 }
 
-export const Paso4Resultado: Story = {
-  name: 'Paso 4 · Resultado de la importación',
+export const Paso5Resultado: Story = {
+  name: 'Paso 5 · Resultado de la importación',
   args: { resultadoInicial: resultadoVariablesDemo, edificacionInicial: EDIFICACION_CAMPUS },
 }
 
