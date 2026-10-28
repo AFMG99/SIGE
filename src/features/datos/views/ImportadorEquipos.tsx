@@ -298,7 +298,11 @@ export function ImportadorEquipos({
   // Cálculo de uso por fila (paso «Cálculos opcionales»): modal con diff
   // antes→después; nada se aplica hasta que el usuario confirma (2A).
   const [modalCalculo, setModalCalculo] = useState<{ alcance: 'fila' | 'todas'; filaId?: string } | null>(null)
-  const [mesesCalculo, setMesesCalculo] = useState<{ meses: PeriodoUso[]; error: boolean }>({ meses: [], error: false })
+  const [mesesCalculo, setMesesCalculo] = useState<{
+    meses: PeriodoUso[]
+    error: boolean
+    mensaje?: string
+  }>({ meses: [], error: false })
   const [mesCalculo, setMesCalculo] = useState<PeriodoUso | null>(null)
   const [cargandoPeriodos, setCargandoPeriodos] = useState(false)
 
@@ -703,7 +707,11 @@ export function ImportadorEquipos({
       const res = await periodosConFactura(edificacionSel)
       const periodos = res.estado === 'ok' && Array.isArray(res.periodos) ? res.periodos : []
       const meses = mesesDesdePeriodos(periodos)
-      setMesesCalculo({ meses, error: periodos.length === 0 && res.estado !== 'ok' })
+      setMesesCalculo({
+        meses,
+        error: res.estado !== 'ok',
+        mensaje: res.estado !== 'ok' ? res.mensaje : undefined,
+      })
       setMesCalculo(meses.length > 0 ? meses[meses.length - 1] : mesActual())
       setModalCalculo({ alcance, filaId })
     } finally {
@@ -726,6 +734,17 @@ export function ImportadorEquipos({
 
   const cambiosAplicables = cambiosDelMes.filter((c) => parCambia(c.antes, c.despues))
   const sinCalculoPosible = cambiosDelMes.filter((c) => c.despues === null).length
+
+  /** Meses con facturas agrupados por año: el modal se lee como un calendario. */
+  const mesesPorAno = (() => {
+    const grupos = new Map<number, PeriodoUso[]>()
+    for (const m of mesesCalculo.meses) {
+      const lista = grupos.get(m.ano) ?? []
+      lista.push(m)
+      grupos.set(m.ano, lista)
+    }
+    return Array.from(grupos, ([ano, meses]) => ({ ano, meses }))
+  })()
 
   /** Escribe los pares calculados en las filas (solo tras confirmar en el modal). */
   const aplicarCambiosUso = () => {
@@ -2411,42 +2430,48 @@ export function ImportadorEquipos({
             {mesesCalculo.meses.length > 0 ? (
               <div className="mt-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Meses con facturas registradas
+                  Meses con facturas registradas ({mesesCalculo.meses.length})
                 </p>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {mesesCalculo.meses.map((m) => {
-                    const activo = mesCalculo.ano === m.ano && mesCalculo.mes === m.mes
-                    return (
-                      <button
-                        key={`${m.ano}-${m.mes}`}
-                        type="button"
-                        onClick={() => setMesCalculo(m)}
-                        aria-pressed={activo}
-                        className={`focus-ring cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                          activo
-                            ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-500/15 dark:text-emerald-400'
-                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300'
-                        }`}
-                      >
-                        {m.etiqueta}
-                      </button>
-                    )
-                  })}
+                <div className="mt-1.5 max-h-36 space-y-1 overflow-y-auto pr-1">
+                  {mesesPorAno.map((grupo) => (
+                    <div key={grupo.ano} className="flex flex-wrap items-center gap-1.5">
+                      <span className="w-9 shrink-0 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                        {grupo.ano}
+                      </span>
+                      {grupo.meses.map((m) => {
+                        const activo = mesCalculo.ano === m.ano && mesCalculo.mes === m.mes
+                        return (
+                          <button
+                            key={`${m.ano}-${m.mes}`}
+                            type="button"
+                            onClick={() => setMesCalculo(m)}
+                            aria-pressed={activo}
+                            className={`focus-ring cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                              activo
+                                ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-500/15 dark:text-emerald-400'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300'
+                            }`}
+                          >
+                            {m.etiqueta}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
                 </div>
                 <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                   Se aplicarán los valores del mes seleccionado (por defecto, el último con
                   facturas). Elija otro mes para recalcular.
                 </p>
               </div>
+            ) : mesesCalculo.error ? (
+              <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
+                {mesesCalculo.mensaje ?? 'No fue posible consultar los periodos con facturas.'} Se
+                calcula sobre el mes actual ({mesCalculo.etiqueta}).
+              </p>
             ) : (
               <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                 Esta edificación no tiene facturas registradas: se calcula sobre el mes actual (
-                {mesCalculo.etiqueta}).
-              </p>
-            )}
-            {mesesCalculo.error && (
-              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                No fue posible consultar los periodos con facturas; se usa el mes actual (
                 {mesCalculo.etiqueta}).
               </p>
             )}

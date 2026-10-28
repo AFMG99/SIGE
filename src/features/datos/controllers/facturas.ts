@@ -426,10 +426,13 @@ export async function periodosConFactura(
     if (!user) {
       return { estado: 'error', mensaje: 'Sesión expirada. Inicie sesión nuevamente.' }
     }
-    if (!(await canWithOverrides(user, 'consumption', 'read'))) {
+    // Mismo gate que el resto del módulo: el importador y sus consultas de
+    // apoyo exigen `consumption:upload` (los roles que cargan datos no tienen
+    // `read`, que está reservado a la consulta de solo lectura).
+    if (!(await canWithOverrides(user, 'consumption', 'upload'))) {
       return {
         estado: 'error',
-        mensaje: 'Su rol no tiene permiso para consultar las facturas de este módulo.',
+        mensaje: 'Su rol no tiene permiso para consultar los periodos con facturas.',
       }
     }
 
