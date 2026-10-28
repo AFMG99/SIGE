@@ -26,14 +26,20 @@ import {
 } from '@/features/datos/models/validations'
 import type { ConflictoEquipo, FilaEnvioEquipos } from '@/features/datos/models/validations'
 import { importarFilasEquipos } from '@/features/datos/controllers/equipos'
-import { usoEquiposDelMes } from '@/features/datos/models/calendario'
-import { horariosDelNivelGanador } from '@/features/datos/models/horarios'
+import { periodosConFactura } from '@/features/datos/controllers/facturas'
+import { calcularCambiosUso, mesesDesdePeriodos, mesActual, parCambia } from '@/features/datos/models/calculoUsoFilas'
+import type {
+  CambioUso,
+  ContextoCalculoFilas,
+  ParUso,
+  PeriodoUso,
+} from '@/features/datos/models/calculoUsoFilas'
+import type { RangoFechas } from '@/features/datos/models/calendario'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
 import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
-import { CalculoUsoOpcional } from './CalculoUsoOpcional'
 import type {
   BloqueInfo,
   CalendarioInfo,
@@ -56,22 +62,6 @@ const FILAS_POR_PAGINA = 50
 const MAX_FILAS = 5000
 const ETIQUETA_FORMATOS = '.xlsx, .xls o .csv'
 const ETIQUETA_TAMANO = '5 MB'
-
-/** Meses en minúscula para los selectores del bloque de uso (6d4). */
-const MESES = [
-  'enero',
-  'febrero',
-  'marzo',
-  'abril',
-  'mayo',
-  'junio',
-  'julio',
-  'agosto',
-  'septiembre',
-  'octubre',
-  'noviembre',
-  'diciembre',
-]
 
 type CampoId =
   | 'bloque'
@@ -304,6 +294,13 @@ export function ImportadorEquipos({
 
   const [filas, setFilas] = useState<FilaTrabajo[]>([])
   const [pagina, setPagina] = useState(0)
+
+  // Cálculo de uso por fila (paso «Cálculos opcionales»): modal con diff
+  // antes→después; nada se aplica hasta que el usuario confirma (2A).
+  const [modalCalculo, setModalCalculo] = useState<{ alcance: 'fila' | 'todas'; filaId?: string } | null>(null)
+  const [mesesCalculo, setMesesCalculo] = useState<{ meses: PeriodoUso[]; error: boolean }>({ meses: [], error: false })
+  const [mesCalculo, setMesCalculo] = useState<PeriodoUso | null>(null)
+  const [cargandoPeriodos, setCargandoPeriodos] = useState(false)
 
   const [importando, setImportando] = useState(false)
   const [progreso, setProgreso] = useState<number | null>(null)
@@ -648,6 +645,106 @@ export function ImportadorEquipos({
     ? rangos.filter((r) => r.calendarioId === calendarioDeEdif.id)
     : []
   const horariosDeEdif = horarios.filter((h) => h.edificacionId === edificacionSel)
+
+  // ---------- Cálculo de uso desde el calendario (paso 4 rediseñado) ----------
+  // Mismo motor que la GDE y que el histórico «completar uso»: ámbito por fila
+  // SIN equipoId (los horarios de nivel EQUIPO no mandan), política `?? true`
+  // y `usarHorariosXe === true` (patrón AC6 de controllers/calculoUso.ts).
+  const contextoCalculo: ContextoCalculoFilas | null =
+    calendarioDeEdif && edificacionSel
+      ? {
+          edificacionId: edificacionSel,
+          horarios: horariosDeEdif,
+          rangos: rangosDeEdif.map((r) => ({
+            fechaInicio: r.fechaInicio,
+            fechaFin: r.fechaFin,
+            tipoDia: r.tipoDia as RangoFechas['tipoDia'],
+          })),
+          config: {
+            horaInicioOperacion: calendarioDeEdif.horaInicioOperacion,
+            horasOperacionDia: calendarioDeEdif.horasOperacionDia,
+          },
+          usarHorariosXe: calendarioDeEdif.usarHorariosXe === true,
+          politica: {
+            domingosOperativos: calendarioDeEdif.domingosOperativos ?? true,
+            festivosOperativos: calendarioDeEdif.festivosOperativos ?? true,
+          },
+        }
+      : null
+
+  /** Clave `bloqueId|nombreNormalizado` → id de espacio (resolución O(1) por fila). */
+  const espaciosPorClave = useMemo(() => {
+    const mapa = new Map<string, string>()
+    for (const e of espacios) mapa.set(`${e.bloqueId}|${normalizarEspacio(e.nombre)}`, e.id)
+    return mapa
+  }, [espacios])
+
+  /** Ámbito jerárquico de una fila (ids; sin equipoId — semántica del importador). */
+  const ambitoDeFila = (fila: FilaTrabajo): { bloqueId: string | null; espacioId: string | null } => {
+    const bloqueId = fila.datos.bloque.trim() || bloqueGlobal.trim()
+    const nombre = normalizarEspacio(espacioEfectivo(fila))
+    return {
+      bloqueId: bloqueId || null,
+      espacioId: bloqueId && nombre ? (espaciosPorClave.get(`${bloqueId}|${nombre}`) ?? null) : null,
+    }
+  }
+
+  /** Filas sobre las que actúa el cálculo: no descartadas, no vacías. */
+  const filasElegibles = (alcance: 'fila' | 'todas', filaId?: string): FilaTrabajo[] =>
+    filas.filter((f) => !f.descartada && !filaVacia(f) && (alcance === 'todas' || f.id === filaId))
+
+  const filasPorId = new Map(filas.map((f) => [f.id, f]))
+
+  /** Abre el modal: consulta los periodos con facturas y preselecciona el último (S3). */
+  const abrirModalCalculo = async (alcance: 'fila' | 'todas', filaId?: string) => {
+    if (!contextoCalculo) return
+    setCargandoPeriodos(true)
+    try {
+      const res = await periodosConFactura(edificacionSel)
+      const periodos = res.estado === 'ok' && Array.isArray(res.periodos) ? res.periodos : []
+      const meses = mesesDesdePeriodos(periodos)
+      setMesesCalculo({ meses, error: periodos.length === 0 && res.estado !== 'ok' })
+      setMesCalculo(meses.length > 0 ? meses[meses.length - 1] : mesActual())
+      setModalCalculo({ alcance, filaId })
+    } finally {
+      setCargandoPeriodos(false)
+    }
+  }
+
+  // Diff antes→después para el mes seleccionado; vacío mientras el modal está
+  // cerrado (cálculo costoso solo bajo demanda).
+  const cambiosDelMes: CambioUso[] = (() => {
+    if (!modalCalculo || !mesCalculo || !contextoCalculo) return []
+    const entradas = filasElegibles(modalCalculo.alcance, modalCalculo.filaId).map((f) => ({
+      id: f.id,
+      horasUsoDia: f.datos.horasUsoDia,
+      diasUsoMes: f.datos.diasUsoMes,
+      ambito: ambitoDeFila(f),
+    }))
+    return calcularCambiosUso(entradas, mesCalculo, contextoCalculo)
+  })()
+
+  const cambiosAplicables = cambiosDelMes.filter((c) => parCambia(c.antes, c.despues))
+  const sinCalculoPosible = cambiosDelMes.filter((c) => c.despues === null).length
+
+  /** Escribe los pares calculados en las filas (solo tras confirmar en el modal). */
+  const aplicarCambiosUso = () => {
+    if (cambiosAplicables.length === 0 || !mesCalculo) return
+    const porId = new Map<string, ParUso>()
+    for (const c of cambiosAplicables) {
+      if (c.despues) porId.set(c.id, c.despues)
+    }
+    setFilas((prev) =>
+      prev.map((f) => {
+        const d = porId.get(f.id)
+        if (!d) return f
+        return { ...f, datos: { ...f.datos, horasUsoDia: d.horasUsoDia, diasUsoMes: d.diasUsoMes } }
+      })
+    )
+    const cuenta = `${porId.size} fila${porId.size === 1 ? '' : 's'}`
+    showToast(`Se actualizaron ${cuenta} con el uso de ${mesCalculo.etiqueta}.`, 'success')
+    setModalCalculo(null)
+  }
 
   const validaciones = useMemo(() => {
     const mapa = new Map<string, ValidacionFila>()
@@ -1900,12 +1997,209 @@ export function ImportadorEquipos({
             Volver a vista previa
           </button>
 
-          {edificacionSel && (
-            <CalculoUsoOpcional
-              edificacionId={edificacionSel}
-              edificacionNombre={edificacionActual?.nombre}
-            />
-          )}
+          {/* Tabla de cálculo: mismas columnas que la vista previa, con las
+              descriptivas en solo lectura y horas/días editables + calculables
+              por fila (Acciones) o en global, con diff antes de aplicar (2A). */}
+          <div className="ui-card">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="ui-title text-base">Cálculo de uso desde el calendario</h2>
+                <p className="ui-muted mt-1 text-sm">
+                  Las columnas de la vista previa en solo lectura; las horas y días de uso se
+                  calculan desde el calendario de{' '}
+                  <strong>{edificacionActual?.nombre ?? 'la edificación seleccionada'}</strong>{' '}
+                  para todos los meses con facturas registradas. Nada se escribe en la base hasta
+                  confirmar la importación.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void abrirModalCalculo('todas')}
+                disabled={!contextoCalculo || filasElegibles('todas').length === 0 || cargandoPeriodos}
+                title={!contextoCalculo ? 'La edificación no tiene calendario configurado' : undefined}
+                className="ui-btn ui-btn-primary"
+              >
+                {cargandoPeriodos ? 'Consultando facturas…' : 'Calcular todas las filas'}
+              </button>
+            </div>
+
+            <div className="ui-table-shell mt-4">
+              <div className="overflow-x-auto">
+                <table className="ui-table">
+                  <caption className="sr-only">
+                    Filas a importar con horas y días de uso editables y cálculo desde el
+                    calendario. Las columnas descriptivas están en solo lectura.
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">
+                        #
+                      </th>
+                      {camposVisibles.map((campo) => (
+                        <th key={campo.id} scope="col">
+                          {campo.etiqueta}
+                        </th>
+                      ))}
+                      <th scope="col">
+                        Estado
+                      </th>
+                      <th scope="col" className="text-right">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filasVisibles.length === 0 && (
+                      <tr>
+                        <td colSpan={camposVisibles.length + 3} className="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
+                          No hay filas. Vuelva al paso anterior.
+                        </td>
+                      </tr>
+                    )}
+                    {filasVisibles.map((fila) => {
+                      const indiceAbsoluto = filas.indexOf(fila)
+                      const numero = indiceAbsoluto + 1
+                      const v = validaciones.get(fila.id)
+                      const errores = v?.errores ?? {}
+                      const tieneError = !fila.descartada && Object.keys(errores).length > 0
+                      const filaClass = fila.descartada
+                        ? 'bg-gray-50 opacity-60 dark:bg-slate-800/40'
+                        : v?.duplicada
+                          ? 'bg-amber-50 dark:bg-amber-500/10'
+                          : tieneError
+                            ? 'bg-red-50/60 dark:bg-red-500/10'
+                            : ''
+
+                      return (
+                        <tr key={fila.id} className={filaClass}>
+                          <td className="px-3 py-2 font-mono text-xs text-gray-400 dark:text-gray-500">{numero}</td>
+
+                          {camposVisibles.map((campo) => {
+                            const editable = campo.id === 'horasUsoDia' || campo.id === 'diasUsoMes'
+                            const idError = `err-calc-${fila.id}-${campo.id}`
+                            const mensaje = errores[campo.id]
+
+                            if (!editable) {
+                              const valorBruto = String(fila.datos[campo.id] ?? '').trim()
+                              const valor =
+                                campo.id === 'bloque'
+                                  ? etiquetaDeBloque(fila.datos.bloque.trim() || bloqueGlobal)
+                                  : campo.id === 'espacio'
+                                    ? espacioEfectivo(fila)
+                                    : valorBruto
+                              return (
+                                <td key={campo.id} className="px-3 py-2 align-top text-gray-700 dark:text-gray-200">
+                                  {valor || <span className="text-gray-400 dark:text-slate-500">—</span>}
+                                </td>
+                              )
+                            }
+
+                            const baseInput = `w-full rounded-md border px-2 py-1 text-sm placeholder:text-gray-300 focus-visible:border-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime focus-visible:ring-offset-1 disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 dark:placeholder:text-slate-500 dark:focus-visible:ring-offset-slate-950 dark:disabled:bg-slate-800 ${
+                              mensaje
+                                ? 'border-red-300 bg-white dark:border-red-900 dark:bg-red-950/40'
+                                : 'border-gray-200'
+                            }`
+
+                            return (
+                              <td key={campo.id} className="px-3 py-2 align-top">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={fila.datos[campo.id]}
+                                  onChange={(e) => actualizarCelda(fila.id, campo.id, e.target.value)}
+                                  disabled={fila.descartada}
+                                  placeholder={campo.ejemplo}
+                                  aria-label={`Fila ${numero}, ${campo.etiqueta}`}
+                                  aria-invalid={Boolean(mensaje)}
+                                  aria-describedby={mensaje ? idError : undefined}
+                                  className={baseInput}
+                                />
+                                {mensaje && (
+                                  <p id={idError} className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
+                                    {mensaje}
+                                  </p>
+                                )}
+                              </td>
+                            )
+                          })}
+
+                          <td className="px-3 py-2">
+                            {fila.descartada ? (
+                              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600 dark:bg-slate-700 dark:text-gray-300">
+                                Descartada
+                              </span>
+                            ) : v?.duplicada ? (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-500/15 dark:text-amber-400">
+                                Duplicada
+                              </span>
+                            ) : tieneError ? (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700 dark:bg-red-500/15 dark:text-red-400">
+                                Con error
+                              </span>
+                            ) : filaVacia(fila) ? (
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-slate-800 dark:text-gray-400">
+                                Vacía
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                                Válida
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => void abrirModalCalculo('fila', fila.id)}
+                              disabled={!contextoCalculo || fila.descartada || cargandoPeriodos}
+                              title={!contextoCalculo ? 'La edificación no tiene calendario configurado' : undefined}
+                              className="focus-ring cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                              aria-label={`Calcular uso de la fila ${numero}`}
+                            >
+                              Calcular
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Paginación: 50 filas por página (misma que la vista previa) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-800/50">
+                <p className="text-gray-600 dark:text-gray-300">
+                  Mostrando{' '}
+                  <strong>
+                    {filasVisibles.length > 0 ? indicePagina * FILAS_POR_PAGINA + 1 : 0}–
+                    {Math.min((indicePagina + 1) * FILAS_POR_PAGINA, filas.length)}
+                  </strong>{' '}
+                  de {filas.length} filas (50 por página)
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPagina((p) => Math.max(0, p - 1))}
+                    disabled={indicePagina <= 0}
+                    className="ui-btn ui-btn-secondary ui-btn-sm"
+                  >
+                    Anterior
+                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Página {indicePagina + 1} de {totalPaginas}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPagina((p) => Math.min(totalPaginas - 1, p + 1))}
+                    disabled={indicePagina >= totalPaginas - 1}
+                    className="ui-btn ui-btn-secondary ui-btn-sm"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Continuar a importación */}
           <div className="flex flex-wrap items-center gap-4">
@@ -2084,6 +2378,163 @@ export function ImportadorEquipos({
               </svg>
               Volver a la vista previa
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============ MODAL: CAMBIOS DE USO ANTES DE APLICAR ============ */}
+      {modalCalculo && mesCalculo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setModalCalculo(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-calculo-uso"
+            className="ui-modal max-w-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="titulo-calculo-uso" className="ui-title text-base">
+              Cambios antes de aplicar
+            </h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              {modalCalculo.alcance === 'todas'
+                ? `Se revisará el uso de las ${filasElegibles('todas').length} filas elegibles.`
+                : `Fila ${numerosDeFila.get(modalCalculo.filaId ?? '') ?? '—'}.`}{' '}
+              Fuente: calendario de{' '}
+              <strong>{edificacionActual?.nombre ?? 'la edificación'}</strong> para el mes
+              seleccionado. Nada se aplica hasta confirmar.
+            </p>
+
+            {/* Meses con facturas registradas (S3) */}
+            {mesesCalculo.meses.length > 0 ? (
+              <div className="mt-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Meses con facturas registradas
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {mesesCalculo.meses.map((m) => {
+                    const activo = mesCalculo.ano === m.ano && mesCalculo.mes === m.mes
+                    return (
+                      <button
+                        key={`${m.ano}-${m.mes}`}
+                        type="button"
+                        onClick={() => setMesCalculo(m)}
+                        aria-pressed={activo}
+                        className={`focus-ring cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                          activo
+                            ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-500/15 dark:text-emerald-400'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300'
+                        }`}
+                      >
+                        {m.etiqueta}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  Se aplicarán los valores del mes seleccionado (por defecto, el último con
+                  facturas). Elija otro mes para recalcular.
+                </p>
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                Esta edificación no tiene facturas registradas: se calcula sobre el mes actual (
+                {mesCalculo.etiqueta}).
+              </p>
+            )}
+            {mesesCalculo.error && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                No fue posible consultar los periodos con facturas; se usa el mes actual (
+                {mesCalculo.etiqueta}).
+              </p>
+            )}
+
+            {/* Diff antes → después */}
+            <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/60">
+              <table className="ui-table">
+                <caption className="sr-only">
+                  Cambios de horas y días de uso antes de aplicarlos.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Bloque</th>
+                    <th scope="col">Espacio</th>
+                    <th scope="col">Horas de uso</th>
+                    <th scope="col">Días de uso</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cambiosAplicables.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                        Sin cambios que aplicar: el cálculo coincide con los valores actuales
+                        {sinCalculoPosible > 0
+                          ? ` (${sinCalculoPosible} fila(s) sin cálculo posible)`
+                          : ''}
+                        .
+                      </td>
+                    </tr>
+                  )}
+                  {cambiosAplicables.map((c) => {
+                    const fila = filasPorId.get(c.id)
+                    const numero = numerosDeFila.get(c.id) ?? 0
+                    return (
+                      <tr key={c.id}>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-400 dark:text-gray-500">{numero}</td>
+                        <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200">
+                          {etiquetaDeBloque(fila?.datos.bloque.trim() || bloqueGlobal) || '—'}
+                        </td>
+                        <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200">
+                          {fila ? espacioEfectivo(fila) || '—' : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">{c.antes.horasUsoDia || '—'}</span>
+                          {' → '}
+                          <strong className="text-emerald-700 dark:text-emerald-400">
+                            {c.despues?.horasUsoDia ?? '—'}
+                          </strong>
+                        </td>
+                        <td className="px-3 py-2 text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">{c.antes.diasUsoMes || '—'}</span>
+                          {' → '}
+                          <strong className="text-emerald-700 dark:text-emerald-400">
+                            {c.despues?.diasUsoMes ?? '—'}
+                          </strong>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {sinCalculoPosible > 0 && (
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                {sinCalculoPosible} fila(s) sin cálculo posible (sin días operativos u horario
+                vigente en el mes); conservan sus valores.
+              </p>
+            )}
+
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setModalCalculo(null)}
+                className="ui-btn ui-btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={aplicarCambiosUso}
+                disabled={cambiosAplicables.length === 0}
+                className="ui-btn ui-btn-primary"
+              >
+                Aplicar {cambiosAplicables.length} cambio
+                {cambiosAplicables.length === 1 ? '' : 's'} ({mesCalculo.etiqueta})
+              </button>
+            </div>
           </div>
         </div>
       )}

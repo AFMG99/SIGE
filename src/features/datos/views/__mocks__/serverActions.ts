@@ -151,6 +151,21 @@ export async function vaciarFacturas(): Promise<ResultadoGestion> {
   }
 }
 
+/** Periodos con facturas (paso «Cálculos opcionales» del importador de Equipos).
+ * 2026 alineado con los rangos del calendario demo (LECTIVO desde 09/02/2026):
+ * enero queda sin días operativos para ejercitar el «sin cálculo posible». */
+export async function periodosConFactura(edificacionId: string): Promise<{
+  estado: 'ok' | 'error'
+  periodos?: string[]
+  mensaje?: string
+}> {
+  void edificacionId
+  return {
+    estado: 'ok',
+    periodos: ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05'],
+  }
+}
+
 export async function actualizarEquipo(
   id: string,
   datos: EdicionEquipo
