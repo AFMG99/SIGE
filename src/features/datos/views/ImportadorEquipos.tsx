@@ -27,7 +27,13 @@ import {
 import type { ConflictoEquipo, FilaEnvioEquipos } from '@/features/datos/models/validations'
 import { importarFilasEquipos } from '@/features/datos/controllers/equipos'
 import { periodosConFactura } from '@/features/datos/controllers/facturas'
-import { calcularCambiosUso, mesesDesdePeriodos, mesActual, parCambia } from '@/features/datos/models/calculoUsoFilas'
+import {
+  calcularCambiosPromedio,
+  calcularCambiosUso,
+  mesesDesdePeriodos,
+  mesActual,
+  parCambia,
+} from '@/features/datos/models/calculoUsoFilas'
 import type {
   CambioUso,
   ContextoCalculoFilas,
@@ -719,21 +725,41 @@ export function ImportadorEquipos({
     }
   }
 
-  // Diff antes→después para el mes seleccionado; vacío mientras el modal está
-  // cerrado (cálculo costoso solo bajo demanda).
-  const cambiosDelMes: CambioUso[] = (() => {
-    if (!modalCalculo || !mesCalculo || !contextoCalculo) return []
-    const entradas = filasElegibles(modalCalculo.alcance, modalCalculo.filaId).map((f) => ({
+  // Diff antes→después. Lo que se APLICA es el PROMEDIO de la serie de meses
+  // con facturas (el valor general de EquipoElectrico debe ser representativo
+  // del año, no el de un mes aislado); el mes elegido en los chips sirve
+  // únicamente de referencia visual en la tabla.
+  const entradasCalculo = () =>
+    filasElegibles(modalCalculo?.alcance ?? 'todas', modalCalculo?.filaId).map((f) => ({
       id: f.id,
       horasUsoDia: f.datos.horasUsoDia,
       diasUsoMes: f.datos.diasUsoMes,
       ambito: ambitoDeFila(f),
     }))
-    return calcularCambiosUso(entradas, mesCalculo, contextoCalculo)
+
+  /** Meses que alimentan el promedio: todos los que tienen facturas (S3). */
+  const mesesPromedio: { mes: number; ano: number }[] = (() => {
+    if (!modalCalculo || !mesCalculo) return []
+    const serie = mesesCalculo.meses.length > 0 ? mesesCalculo.meses : [mesCalculo]
+    return serie.map(({ mes, ano }) => ({ mes, ano }))
   })()
 
-  const cambiosAplicables = cambiosDelMes.filter((c) => parCambia(c.antes, c.despues))
-  const sinCalculoPosible = cambiosDelMes.filter((c) => c.despues === null).length
+  const cambiosAplicar: CambioUso[] = (() => {
+    if (!modalCalculo || !contextoCalculo || mesesPromedio.length === 0) return []
+    return calcularCambiosPromedio(entradasCalculo(), mesesPromedio, contextoCalculo)
+  })()
+
+  /** Mes elegido en los chips: valores calculados de ese mes, solo para ver. */
+  const cambiosReferencia: CambioUso[] = (() => {
+    if (!modalCalculo || !mesCalculo || !contextoCalculo) return []
+    return calcularCambiosUso(entradasCalculo(), mesCalculo, contextoCalculo)
+  })()
+
+  const referenciaPorId = new Map(cambiosReferencia.map((c) => [c.id, c.despues]))
+
+  const cambiosAplicables = cambiosAplicar.filter((c) => parCambia(c.antes, c.despues))
+  const sinCalculoPosible = cambiosAplicar.filter((c) => c.despues === null).length
+  const mesesIncluidos = mesesPromedio.length
 
   /** Meses con facturas agrupados por año: el modal se lee como un calendario. */
   const mesesPorAno = (() => {
@@ -761,7 +787,11 @@ export function ImportadorEquipos({
       })
     )
     const cuenta = `${porId.size} fila${porId.size === 1 ? '' : 's'}`
-    showToast(`Se actualizaron ${cuenta} con el uso de ${mesCalculo.etiqueta}.`, 'success')
+    const fuente =
+      mesesIncluidos > 1
+        ? `el promedio de ${mesesIncluidos} meses con facturas`
+        : `el uso de ${mesCalculo.etiqueta}`
+    showToast(`Se actualizaron ${cuenta} con ${fuente}.`, 'success')
     setModalCalculo(null)
   }
 
@@ -2422,8 +2452,10 @@ export function ImportadorEquipos({
                 ? `Se revisará el uso de las ${filasElegibles('todas').length} filas elegibles.`
                 : `Fila ${numerosDeFila.get(modalCalculo.filaId ?? '') ?? '—'}.`}{' '}
               Fuente: calendario de{' '}
-              <strong>{edificacionActual?.nombre ?? 'la edificación'}</strong> para el mes
-              seleccionado. Nada se aplica hasta confirmar.
+              <strong>{edificacionActual?.nombre ?? 'la edificación'}</strong> sobre los{' '}
+              {mesesIncluidos > 0 ? `${mesesIncluidos} meses con facturas` : 'meses disponibles'}:
+              se aplica el <strong>promedio</strong> (representativo del año) y el mes elegido sirve
+              de referencia. Nada se aplica hasta confirmar.
             </p>
 
             {/* Meses con facturas registradas (S3) */}
@@ -2460,8 +2492,8 @@ export function ImportadorEquipos({
                   ))}
                 </div>
                 <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  Se aplicarán los valores del mes seleccionado (por defecto, el último con
-                  facturas). Elija otro mes para recalcular.
+                  Se aplicará el promedio de los {mesesIncluidos} meses listados. Elija un mes para
+                  ver sus valores calculados en la tabla (solo referencia).
                 </p>
               </div>
             ) : mesesCalculo.error ? (
@@ -2480,7 +2512,7 @@ export function ImportadorEquipos({
             <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/60">
               <table className="ui-table">
                 <caption className="sr-only">
-                  Cambios de horas y días de uso antes de aplicarlos.
+                  Promedio de horas y días de uso a aplicar, con los valores actuales de cada fila.
                 </caption>
                 <thead>
                   <tr>
@@ -2521,6 +2553,9 @@ export function ImportadorEquipos({
                           <strong className="text-emerald-700 dark:text-emerald-400">
                             {c.despues?.horasUsoDia ?? '—'}
                           </strong>
+                          <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">
+                            ({mesCalculo.etiqueta}: {referenciaPorId.get(c.id)?.horasUsoDia ?? '—'})
+                          </span>
                         </td>
                         <td className="px-3 py-2 text-sm">
                           <span className="text-gray-500 dark:text-gray-400">{c.antes.diasUsoMes || '—'}</span>
@@ -2528,6 +2563,9 @@ export function ImportadorEquipos({
                           <strong className="text-emerald-700 dark:text-emerald-400">
                             {c.despues?.diasUsoMes ?? '—'}
                           </strong>
+                          <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">
+                            ({mesCalculo.etiqueta}: {referenciaPorId.get(c.id)?.diasUsoMes ?? '—'})
+                          </span>
                         </td>
                       </tr>
                     )
@@ -2538,7 +2576,7 @@ export function ImportadorEquipos({
             {sinCalculoPosible > 0 && (
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                 {sinCalculoPosible} fila(s) sin cálculo posible (sin días operativos u horario
-                vigente en el mes); conservan sus valores.
+                vigente en ningún mes de la serie); conservan sus valores.
               </p>
             )}
 
@@ -2557,7 +2595,8 @@ export function ImportadorEquipos({
                 className="ui-btn ui-btn-primary"
               >
                 Aplicar {cambiosAplicables.length} cambio
-                {cambiosAplicables.length === 1 ? '' : 's'} ({mesCalculo.etiqueta})
+                {cambiosAplicables.length === 1 ? '' : 's'} (promedio de {mesesIncluidos}{' '}
+                {mesesIncluidos === 1 ? 'mes' : 'meses'})
               </button>
             </div>
           </div>

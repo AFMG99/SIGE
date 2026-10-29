@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  calcularCambiosPromedio,
   calcularCambiosUso,
   calcularParUso,
   etiquetaMes,
   mesActual,
   mesesDesdePeriodos,
   parCambia,
+  promedioParUso,
 } from './calculoUsoFilas'
 import type { ContextoCalculoFilas } from './calculoUsoFilas'
 import type { RangoFechas } from './calendario'
@@ -30,6 +32,9 @@ const RANGOS_MARZO: RangoFechas[] = [
 const RANGOS_ABRIL_Q1: RangoFechas[] = [
   { fechaInicio: '2024-04-01', fechaFin: '2024-04-15', tipoDia: 'LECTIVO' },
 ]
+
+/** Marzo completo + abril parcial: dos meses con cálculo distinto. */
+const RANGOS_MARZO_ABRIL: RangoFechas[] = [...RANGOS_MARZO, ...RANGOS_ABRIL_Q1]
 
 const horarioEdificacion = {
   edificacionId: EDIFICACION_ID,
@@ -201,5 +206,87 @@ describe('calcularCambiosUso / parCambia', () => {
     expect(parCambia({ horasUsoDia: '', diasUsoMes: '' }, { horasUsoDia: '10', diasUsoMes: '21' })).toBe(true)
     expect(parCambia({ horasUsoDia: '10 ', diasUsoMes: '21' }, { horasUsoDia: '10', diasUsoMes: '21' })).toBe(false)
     expect(parCambia({ horasUsoDia: '12', diasUsoMes: '22' }, null)).toBe(false)
+  })
+})
+
+// ============================================================
+// Promedio de la serie: el valor general que queda en
+// `EquipoElectrico` debe ser representativo del año, no el de un
+// mes aislado (vacaciones, festivos, etc.).
+// ============================================================
+
+describe('promedioParUso', () => {
+  it('promedia horas y días de todos los meses y redondea al entero', () => {
+    const par = promedioParUso([
+      { horasUsoDia: '10', diasUsoMes: '21' },
+      { horasUsoDia: '12', diasUsoMes: '22' },
+      { horasUsoDia: '11', diasUsoMes: '21' },
+    ])
+
+    // (10+12+11)/3 = 11 · (21+22+21)/3 = 21.33 → 21
+    expect(par).toEqual({ horasUsoDia: '11', diasUsoMes: '21' })
+  })
+
+  it('redondea hacia arriba el medio punto', () => {
+    expect(
+      promedioParUso([
+        { horasUsoDia: '10', diasUsoMes: '21' },
+        { horasUsoDia: '11', diasUsoMes: '21' },
+      ])
+    ).toEqual({ horasUsoDia: '11', diasUsoMes: '21' })
+  })
+
+  it('ignora los meses sin cálculo posible (null) y promedia el resto', () => {
+    expect(
+      promedioParUso([
+        null,
+        { horasUsoDia: '10', diasUsoMes: '21' },
+        null,
+        { horasUsoDia: '12', diasUsoMes: '31' },
+      ])
+    ).toEqual({ horasUsoDia: '11', diasUsoMes: '26' })
+  })
+
+  it('devuelve null si ningún mes aporta cálculo (la fila queda intacta)', () => {
+    expect(promedioParUso([])).toBeNull()
+    expect(promedioParUso([null, null])).toBeNull()
+  })
+})
+
+describe('calcularCambiosPromedio', () => {
+  const filas = [
+    { id: 'f1', horasUsoDia: '', diasUsoMes: '', ambito: { bloqueId: 'blo-1' } },
+    { id: 'f2', horasUsoDia: '12', diasUsoMes: '22', ambito: { bloqueId: 'blo-1' } },
+    { id: 'f3', horasUsoDia: '10', diasUsoMes: '21', ambito: { bloqueId: 'blo-1' } },
+  ]
+
+  it('aplica el promedio de la serie completa a cada fila', () => {
+    const contexto = baseContexto({ rangos: RANGOS_MARZO_ABRIL })
+    const cambios = calcularCambiosPromedio(filas, [{ mes: 3, ano: 2024 }, { mes: 4, ano: 2024 }], contexto)
+
+    // Marzo = 10 h / 21 días; abril (1–15) = 10 h / 11 días → 10 h / 16 días.
+    expect(cambios).toHaveLength(3)
+    expect(cambios[0].despues).toEqual({ horasUsoDia: '10', diasUsoMes: '16' })
+    expect(cambios[2].despues).toEqual({ horasUsoDia: '10', diasUsoMes: '16' })
+    expect(cambios[2]).toMatchObject({ antes: { horasUsoDia: '10', diasUsoMes: '21' } })
+  })
+
+  it('los meses sin cálculo no contaminan el promedio', () => {
+    const contexto = baseContexto({ rangos: RANGOS_MARZO })
+    const cambios = calcularCambiosPromedio(
+      filas,
+      [{ mes: 3, ano: 2024 }, { mes: 4, ano: 2024 }],
+      contexto
+    )
+
+    // Solo marzo aporta → el promedio es el par de marzo.
+    expect(cambios[0].despues).toEqual({ horasUsoDia: '10', diasUsoMes: '21' })
+  })
+
+  it('sin ningún mes con cálculo posible la fila conserva su valor', () => {
+    const cambios = calcularCambiosPromedio(filas, [{ mes: 3, ano: 2024 }], baseContexto({ horarios: [] }))
+
+    expect(cambios.every((c) => c.despues === null)).toBe(true)
+    expect(cambios.every((c) => parCambia(c.antes, c.despues) === false)).toBe(true)
   })
 })

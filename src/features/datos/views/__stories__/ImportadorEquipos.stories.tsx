@@ -118,8 +118,9 @@ export const Paso4Calculos: Story = {
     )) as HTMLInputElement
     expect(horasFila1.value).toBe('8')
 
-    // Cálculo global → modal: 5 meses con facturas (mock 2026), el último
-    // preseleccionado (mayo 2026, lectivo completo → 12 h / 31 días).
+    // Cálculo global → modal: 5 meses con facturas (mock 2026) que alimentan
+    // el PROMEDIO aplicable (12 h / 28 días); el último mes viene
+    // preseleccionado como referencia (mayo 2026 → 12 h / 31 días).
     await userEvent.click(await canvas.findByRole('button', { name: /calcular todas las filas/i }))
 
     const dialog = await canvas.findByRole('dialog', { name: /cambios antes de aplicar/i })
@@ -130,22 +131,26 @@ export const Paso4Calculos: Story = {
       expect(within(dialog).getByRole('button', { name: etiqueta })).toBeVisible()
     }
 
-    // Diff: las 7 filas cambian a 12 h / 31 días (cabecera + 7 filas).
+    // Diff: las 7 filas cambian al promedio 12 h / 28 días (cabecera + 7 filas);
+    // el mes elegido aparece como referencia entre paréntesis.
     const filasDiff = within(dialog).getAllByRole('row')
     expect(filasDiff).toHaveLength(8)
     expect(filasDiff[1].textContent).toContain('→')
+    expect(filasDiff[1].textContent).toContain('(mayo 2026: 31)')
 
     await userEvent.click(
-      within(dialog).getByRole('button', { name: /aplicar 7 cambios \(mayo 2026\)/i })
+      within(dialog).getByRole('button', { name: /aplicar 7 cambios \(promedio de 5 meses\)/i })
     )
 
     await waitFor(() => {
       expect(canvas.queryByRole('dialog', { name: /cambios antes de aplicar/i })).toBeNull()
     })
-    const toast = await canvas.findByText(/se actualizaron 7 filas con el uso de mayo 2026/i)
+    const toast = await canvas.findByText(
+      /se actualizaron 7 filas con el promedio de 5 meses con facturas/i
+    )
     await waitFor(() => expect(toast).toBeVisible(), { timeout: 2000 })
 
-    // Las filas quedaron con el par calculado (12 h / 31 días en mayo).
+    // Las filas quedaron con el promedio de la serie (12 h / 28 días).
     const horasTras = (await canvas.findByLabelText(
       /fila 1, horas de uso por día/i
     )) as HTMLInputElement
@@ -153,7 +158,7 @@ export const Paso4Calculos: Story = {
       /fila 1, días de uso por mes/i
     )) as HTMLInputElement
     expect(horasTras.value).toBe('12')
-    expect(diasTras.value).toBe('31')
+    expect(diasTras.value).toBe('28')
   },
 }
 
@@ -197,19 +202,21 @@ export const ModoCalculoUso: Story = {
       within(dialog).getByRole('button', { name: 'mayo 2026' }).getAttribute('aria-pressed')
     ).toBe('true')
 
-    // Enero 2026 no tiene días operativos (los rangos empiezan el 09/02):
-    // «sin cálculo posible» y la fila conserva su valor manual.
+    // Enero 2026 no tiene días operativos (los rangos empiezan el 09/02): su
+    // referencia en la tabla es «—», pero el diff NO depende del mes elegido —
+    // lo que se aplica es el promedio de la serie (12 h / 28 días).
     await userEvent.click(within(dialog).getByRole('button', { name: 'enero 2026' }))
-    await expect(await within(dialog).findByText(/sin cambios que aplicar/i)).toBeVisible()
-    await expect(
-      await within(dialog).findByText(/fila\(s\) sin cálculo posible \(sin días operativos/i)
-    ).toBeVisible()
+    const filasEnero = within(dialog).getAllByRole('row')
+    expect(filasEnero).toHaveLength(2)
+    expect(filasEnero[1].textContent).toContain('→')
+    expect(filasEnero[1].textContent).toContain('(enero 2026: —)')
 
-    // Volver a mayo restaura el diff (solo la fila 1: cabecera + 1 fila con →).
+    // Volver a mayo cambia la referencia mostrada; el promedio aplicable es el mismo.
     await userEvent.click(within(dialog).getByRole('button', { name: 'mayo 2026' }))
     const filasVuelta = within(dialog).getAllByRole('row')
     expect(filasVuelta).toHaveLength(2)
     expect(filasVuelta[1].textContent).toContain('→')
+    expect(filasVuelta[1].textContent).toContain('(mayo 2026: 31)')
 
     // Cancelar: nada se aplica.
     await userEvent.click(within(dialog).getByRole('button', { name: /cancelar/i }))
@@ -225,12 +232,14 @@ export const ModoCalculoUso: Story = {
     await userEvent.click(await canvas.findByRole('button', { name: /calcular uso de la fila 1/i }))
     const dialog2 = await canvas.findByRole('dialog', { name: /cambios antes de aplicar/i })
     await userEvent.click(
-      within(dialog2).getByRole('button', { name: /aplicar 1 cambio \(mayo 2026\)/i })
+      within(dialog2).getByRole('button', { name: /aplicar 1 cambio \(promedio de 5 meses\)/i })
     )
     await waitFor(() => {
       expect(canvas.queryByRole('dialog', { name: /cambios antes de aplicar/i })).toBeNull()
     })
-    const toast = await canvas.findByText(/se actualizaron 1 fila con el uso de mayo 2026/i)
+    const toast = await canvas.findByText(
+      /se actualizaron 1 fila con el promedio de 5 meses con facturas/i
+    )
     await waitFor(() => expect(toast).toBeVisible(), { timeout: 2000 })
 
     const horas1Tras = (await canvas.findByLabelText(

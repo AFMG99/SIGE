@@ -11,7 +11,9 @@
  * horario de EQUIPO.
  *
  * Puro y sin I/O: los periodos con facturas llegan como strings `YYYY-MM`
- * desde el servidor y la UI decide qué mes se aplica antes de escribir nada.
+ * desde el servidor y la UI decide qué aplica antes de escribir nada. El
+ * valor que queda en `EquipoElectrico` es el PROMEDIO de la serie
+ * (`promedioParUso` / `calcularCambiosPromedio`), representativo del año.
  */
 import { usoEquiposDelMes } from './calendario'
 import type { PoliticaOperatividad, RangoFechas } from './calendario'
@@ -178,5 +180,55 @@ export function calcularCambiosUso(
     id: fila.id,
     antes: { horasUsoDia: fila.horasUsoDia.trim(), diasUsoMes: fila.diasUsoMes.trim() },
     despues: calcularParUso(fila.ambito, periodo, contexto),
+  }))
+}
+
+/** Promedio de enteros con redondeo (horas y días se guardan como Int). */
+function promedioEntero(valores: number[]): number {
+  return Math.round(valores.reduce((suma, v) => suma + v, 0) / valores.length)
+}
+
+/**
+ * Par representativo de UNA fila sobre una serie de meses: el promedio de los
+ * pares calculados, redondeado al entero.
+ *
+ * El campo general de `EquipoElectrico` (`horasUsoDia`/`diasUsoMes`) guarda UN
+ * solo valor por equipo y es el que consume el modelo de ingeniería
+ * (`models/shares.ts`); aplicar un mes aislado lo dejaría sesgado por
+ * vacaciones o festivos. Los meses `null` (sin cálculo posible) se excluyen
+ * del promedio; si ninguno aporta, la fila conserva su valor (`null`).
+ */
+export function promedioParUso(pares: (ParUso | null)[]): ParUso | null {
+  const horas: number[] = []
+  const dias: number[] = []
+  for (const par of pares) {
+    if (!par) continue
+    const h = Number(par.horasUsoDia)
+    const d = Number(par.diasUsoMes)
+    if (Number.isFinite(h)) horas.push(h)
+    if (Number.isFinite(d)) dias.push(d)
+  }
+  if (horas.length === 0 || dias.length === 0) return null
+  return {
+    horasUsoDia: String(promedioEntero(horas)),
+    diasUsoMes: String(promedioEntero(dias)),
+  }
+}
+
+/**
+ * Diff antes→después aplicando el PROMEDIO de los meses dados (la serie
+ * completa con facturas) a cada fila. Mismas garantías que
+ * `calcularCambiosUso`: devuelve todas las filas y `null` cuando no hay
+ * cálculo posible en ningún mes.
+ */
+export function calcularCambiosPromedio(
+  filas: FilaCalculo[],
+  meses: { mes: number; ano: number }[],
+  contexto: ContextoCalculoFilas
+): CambioUso[] {
+  return filas.map((fila) => ({
+    id: fila.id,
+    antes: { horasUsoDia: fila.horasUsoDia.trim(), diasUsoMes: fila.diasUsoMes.trim() },
+    despues: promedioParUso(meses.map((m) => calcularParUso(fila.ambito, m, contexto))),
   }))
 }
