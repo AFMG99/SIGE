@@ -1,0 +1,94 @@
+# Test credentials — never commit
+test-users.txt
+admin_cookies.txt
+
+# Dependencies and build output
+node_modules/
+.next/
+.turbo/
+.vercel/
+.netlify/
+dist/
+build/
+
+# Environment (secrets live only in GitHub Secrets / .env locally)
+.env
+.env.*
+!.env.example
+.env.local
+.env.production
+
+# Logs
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*storybook.log
+
+# TypeScript / linters cache
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+.swc/
+.parcel-cache/
+
+# Test / coverage artifacts
+coverage/
+playwright-report/
+test-results/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Capturas responsive (revisión visual) + adjuntos del navegador de Vitest
+__screenshots__/
+.vitest-attachments/
+
+# Storybook build
+storybook-static
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Secrets / keys (defense in depth)
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Figure pipeline (fuentes, renders, respaldos) — no versionado
+/docs/figuras/
+
+# Codegraph local index (herramienta de agente, no del proyecto)
+.codegraph/
+
+# Artefactos de agentes / ODD — nunca se versionan (decisiones locales, no del proyecto)
+.atl/
+odd/
+audit_report.md
+audit_report_tmp.md
+report_t4_analysis.md
+answers.md
+respuesta_actual.md
+handoff_*.md
+
+# Instrucciones y docs temporales de auditoría/IA
+docs/INSTRUCCIONES_OPENCODE_ASISTENTE_IA.md
+docs/calendario-*.pdf

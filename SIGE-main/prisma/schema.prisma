@@ -1,0 +1,455 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
+  passwordHash            String?
+  name                    String?
+  role                    Role                     @default(COMUNIDAD_UNIVERSITARIA)
+  status                  UserStatus               @default(ACTIVE)
+  phone                   String?
+  lastLoginAt             DateTime?
+  twoFactorEnabled        Boolean                  @default(false)
+  emailVerified           DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  totpConfirmedAt         DateTime?
+  totpLastUsedStep        Int?
+  totpPendingAt           DateTime?
+  totpSecretEnc           String?
+  twoFactorFailedAttempts Int                      @default(0)
+  twoFactorLockedUntil    DateTime?
+  twoFactorRequired       Boolean                  @default(false)
+  avatarUrl               String?
+  notificationsEmail      Boolean                  @default(true)
+  notificationsInApp      Boolean                  @default(true)
+  timezone                String                   @default("America/Bogota")
+  permissionOverrides     UserPermissionOverride[]
+  sessions                Session[]
+  twoFactorBackupCodes    TwoFactorBackupCode[]
+
+  @@map("users")
+}
+
+model TwoFactorBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("two_factor_backup_codes")
+}
+
+model UserPermissionOverride {
+  id             String    @id @default(cuid())
+  userId         String
+  moduleId       String
+  action         String
+  expiresAt      DateTime?
+  grantedBy      String
+  grantedByEmail String
+  createdAt      DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId, action])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String
+  actorEmail  String
+  action      String
+  targetId    String
+  targetEmail String
+  detail      String?
+  createdAt   DateTime @default(now())
+
+  @@index([targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Edificacion {
+  id                 String               @id @default(cuid())
+  nombre             String
+  tipo               String
+  createdAt          DateTime             @default(now())
+  area               Float?
+  lat                Float?
+  lon                Float?
+  ubicacionNombre    String?
+  alertas            AlertaConsumo[]
+  bloques            Bloque[]
+  calendario         CalendarioOperativo?
+  configUmbralAlerta ConfigUmbralAlerta?
+  evaluacionAlerta   EvaluacionAlerta?
+  eventos            Evento[]
+  facturas           FacturaEnergia[]
+  horarios           HorarioEquipo[]
+  lineasBase         LineaBaseEnergia[]
+  usoPeriodos        UsoPeriodo[]
+
+  @@map("edificaciones")
+}
+
+model HorarioEquipo {
+  id            String           @id @default(cuid())
+  edificacionId String
+  nombre        String
+  diasSemana    String[]
+  horaInicio    Int
+  horaFin       Int
+  createdAt     DateTime         @default(now())
+  bloqueId      String?
+  desde         DateTime?        @db.Date
+  equipoId      String?
+  espacioId     String?
+  hasta         DateTime?        @db.Date
+  bloque        Bloque?          @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  edificacion   Edificacion      @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  equipo        EquipoElectrico? @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+  espacio       Espacio?         @relation(fields: [espacioId], references: [id], onDelete: Cascade)
+
+  @@index([edificacionId])
+  @@index([bloqueId])
+  @@index([espacioId])
+  @@index([equipoId])
+  @@map("horarios_equipo")
+}
+
+model CalendarioOperativo {
+  id                  String            @id @default(cuid())
+  edificacionId       String            @unique
+  horaInicioOperacion Int
+  horasOperacionDia   Int
+  temperaturaBase     Float
+  createdAt           DateTime          @default(now())
+  usarHorariosXe      Boolean           @default(false)
+  domingosOperativos  Boolean           @default(true)
+  festivosOperativos  Boolean           @default(true)
+  edificacion         Edificacion       @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  rangos              RangoCalendario[]
+
+  @@map("calendarios_operativos")
+}
+
+model RangoCalendario {
+  id           String              @id @default(cuid())
+  calendarioId String
+  fechaInicio  DateTime            @db.Date
+  fechaFin     DateTime            @db.Date
+  tipoDia      String
+  nombre       String?
+  createdAt    DateTime            @default(now())
+  calendario   CalendarioOperativo @relation(fields: [calendarioId], references: [id], onDelete: Cascade)
+
+  @@index([calendarioId])
+  @@map("rangos_calendario")
+}
+
+model Evento {
+  id            String           @id @default(cuid())
+  edificacionId String
+  tipo          String
+  nombre        String
+  descripcion   String?
+  fechaInicio   DateTime         @db.Date
+  fechaFin      DateTime?        @db.Date
+  bloqueId      String?
+  espacioId     String?
+  equipoId      String?
+  createdAt     DateTime         @default(now())
+  bloque        Bloque?          @relation(fields: [bloqueId], references: [id], onDelete: Restrict)
+  edificacion   Edificacion      @relation(fields: [edificacionId], references: [id])
+  equipo        EquipoElectrico? @relation(fields: [equipoId], references: [id], onDelete: Restrict)
+  espacio       Espacio?         @relation(fields: [espacioId], references: [id], onDelete: Restrict)
+
+  @@index([edificacionId])
+  @@index([fechaInicio])
+  @@map("eventos")
+}
+
+model Bloque {
+  id                    String              @id @default(cuid())
+  codigo                String              @unique
+  nombre                String
+  areaUtil              Float
+  factorInfraestructura Float
+  edificacionId         String
+  createdAt             DateTime            @default(now())
+  ajustes               AjusteEnergetico[]
+  edificacion           Edificacion         @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  equipos               EquipoElectrico[]
+  espacios              Espacio[]
+  eventos               Evento[]
+  horarios              HorarioEquipo[]
+  lineasBase            LineaBaseEnergia[]
+  variables             VariableOperativa[]
+
+  @@index([edificacionId])
+  @@map("bloques")
+}
+
+model Espacio {
+  id        String            @id @default(cuid())
+  bloqueId  String
+  nombre    String
+  createdAt DateTime          @default(now())
+  equipos   EquipoElectrico[]
+  bloque    Bloque            @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  eventos   Evento[]
+  horarios  HorarioEquipo[]
+
+  @@unique([bloqueId, nombre])
+  @@map("espacios")
+}
+
+model EquipoElectrico {
+  id              String             @id @default(cuid())
+  bloqueId        String
+  espacioId       String
+  tipo            String
+  cantidad        Int
+  potenciaNominal Float
+  horasUsoDia     Int
+  diasUsoMes      Int
+  usenIndicador   String
+  createdAt       DateTime           @default(now())
+  bloque          Bloque             @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  espacio         Espacio            @relation(fields: [espacioId], references: [id], onDelete: Cascade)
+  eventos         Evento[]
+  horarios        HorarioEquipo[]
+  usoPeriodos     UsoEquipoPeriodo[]
+
+  @@unique([bloqueId, espacioId, tipo])
+  @@index([bloqueId])
+  @@index([espacioId])
+  @@map("equipos_electricos")
+}
+
+model FacturaEnergia {
+  id                 String      @id @default(cuid())
+  edificacionId      String
+  periodo            String
+  diasFacturados     Int
+  consumoKwh         Float
+  consumoNormalizado Float
+  costoCop           Float
+  creadoAt           DateTime    @default(now())
+  actualizadoAt      DateTime    @default(now()) @updatedAt
+  edificacion        Edificacion @relation(fields: [edificacionId], references: [id])
+
+  @@unique([periodo, edificacionId])
+  @@index([edificacionId])
+  @@map("facturas_energia")
+}
+
+model VariableOperativa {
+  id                    String   @id @default(cuid())
+  bloqueId              String
+  mes                   Int
+  ano                   Int
+  poblacionFija         Int
+  poblacionFlotante     Int
+  diasLectivosLaborales Int
+  gradesDiaEnfriamiento Float
+  createdAt             DateTime @default(now())
+  bloque                Bloque   @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+
+  @@unique([bloqueId, mes, ano])
+  @@index([bloqueId])
+  @@map("variables_operativas")
+}
+
+model LineaBaseEnergia {
+  id              String       @id @default(cuid())
+  bloqueId        String?
+  tipo            String
+  coeficientes    Json
+  r2              Float?
+  pValue          Float?
+  rangosConfianza Float
+  createdAt       DateTime     @default(now())
+  edificacionId   String?
+  bloque          Bloque?      @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  edificacion     Edificacion? @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+
+  @@unique([bloqueId, tipo])
+  @@unique([edificacionId, tipo])
+  @@map("lineas_base_energia")
+}
+
+model AjusteEnergetico {
+  id            String   @id @default(cuid())
+  bloqueId      String
+  tipo          String
+  modelo        String?
+  descripcion   String
+  periodoInicio DateTime
+  periodoFin    DateTime
+  valorAjuste   Float
+  direccion     String?
+  observaciones String?
+  createdAt     DateTime @default(now())
+  bloque        Bloque   @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+
+  @@index([bloqueId])
+  @@map("ajustes_energeticos")
+}
+
+model AlertaConsumo {
+  id            String      @id @default(cuid())
+  edificacionId String
+  periodo       String
+  mes           Int
+  ano           Int
+  consumoKwh    Float
+  bandaInf      Float
+  bandaSup      Float
+  desviacionPct Float
+  direccion     String
+  /// 'alta' | 'media' | 'baja' — exceso normalizado al semiancho de banda.
+  severidad     String
+  umbralPct     Int
+  umbralK       Float
+  /// 'nueva' | 'leida' | 'descartada' — disposición del usuario.
+  estado        String      @default("nueva")
+  leidaPorId    String?
+  leidaAt       DateTime?
+  nota          String?
+  createdAt     DateTime    @default(now())
+  actualizadoAt DateTime    @default(now()) @updatedAt
+  edificacion   Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+
+  @@unique([edificacionId, periodo])
+  @@index([estado])
+  @@index([periodo])
+  @@index([edificacionId])
+  @@map("alertas_consumo")
+}
+
+model ConfigUmbralAlerta {
+  id            String      @id @default(cuid())
+  edificacionId String      @unique
+  pct           Int         @default(10)
+  k             Float       @default(2)
+  /// false = no se generan alertas nuevas (no borra las existentes).
+  activo        Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  edificacion   Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+
+  @@map("config_umbral_alerta")
+}
+
+model EvaluacionAlerta {
+  id                 String      @id @default(cuid())
+  edificacionId      String      @unique
+  firma              String
+  periodosEvaluables Int
+  /// Meses sin banda suficiente: no evaluables (no son «no inusuales»).
+  noEvaluables       Int
+  evaluadoEn         DateTime    @default(now())
+  evaluadoPorId      String?
+  edificacion        Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+
+  @@map("evaluaciones_alerta")
+}
+
+model UsoPeriodo {
+  id                String           @id @default(cuid())
+  edificacionId     String
+  mes               Int
+  ano               Int
+  estado            UsoPeriodoEstado @default(PENDIENTE)
+  equiposEsperados  Int              @default(0)
+  equiposCalculados Int              @default(0)
+  equiposRevisar    Int              @default(0)
+  advertencias      String?
+  error             String?
+  origen            UsoOrigen
+  loteId            String?
+  calculadoEn       DateTime?
+  calculadoPor      String?
+  calculandoEn      DateTime?
+  edificacion       Edificacion      @relation(fields: [edificacionId], references: [id])
+
+  @@unique([edificacionId, mes, ano])
+  @@index([edificacionId, estado])
+  @@map("uso_periodo")
+}
+
+model UsoEquipoPeriodo {
+  id             String          @id @default(cuid())
+  equipoId       String
+  mes            Int
+  ano            Int
+  horasUsoDia    Int
+  diasUsoMes     Int
+  estado         UsoEquipoEstado
+  horarioGanador String?
+  motivoRevision String?
+  calculadoEn    DateTime        @default(now())
+  equipo         EquipoElectrico @relation(fields: [equipoId], references: [id])
+
+  @@unique([equipoId, mes, ano])
+  @@index([mes, ano])
+  @@map("uso_equipo_periodo")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum Role {
+  ADMIN_TI
+  GESTOR_ENERGETICO
+  COORD_INFRAESTRUCTURA
+  DIRECTIVO
+  COMUNIDAD_UNIVERSITARIA
+}
+
+enum UsoPeriodoEstado {
+  PENDIENTE
+  CALCULANDO
+  CALCULADO
+  FALLIDO
+  REVISAR
+}
+
+enum UsoOrigen {
+  INDIVIDUAL
+  MASIVO
+  RECALCULO
+}
+
+enum UsoEquipoEstado {
+  CALCULADO
+  REVISAR
+}

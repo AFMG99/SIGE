@@ -1,0 +1,47 @@
+name: CD
+
+on:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging (develop)
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: "🚧 PLACEHOLDER — Configurar despliegue a Staging (Vercel)"
+        run: |
+          echo "⚠️  CD staging no configurado aún."
+          echo "Cuando Vercel esté definido: añadir acción 'amondnet/vercel-action' con estos GitHub Secrets (Settings → Secrets → Actions → environment 'staging'):"
+          echo "  - VERCEL_TOKEN"
+          echo "  - VERCEL_ORG_ID"
+          echo "  - VERCEL_PROJECT_ID"
+          echo "  - DATABASE_URL (staging)"
+          echo "  - NEXTAUTH_SECRET"
+          echo "  - NEXTAUTH_URL (staging URL)"
+
+  deploy-production:
+    name: Deploy to Production (main)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: "🚧 PLACEHOLDER — Configurar despliegue a Production (Vercel)"
+        run: |
+          echo "⚠️  CD production no configurado aún."
+          echo "Cuando Vercel esté definido: añadir acción 'amondnet/vercel-action' con estos GitHub Secrets (environment 'production'):"
+          echo "  - VERCEL_TOKEN"
+          echo "  - VERCEL_ORG_ID"
+          echo "  - VERCEL_PROJECT_ID"
+          echo "  - DATABASE_URL (production)"
+          echo "  - NEXTAUTH_SECRET"
+          echo "  - NEXTAUTH_URL (production URL)"
+          echo "Recomendado: añadir 'Required reviewers' al environment 'production' en Settings → Environments para aprobación manual."
