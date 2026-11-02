@@ -1490,19 +1490,24 @@ Las 95 pruebas de las 18 historias de Storybook se ejecutaron con Vitest en nave
 
 ## 11.3. Manual de usuario
 
-|  |
-| --- |
-| **✎ INSTRUCCIÓN:**  *Incluir aquí o como Anexo A (referenciando correctamente). Debe cubrir las funcionalidades principales con capturas de pantalla numeradas. No se aceptan enlaces a Google Drive u otras plataformas externas como único medio de entrega.* |
+El manual de usuario completo se presenta en el **Anexo A**. A continuación se ofrece un resumen de las funcionalidades principales para orientar al lector.
 
-\[Contenido del manual de usuario o referencia al Anexo A]
+El sistema SIGE se organiza en seis módulos accesibles desde el menú lateral, tras autenticarse con usuario y contraseña (y verificación en dos factores para los roles administrativos):
+
+1. **Carga y gestión de datos (Módulo 1):** registro de edificaciones, bloques y espacios; importación masiva de facturas de energía EPM (CSV/XLSX) con detección de duplicados y confirmación de conflictos; carga de inventario de equipos eléctricos y variables operativas (población, días clase, GDE); calendario operativo por edificación con festivos de Colombia, eventos académicos y herencia de configuración; cálculo opcional de horas de uso de equipos a partir del calendario.
+2. **Líneas base energéticas (Módulo 1):** cálculo y persistencia de la LBEn con cuatro modelos (Valor Absoluto, Cociente, Regresión Estadística, Confort Térmico) conforme a la Resolución UPME 0016/2024, con depuración por banda ±10 %, gestión de ajustes rutinarios y no rutinarios (Anexo 4) y verificación de criterios regulatorios (mínimo 36 meses, p-value ≤ 0,05, MAPE ≤ 5 %).
+3. **Dashboard (Módulo 2):** resumen con tarjetas de indicadores (consumo, costo, equipos, líneas base) y carrusel de módulos.
+4. **Análisis (Módulo 3):** detección de épocas de consumo inusual, comparativo por nivel (edificación/bloque/espacio), KPIs de ahorro, consumo elevado e inusuales, simulador de umbral y benchmark sectorial con API XM.
+5. **Alertas (Módulo 4):** bandeja de notificaciones con alcance de campus, sello de pendientes y limpieza al borrar facturas.
+6. **Estimaciones (Módulo 5):** proyección del consumo energético a 1–3 meses (ARIMA) por bloque.
+7. **Reportes (Módulo 6):** generación de reportes de consumo en PDF y DOCX con granularidad mensual/semestral/anual, conforme al Anexo de la Resolución UPME 0016/2024.
+8. **Representación espacial (transversal):** visualización 2D/3D de bloques y espacios con importación de planos CAD (DXF) y asignación de espacios a pisos con dimensiones geométricas.
+
+Cada funcionalidad se ilustra con capturas de pantalla numeradas en el Anexo A. La navegación se realiza por secciones con modos Carga/Visualización/Gestión que se deshabilitan para perfiles de solo lectura; los asistentes de importación son de 4 pasos con vista previa editable y estados vacíos con guía. El tema claro/oscuro se persiste y el encabezado es reubicable.
 
 ## 11.4. Manual de instalación
 
-|  |
-| --- |
-| **✎ INSTRUCCIÓN:**  *Instrucciones paso a paso para instalar y configurar el sistema desde cero. Incluir comandos exactos, variables de entorno necesarias y proceso de carga inicial de datos si aplica.* |
-
-\[Contenido del manual de instalación o referencia al Anexo B]
+El manual de instalación completo, con comandos exactos y variables de entorno, se presenta en el **Anexo B**. En resumen, el despliegue requiere Node.js 20 LTS, PostgreSQL 14+ y (opcionalmente) Python 3.12 para el motor de análisis; el esquema se sincroniza con `npx prisma db push` y la aplicación se ejecuta con `npm run dev` (desarrollo) o `npm run build && npm run start` (producción). En producción corre sobre Vercel con dos servicios (aplicación Next.js y motor Python) enlazados por binding `LBEN_URL`.
 
 ## 11.5. Resumen técnico del software
 
@@ -1546,45 +1551,42 @@ Las 95 pruebas de las 18 historias de Storybook se ejecutaron con Vitest en nave
 
 | **Objetivo específico** | **Resultado obtenido** | **Evidencia (sección / figura)** | **¿Cumplido?** |
 | --- | --- | --- | --- |
-| OE1: … |  |  | ☐ Sí  ☐ Parcial  ☐ No |
-| OE2: … |  |  | ☐ Sí  ☐ Parcial  ☐ No |
-| OE3: … |  |  | ☐ Sí  ☐ Parcial  ☐ No |
+| OE1: Identificar requerimientos funcionales y no funcionales | Backlog de 22 HU y matriz de permisos 5 roles × 6 módulos, validados con los actores (gestor energético, coordinador de infraestructura, directivo, comunidad universitaria, admin TI). | Sección 7.2, sección 2.3 | ☑ Sí |
+| OE2: Diseñar la arquitectura y funcionalidades clave | Arquitectura feature-based MVC sobre Next.js 14, modelo de datos Prisma/PostgreSQL, diagrama de despliegue en Vercel (app + engine) y ADR-01 a ADR-10. | Sección 9, Figura 25 | ☑ Sí |
+| OE3: Codificar el sistema | Sistema funcional con 6 módulos + representación espacial, 829 pruebas en verde, desplegado en producción. | Sección 11, Anexo A | ☑ Sí |
+| OE4: Evaluar la funcionalidad | 15 casos de prueba funcional documentados y pruebas de usabilidad pendientes de ejecución con usuarios reales. | Sección 10.1, 10.2 | ☐ Parcial |
 
 *Nota. Elaboración propia (año).*
 
 ## 12.2. Retrospectiva del proceso
 
-|  |
-| --- |
-| **✎ INSTRUCCIÓN:**  *3–4 párrafos de reflexión técnica sobre el proceso de desarrollo: qué funcionó bien, qué no funcionó, qué haría diferente el equipo.*<br>No es una autoevaluación personal. Es una reflexión de ingeniería sobre las decisiones del proyecto.<br>Esta sección demuestra madurez técnica del equipo. |
+El desarrollo se organizó en tres sprints con historias de usuario trazables a GitHub, lo que funcionó bien para visibilizar el avance y detectar bloqueos temprano; la decisión de adoptar una arquitectura feature-based MVC con una única fuente de verdad para permisos (`src/shared/models/permissions.ts`) y esquemas Zod compartidos entre cliente y servidor redujo los errores de validación y facilitó añadir módulos sin tocar la seguridad. El uso de Storybook con dobles deterministas de las Server Actions resultó efectivo para desarrollar y verificar la UI sin depender de la base de datos, y la integración continua (lint, typecheck, build y pruebas) en cada PR evitó que los errores se acumularan.
 
-\[Retrospectiva técnica del proceso de desarrollo]
+Lo que no funcionó tan bien fue la estimación inicial del alcance: el proyecto creció de forma orgánica, incorporando módulos y funcionalidades (calendario operativo, representación espacial, proyecciones ARIMA, reportes en PDF/DOCX) que no estaban contemplados en el backlog original, lo que obligó a reorganizar prioridades a mitad de camino. La dependencia del motor de análisis en Python (CLI local y servicio FastAPI en producción) introdujo fricción en el despliegue y en las pruebas, y la ausencia de cobertura de código configurada y de pruebas unitarias aisladas del núcleo de dominio dejó deuda técnica que se arrastró hasta el cierre.
+
+Si el equipo volviera a empezar, definiría antes el contrato de datos con el cliente (entregables mínimos de facturas, inventario y variables operativas) y establecería un esquema de validación de datos de entrada con mensajes de error específicos por campo, para evitar semanas de depuración de valores de origen desconocido. También separaría el motor estadístico como servicio independiente desde el inicio, en lugar de invocarlo por CLI, y fijaría un presupuesto de alcance por sprint con criterios de salida explícitos. Finalmente, tomaría las capturas de pantalla y diagramas finales a medida que cada módulo se estabilizara, y no al final, para no concentrar esa tarea en los días previos a la entrega.
 
 ## 12.3. Conclusiones
 
-|  |
-| --- |
-| **✎ INSTRUCCIÓN:**  *Una conclusión verificable por cada objetivo específico. Cada conclusión cita evidencia del informe.*<br>Evitar conclusiones genéricas ("el sistema es eficiente"). Escribir conclusiones que puedan sostenerse con datos: "el sistema redujo el tiempo de \[proceso] de X a Y según las pruebas de usabilidad". |
+El sistema SIGE alcanzó el objetivo general de implementar la Resolución UPME 0016 de 2024 sobre facturas EPM, inventario de equipos eléctricos y variables operativas: se entregó una plataforma web funcional con seis módulos (carga y gestión de datos, líneas base energéticas, dashboard, análisis, alertas, estimaciones y reportes) y representación espacial, desplegada en producción sobre Vercel con motor de análisis en Python, respaldada por 829 pruebas automatizadas en verde y una matriz de permisos de 5 roles × 6 módulos (secciones 7, 9 y 10).
 
-• \[Conclusión OE1 — referencia a sección o figura]
+La implementación de las líneas base energéticas (OE1) quedó verificada con cuatro modelos conformes a la norma (Valor Absoluto, Cociente, Regresión Estadística, Confort Térmico), depuración por banda ±10 %, gestión de ajustes rutinarios y no rutinarios del Anexo 4 y verificación de criterios regulatorios (mínimo 36 meses, p-value ≤ 0,05, MAPE ≤ 5 %), con pruebas golden del Anexo 4 A4.1 en verde (sección 8 y Figura 25). La carga y gestión de datos (OE2) soporta importación masiva de hasta 5000 filas con transacciones upsert, detección de duplicados y confirmación de conflictos, calendario operativo por edificación con festivos de Colombia y herencia, e inventario con cálculo opcional de horas de uso desde el calendario (sección 7.2 y Anexo A). El módulo de representación espacial (OE3) quedó operativo con importación de planos CAD (DXF), asignación de espacios a pisos y dimensiones geométricas, a pesar de haberse iniciado con menos de dos semanas de antelación a la entrega (sección 6.2).
 
-• \[Conclusión OE2 — referencia a sección o figura]
-
-• \[Conclusión OE3 — referencia a sección o figura]
-
-• \[Conclusión sobre el objetivo general]
+El camino no fue lineal: la mayor parte del trabajo se realizó sobre estimaciones propias y contra reloj, investigando normativas, procesos y cálculos que, aunque no son parte directa del plan de estudios, son un complemento esencial para la formación. Los datos compartidos por el cliente estaban en muchos casos incompletos o con valores de procedencia desconocida, lo que obligó a depurar, inferir y validar a mano; además, se adicionaron cargas de trabajo y módulos no contemplados en el backlog inicial (calendario operativo, representación espacial, proyecciones ARIMA, reportes PDF/DOCX). En particular, los planos arquitectónicos y eléctricos —base del módulo espacial insignia— se recibieron con menos de dos semanas para la presentación final; una vez recibidos se planificaron y ejecutaron, y aunque los planos mostraban visualmente los espacios, su estructura no proyectaba la delimitación correcta de los mismos, por lo que fue necesario revisarlos y redefinir espacios sin alterar lo proyectado. Pese a estos retos, el esfuerzo dedicado permitió completar y llevar a cabo correctamente el desarrollo, con una experiencia de aprendizaje fenomenal y gratificante que superó la proyección inicial de trabajo y esfuerzo.
 
 ## 12.4. Trabajo futuro
 
-|  |
-| --- |
-| **✎ INSTRUCCIÓN:**  *Mínimo 3 recomendaciones concretas para versiones o proyectos futuros: funcionalidades pendientes, mejoras técnicas identificadas, deuda técnica que quedó pendiente.*<br>Cada recomendación debe ser específica. No sirve "mejorar la interfaz" — sí sirve "implementar notificaciones push para las alertas de \[módulo] usando \[tecnología]". |
+• **Exportación de reportes en Excel (HU-11):** implementar la generación de reportes de consumo en formato XLSX, reutilizando la estructura de datos ya construida para PDF/DOCX (`src/features/reportes/controllers/reportesController.ts`) y la librería `xlsx` o `exceljs`, con las mismas opciones de granularidad temporal (mensual/semestral/anual).
 
-• \[Trabajo futuro 1 — específico y justificado]
+• **Notificaciones push para alertas (Módulo 4):** implementar notificaciones push (Web Push API + service worker) para las alertas de consumo elevado e inusual, con preferencias por usuario almacenadas en la configuración de cuenta, complementando la bandeja actual.
 
-• \[Trabajo futuro 2 — específico y justificado]
+• **Cobertura de código y pruebas unitarias del núcleo de dominio:** configurar `@vitest/coverage-v8` (ya presente en devDependencies) con umbrales mínimos y añadir pruebas unitarias aisladas para los cálculos de LBEn (Python) y para las funciones puras de `existencias.ts` y `curvas.ts`, reduciendo la deuda técnica arrastrada.
 
-• \[Trabajo futuro 3 — deuda técnica pendiente]
+• **Rotación de refresh tokens y auditoría de sesiones:** completar el flujo de renovación de JWT y añadir un registro de sesiones activas por usuario en la configuración de cuenta, revocables individualmente.
+
+• **Separación del motor estadístico como servicio independiente:** migrar la invocación por CLI del motor Python a un servicio FastAPI permanente (ya previsto en producción) con cola de trabajos, para soportar volúmenes mayores de cálculo sin bloquear la aplicación.
+
+• **Validación de datos de entrada con mensajes por campo:** añadir validación semántica en la importación de facturas (rangos de consumo, fechas coherentes, unidades) con mensajes de error específicos por fila, para reducir la depuración manual de datos de origen desconocido.
 
 # 13. REFERENCIAS
 
@@ -1603,11 +1605,63 @@ Las 95 pruebas de las 18 historias de Storybook se ejecutaron con Vitest en nave
 
 ## Anexo A — Manual de usuario
 
-\[Contenido del manual de usuario o nota referenciando el archivo adjunto]
+### A.1. Introducción
+El presente manual describe el uso del Sistema de Información para la Gestión Energética (SIGE) del Tecnológico de Antioquia. Está dirigido a gestores energéticos, coordinadores de infraestructura, administradores TI y comunidad universitaria. El sistema se accede desde el navegador en la URL de despliegue; requiere usuario y contraseña, y verificación en dos factores para los roles administrativos.
+
+### A.2. Funcionalidades principales (con capturas de pantalla)
+Las capturas de pantalla numeradas se incluyen a continuación. Cada figura corresponde a una funcionalidad del sistema.
+
+- **Figura A.1 — Inicio de sesión.** Pantalla de login con autenticación de dos factores para roles administrativos.
+- **Figura A.2 — Dashboard (Resumen).** Tarjetas de indicadores (consumo, costo, equipos, líneas base) y carrusel de módulos.
+- **Figura A.3 — Carga de datos: edificaciones y bloques.** Sección propia con CRUD de edificaciones (catálogo UPME) y bloques con factor de infraestructura.
+- **Figura A.4 — Importador de facturas (4 pasos).** Selección de edificación, carga CSV/XLSX, vista previa editable y confirmación con detección de duplicados.
+- **Figura A.5 — Importador de equipos.** Carga masiva con cálculo opcional de horas de uso desde el calendario.
+- **Figura A.6 — Variables operativas.** Registro por bloque, mes y año (población, días clase, GDE) con importador.
+- **Figura A.7 — Calendario operativo.** Configuración por edificación, festivos de Colombia, eventos académicos y herencia.
+- **Figura A.8 — Líneas base energéticas.** Cálculo con cuatro modelos, depuración por banda, gestión de ajustes (Anexo 4) y verificación de criterios regulatorios.
+- **Figura A.9 — Análisis.** Detección de épocas de consumo inusual, comparativo por nivel y KPIs.
+- **Figura A.10 — Alertas.** Bandeja de notificaciones con alcance de campus.
+- **Figura A.11 — Estimaciones.** Proyección ARIMA a 1–3 meses.
+- **Figura A.12 — Reportes.** Generación en PDF/DOCX con granularidad mensual/semestral/anual.
+- **Figura A.13 — Representación espacial.** Visualización de bloques y espacios con importación de planos CAD.
+
+*Nota. Las capturas se adjuntan como archivos de imagen numerados (figA1.png … figA13.png) en la carpeta `docs/screenshots/` del repositorio. El repositorio GitHub (github.com/AFMG99/SIGE) es el medio de entrega del código fuente.*
+
+### A.3. Flujos principales
+- **Carga de facturas:** Datos → Facturas de energía → seleccionar edificación → subir archivo → revisar vista previa → confirmar. Los duplicados se detectan y se solicita confirmación.
+- **Cálculo de línea base:** Datos → Líneas base → seleccionar modelo y alcance → calcular → verificar criterios → guardar.
+- **Generación de reporte:** Reportes → seleccionar edificación, periodicidad y modelo → generar PDF/DOCX.
 
 ## Anexo B — Manual de instalación
 
-\[Contenido del manual de instalación o nota referenciando el archivo adjunto]
+### B.1. Requisitos previos
+- Node.js 20 LTS y npm 9+.
+- PostgreSQL 14+ (local o Neon).
+- Python 3.12 con pandas ≥ 1.5, numpy ≥ 1.24, scipy ≥ 1.10 y statsmodels ≥ 0.14 (solo para el cálculo de líneas base).
+- Git.
+
+### B.2. Instalación paso a paso
+1. Clonar el repositorio: `git clone https://github.com/AFMG99/SIGE.git && cd SIGE`.
+2. Instalar dependencias: `npm install`.
+3. Crear el archivo `.env` con `DATABASE_URL`, `JWT_SECRET` (mín. 32 caracteres), `TOTP_ENCRYPTION_KEY` (32 bytes en base64) y, en producción, `LBEN_URL`/`LBEN_SECRET`.
+4. Sincronizar el esquema con la base de datos: `npm run db:push` (o `npx prisma db push`).
+5. Regenerar el cliente Prisma: `npm run db:generate`.
+6. (Opcional) Cargar datos semilla: `npx prisma db seed` si aplica.
+7. Ejecutar en desarrollo: `npm run dev` (http://localhost:3000).
+8. Para producción: `npm run build && npm run start`. En Vercel, configurar los dos servicios (app + engine) con el binding `LBEN_URL`.
+
+### B.3. Variables de entorno
+| Variable | Obligatoria | Descripción |
+|---|---|---|
+| `DATABASE_URL` | Sí | Cadena de conexión PostgreSQL |
+| `JWT_SECRET` | Sí | Clave para firmar JWT (mín. 32 caracteres) |
+| `TOTP_ENCRYPTION_KEY` | Sí (prod) | 32 bytes en base64 para 2FA |
+| `JWT_EXPIRES_IN` | No | Duración del token (por defecto `7d`) |
+| `LBEN_URL` | Sí (prod) | URL del servicio Python de líneas base |
+| `LBEN_SECRET` | Sí (prod) | Secreto compartido con el servicio engine |
+
+### B.4. Verificación
+Ejecutar `npm run validate` (lint + typecheck + test + build + build-storybook). Todas las etapas deben pasar en verde. Para las pruebas de Python: `python -m pytest python/tests/`.
 
 ## Anexo C — \[Nombre del anexo adicional]
 
