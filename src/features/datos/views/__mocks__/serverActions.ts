@@ -329,14 +329,53 @@ export async function crearBloque(
   codigo: string,
   nombre: string,
   areaUtil?: number | string,
-  factorInfraestructura?: number | string
+  factorInfraestructura?: number | string,
+  dimensiones: { largoM?: number | string | null; anchoM?: number | string | null; altoM?: number | string | null } = {}
 ): Promise<ResultadoCreacionBloque> {
   void areaUtil
   void factorInfraestructura
+  const largoM = dimensiones.largoM ? Number(dimensiones.largoM) : null
+  const anchoM = dimensiones.anchoM ? Number(dimensiones.anchoM) : null
+  const altoM = dimensiones.altoM ? Number(dimensiones.altoM) : null
   return {
     estado: 'ok',
-    bloque: { id: slug(codigo, 'bk'), codigo, nombre },
+    bloque: {
+      id: slug(codigo, 'bk'),
+      codigo,
+      nombre,
+      areaUtil: Number(areaUtil) || 0,
+      factorInfraestructura: Number(factorInfraestructura) || 1,
+      largoM,
+      anchoM,
+      altoM,
+      areaHuellaM2: largoM == null || anchoM == null ? null : largoM * anchoM,
+    },
     mensaje: `Bloque "${nombre}" creado en ${edificacionId}.`,
+  }
+}
+
+export async function actualizarDimensionesBloque(
+  id: string,
+  dimensiones: { largoM?: number | string | null; anchoM?: number | string | null; altoM?: number | string | null }
+) {
+  const bloque = bloquesDemo.find((b) => b.id === id)
+  const largoM = dimensiones.largoM ? Number(dimensiones.largoM) : null
+  const anchoM = dimensiones.anchoM ? Number(dimensiones.anchoM) : null
+  return {
+    estado: 'ok' as const,
+    bloque: {
+      id,
+      codigo: bloque?.codigo ?? 'BL-01',
+      nombre: bloque?.nombre ?? 'Bloque demo',
+      edificacionId: bloque?.edificacionId ?? '',
+      areaUtil: bloque?.areaUtil ?? 0,
+      factorInfraestructura: bloque?.factorInfraestructura ?? 1,
+      largoM,
+      anchoM,
+      altoM: dimensiones.altoM ? Number(dimensiones.altoM) : null,
+      areaHuellaM2: largoM == null || anchoM == null ? null : largoM * anchoM,
+    },
+    mensaje: 'Dimensiones del bloque actualizadas.',
   }
 }
 
@@ -368,12 +407,47 @@ export async function eliminarBloque(id: string): Promise<ResultadoGestion> {
 
 export async function crearEspacio(
   bloqueId: string,
-  nombre: string
+  nombre: string,
+  datos: { piso?: string; largoM?: number | string | null; anchoM?: number | string | null; altoM?: number | string | null } = {}
 ): Promise<ResultadoCreacionEspacio> {
+  const largoM = datos.largoM ? Number(datos.largoM) : null
+  const anchoM = datos.anchoM ? Number(datos.anchoM) : null
   return {
     estado: 'ok',
-    espacio: { id: slug(nombre, 'esp'), bloqueId, nombre },
+    espacio: {
+      id: slug(nombre, 'esp'),
+      bloqueId,
+      nombre,
+      piso: datos.piso?.trim() || 'Sin asignar',
+      largoM,
+      anchoM,
+      altoM: datos.altoM ? Number(datos.altoM) : null,
+      areaCalculadaM2: largoM == null || anchoM == null ? null : largoM * anchoM,
+    },
     mensaje: `Espacio "${nombre}" creado.`,
+  }
+}
+
+export async function actualizarEspacio(
+  id: string,
+  datos: { piso?: string; largoM?: number | string | null; anchoM?: number | string | null; altoM?: number | string | null }
+) {
+  const espacio = espaciosDemo.find((s) => s.id === id)
+  const largoM = datos.largoM ? Number(datos.largoM) : null
+  const anchoM = datos.anchoM ? Number(datos.anchoM) : null
+  return {
+    estado: 'ok' as const,
+    espacio: {
+      id,
+      bloqueId: espacio?.bloqueId ?? '',
+      nombre: espacio?.nombre ?? 'Espacio demo',
+      piso: datos.piso?.trim() || 'Sin asignar',
+      largoM,
+      anchoM,
+      altoM: datos.altoM ? Number(datos.altoM) : null,
+      areaCalculadaM2: largoM == null || anchoM == null ? null : largoM * anchoM,
+    },
+    mensaje: 'Datos espaciales del espacio actualizados.',
   }
 }
 
@@ -936,7 +1010,19 @@ export async function calcularModelosLineaBase(
       'poblacion_flotante',
       'grades_dia_enfriamiento',
     ],
-    ajustesAplicados: [],
+    // Un ajuste real del Anexo 4 (A4.1) para que la pestaña «Aplicados» de
+    // Ajustes tenga algo que mostrar cuando el cálculo se propaga al módulo.
+    // El motor reporta los meses homólogos ajustados (años 1 y 3), no el
+    // periodo anómalo registrado.
+    ajustesAplicados: [
+      {
+        ano: 1,
+        mes: 5,
+        proporcion: 0.25,
+        direccion: 'reduccion',
+        descripcion: 'Remodelación piso 3: AC fuera de servicio (may–sep año 2)',
+      },
+    ],
     resultados: resultadosMock(share),
     serie: serieMock(share),
     preparacion: preparacionMock(share),

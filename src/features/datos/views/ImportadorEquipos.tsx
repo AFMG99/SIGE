@@ -72,6 +72,7 @@ const ETIQUETA_TAMANO = '5 MB'
 type CampoId =
   | 'bloque'
   | 'espacio'
+  | 'piso'
   | 'tipo'
   | 'cantidad'
   | 'potenciaNominal'
@@ -88,11 +89,13 @@ interface DefCampo {
   tipo: 'texto' | 'numero'
   /** Campo que puede resolverse con un valor global (si el archivo no lo trae). */
   respaldadoGlobal?: boolean
+  opcional?: boolean
 }
 
 const CAMPOS: DefCampo[] = [
   { id: 'bloque', etiqueta: 'Bloque', ejemplo: 'BLOQUE-A-001', tipo: 'texto', respaldadoGlobal: true },
   { id: 'espacio', etiqueta: 'Espacio', ejemplo: 'Aula Mayor', tipo: 'texto', respaldadoGlobal: true },
+  { id: 'piso', etiqueta: 'Piso o nivel', ejemplo: '2', tipo: 'texto', opcional: true },
   { id: 'tipo', etiqueta: 'Tipo de equipo', ejemplo: 'HVAC', tipo: 'texto' },
   { id: 'cantidad', etiqueta: 'Cantidad', ejemplo: '3', tipo: 'numero' },
   { id: 'potenciaNominal', etiqueta: 'Potencia nominal (kW)', ejemplo: '45.5', tipo: 'numero' },
@@ -104,6 +107,7 @@ const CAMPOS: DefCampo[] = [
 const SINONIMOS: Record<CampoId, string[]> = {
   bloque: ['bloque', 'bloqueid', 'idbloque', 'codigobloque', 'codigo', 'edificio'],
   espacio: ['espacio', 'ambiente', 'zona', 'aula', 'salon', 'espaciofisico', 'local'],
+  piso: ['piso', 'nivel', 'planta', 'pisonivel'],
   tipo: ['tipo', 'tipoequipo', 'equipotipo', 'clase', 'equipo'],
   cantidad: ['cantidad', 'nro', 'numero', 'unidades', 'und', 'total'],
   potenciaNominal: ['potencianominal', 'potencia', 'kw', 'potenciakw', 'potenciakwnominal'],
@@ -143,6 +147,7 @@ function autoMapear(encabezados: string[]): Record<CampoFila, number | null> {
   const mapeo: Record<CampoFila, number | null> = {
     bloque: null,
     espacio: null,
+    piso: null,
     tipo: null,
     cantidad: null,
     potenciaNominal: null,
@@ -190,6 +195,7 @@ const nuevaFila = (): FilaTrabajo => ({
   datos: {
     bloque: '',
     espacio: '',
+    piso: '',
     tipo: '',
     cantidad: '',
     potenciaNominal: '',
@@ -290,6 +296,7 @@ export function ImportadorEquipos({
   const [mapeo, setMapeo] = useState<Record<CampoFila, number | null>>({
     bloque: null,
     espacio: null,
+    piso: null,
     tipo: null,
     cantidad: null,
     potenciaNominal: null,
@@ -347,7 +354,9 @@ export function ImportadorEquipos({
     const mapa = new Map<string, string[]>()
     for (const e of espacios) {
       const lista = mapa.get(e.bloqueId)
-      if (lista) lista.push(e.nombre)
+      if (lista) {
+        if (!lista.includes(e.nombre)) lista.push(e.nombre)
+      }
       else mapa.set(e.bloqueId, [e.nombre])
     }
     mapa.forEach((lista) => lista.sort((a, b) => a.localeCompare(b)))
@@ -507,6 +516,7 @@ export function ImportadorEquipos({
   const faltanCampos = CAMPOS.filter((campo) => {
     // La columna "bloque" se ignora cuando el tipo de edificación no la requiere
     if (campo.id === 'bloque' && !requiereBloque) return false
+    if (campo.opcional) return false
     if (mapeo[campo.id] !== null) return false
     if (campo.id === 'bloque' && bloqueGlobal.trim()) return false
     if (campo.id === 'espacio' && espacioGlobal.trim()) return false
@@ -529,6 +539,7 @@ export function ImportadorEquipos({
         if (campo.id === 'bloque')
           trabajo.datos.bloque = requiereBloque ? resolverBloque(crudo) : ''
         else if (campo.id === 'espacio') trabajo.datos.espacio = crudo
+        else if (campo.id === 'piso') trabajo.datos.piso = crudo
         else if (campo.id === 'tipo') trabajo.datos.tipo = normalizarTipoEquipo(crudo)
         else if (campo.id === 'usenIndicador') trabajo.datos.usenIndicador = normalizarIndicador(crudo)
         else trabajo.datos[campo.id] = crudo
@@ -591,7 +602,8 @@ export function ImportadorEquipos({
         datos.codigo,
         datos.nombre,
         datos.area || undefined,
-        datos.factor || undefined
+        datos.factor || undefined,
+        { largoM: datos.largoM, anchoM: datos.anchoM, altoM: datos.altoM }
       )
       if (res.estado === 'error') {
         throw new Error(res.mensaje)
@@ -684,8 +696,11 @@ export function ImportadorEquipos({
 
   /** Clave `bloqueId|nombreNormalizado` → id de espacio (resolución O(1) por fila). */
   const espaciosPorClave = useMemo(() => {
-    const mapa = new Map<string, string>()
-    for (const e of espacios) mapa.set(`${e.bloqueId}|${normalizarEspacio(e.nombre)}`, e.id)
+    const mapa = new Map<string, EspacioInfo[]>()
+    for (const e of espacios) {
+      const clave = `${e.bloqueId}|${normalizarEspacio(e.nombre)}`
+      mapa.set(clave, [...(mapa.get(clave) ?? []), e])
+    }
     return mapa
   }, [espacios])
 
@@ -693,9 +708,14 @@ export function ImportadorEquipos({
   const ambitoDeFila = (fila: FilaTrabajo): { bloqueId: string | null; espacioId: string | null } => {
     const bloqueId = fila.datos.bloque.trim() || bloqueGlobal.trim()
     const nombre = normalizarEspacio(espacioEfectivo(fila))
+    const piso = fila.datos.piso.trim()
+    const candidatos = bloqueId && nombre
+      ? espaciosPorClave.get(`${bloqueId}|${nombre}`) ?? []
+      : []
+    const encontrados = piso ? candidatos.filter((e) => e.piso === piso) : candidatos
     return {
       bloqueId: bloqueId || null,
-      espacioId: bloqueId && nombre ? (espaciosPorClave.get(`${bloqueId}|${nombre}`) ?? null) : null,
+      espacioId: encontrados.length === 1 ? encontrados[0].id : null,
     }
   }
 
@@ -826,7 +846,7 @@ export function ImportadorEquipos({
       if (!espacio) errores.espacio = 'Campo obligatorio'
 
       for (const campo of CAMPOS) {
-        if (campo.respaldadoGlobal) continue
+        if (campo.respaldadoGlobal || campo.opcional) continue
         const valor = String(fila.datos[campo.id] ?? '').trim()
         if (!valor) errores[campo.id] = 'Campo obligatorio'
       }
@@ -835,6 +855,7 @@ export function ImportadorEquipos({
         const r = filaEquipoElectricoschema.safeParse({
           ...(requiereBloque ? { bloqueId: bloqueEfectivo(fila) } : {}),
           espacio,
+          piso: fila.datos.piso.trim() || undefined,
           tipo: fila.datos.tipo.trim(),
           cantidad: fila.datos.cantidad.trim(),
           potenciaNominal: fila.datos.potenciaNominal.trim(),
@@ -860,7 +881,7 @@ export function ImportadorEquipos({
       if (!validacion || fila.descartada || filaVacia(fila)) return
       if (Object.keys(validacion.errores).length > 0) return
 
-      const clave = `${bloqueEfectivo(fila)}|${espacioEfectivo(fila)}|${fila.datos.tipo.trim().toUpperCase()}`
+      const clave = `${bloqueEfectivo(fila)}|${espacioEfectivo(fila)}|${fila.datos.piso.trim()}|${fila.datos.tipo.trim().toUpperCase()}`
       const numero = numerosDeFila.get(fila.id) ?? 0
       const previa = claves.get(clave)
       if (previa !== undefined) {
@@ -910,6 +931,7 @@ export function ImportadorEquipos({
         fila: i + 1,
         ...(requiereBloque ? { bloqueId: bloqueEfectivo(fila) } : {}),
         espacio: espacioEfectivo(fila),
+        piso: fila.datos.piso.trim() || undefined,
         tipo: fila.datos.tipo.trim() as FilaEnvioEquipos['tipo'],
         cantidad: fila.datos.cantidad.trim(),
         potenciaNominal: fila.datos.potenciaNominal.trim(),
@@ -965,11 +987,11 @@ export function ImportadorEquipos({
   // ------------------------------------------
 
   const descargarPlantilla = () => {
-    const encabezado = 'bloque,espacio,tipo,cantidad,potenciaNominal,horasUsoDia,diasUsoMes,usenIndicador'
+    const encabezado = 'bloque,espacio,piso,tipo,cantidad,potenciaNominal,horasUsoDia,diasUsoMes,usenIndicador'
     const ejemplos = [
-      'BLOQUE-A-001,Aula Mayor,HVAC,3,45.5,12,22,ACTIVO',
-      'BLOQUE-A-001,Pasillo,ILUMINACION,150,18.2,10,22,ACTIVO',
-      'BLOQUE-A-001,Oficina Administrativa,OFICINA,45,12.8,8,22,ACTIVO',
+      'BLOQUE-A-001,Aula Mayor,2,HVAC,3,45.5,12,22,ACTIVO',
+      'BLOQUE-A-001,Pasillo,1,ILUMINACION,150,18.2,10,22,ACTIVO',
+      'BLOQUE-A-001,Oficina Administrativa,1,OFICINA,45,12.8,8,22,ACTIVO',
     ]
     const csv = '\uFEFF' + [encabezado, ...ejemplos].join('\r\n')
     descargar('plantilla-inventario-equipos.csv', csv, 'text/csv;charset=utf-8')
@@ -1536,7 +1558,8 @@ export function ImportadorEquipos({
             <h3 className="ui-title text-base">Mapeo de columnas</h3>
             <p className="ui-muted mt-1 text-xs">
               Se sugirió una asignación automática. Si los nombres no coinciden, ajústela aquí.
-              Espacio puede omitirse si definió un valor global en el paso 1
+              Espacio puede omitirse si definió un valor global en el paso 1. Piso es opcional, pero
+              debe indicarse si el mismo nombre de espacio existe en varios niveles.
               {requiereBloque
                 ? ', igual que el bloque.'
                 : '; la columna de bloque no aplica a esta edificación.'}
@@ -2621,7 +2644,7 @@ export function ImportadorEquipos({
             </h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
               Se encontraron <strong>{conflictos.length}</strong> equipos ya guardados con el
-              mismo bloque, espacio y tipo. Si continúa, esos registros serán{' '}
+              mismo bloque, piso, espacio y tipo. Si continúa, esos registros serán{' '}
               <strong>reemplazados</strong> con los datos del archivo.
             </p>
 
@@ -2629,7 +2652,7 @@ export function ImportadorEquipos({
               {conflictos.slice(0, 20).map((c, i) => (
                 <li key={i} className="text-gray-700 dark:text-gray-200">
                   <span className="font-mono text-xs text-gray-400 dark:text-gray-500">Fila {c.fila}</span> —{' '}
-                  {etiquetaDeBloque(c.bloqueId)} · {c.espacio} · {c.tipo}
+                  {etiquetaDeBloque(c.bloqueId)} · {c.piso || 'Piso sin especificar'} · {c.espacio} · {c.tipo}
                 </li>
               ))}
               {conflictos.length > 20 && (

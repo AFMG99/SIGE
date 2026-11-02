@@ -166,7 +166,7 @@ const PASOS_LINEAS_BASE: Paso[] = [
     titulo: 'Elegir bloque',
     subtitulo: 'Serie con mínimo 36 meses',
     descripcion:
-      'Seleccione el bloque a evaluar: se recomiendan al menos 36 meses de consumo depurado para guardar oficialmente (con menos meses se guarda con advertencia y sugerencia de ajustes). La depuración usa la banda ±10 % de la ec. 3 (§7.5.1); los meses anómalos con causa conocida se corrigen mediante ajustes no rutinarios (Anexo 4) antes de la verificación, en lugar de ensanchar la banda o descartarlos.',
+      'Seleccione el bloque a evaluar: se recomiendan al menos 36 meses de consumo depurado para guardar oficialmente (con menos meses se guarda con advertencia y sugerencia de ajustes). La depuración usa la banda ±10 % de la ec. 3 (§7.5.1); los meses anómalos con causa conocida motivan ajustes no rutinarios (Anexo 4) que se aplican antes de la verificación sobre los meses homólogos de los demás años del periodo base, dejando intactos los anómalos, en lugar de ensanchar la banda o descartarlos.',
     beneficios: [
       'Mínimo 36 meses de historia',
       'Depuración ±10 % (ec. 3) + ajustes Anexo 4',

@@ -684,7 +684,8 @@ export function ImportadorVariables({
         datos.codigo,
         datos.nombre,
         datos.area || undefined,
-        datos.factor || undefined
+        datos.factor || undefined,
+        { largoM: datos.largoM, anchoM: datos.anchoM, altoM: datos.altoM }
       )
       if (res.estado === 'error') {
         throw new Error(res.mensaje)
