@@ -34,6 +34,10 @@ export function EspacialInspector({
   if (!bloque) return null
 
   const kwTotal = (bloque.metricas.potenciaTotalW / 1000).toFixed(2)
+  const dimensionesBloque =
+    bloque.largoM != null && bloque.anchoM != null
+      ? `${bloque.largoM} × ${bloque.anchoM}${bloque.altoM == null ? '' : ` × ${bloque.altoM}`} m`
+      : 'Sin dimensiones registradas'
 
   const handleGuardarArea = async () => {
     const nuevaArea = Number(areaInput)
@@ -154,6 +158,15 @@ export function EspacialInspector({
             {bloque.metricas.cantidadEquipos} uds.
           </p>
         </div>
+        <div className="col-span-2 rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
+          <p className="text-slate-500 dark:text-slate-400">Área de huella · dimensiones</p>
+          <p className="text-sm font-bold text-slate-900 dark:text-white">
+            {bloque.areaHuellaM2 == null ? 'Sin calcular' : `${bloque.areaHuellaM2} m²`}
+            <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
+              {dimensionesBloque}
+            </span>
+          </p>
+        </div>
       </div>
 
       {mensaje && (
@@ -192,7 +205,16 @@ export function EspacialInspector({
                   onClick={() => setActiveEspacioId(isExpanded ? null : esp.id)}
                   className="flex w-full items-center justify-between text-left font-medium text-slate-800 dark:text-slate-200"
                 >
-                  <span className="truncate pr-2 font-semibold">{esp.nombre}</span>
+                  <span className="min-w-0 pr-2">
+                    <span className="block truncate font-semibold">{esp.nombre}</span>
+                    <span className="mt-0.5 block text-[10px] font-normal text-slate-500 dark:text-slate-400">
+                      Piso: {esp.piso}
+                      {esp.areaCalculadaM2 == null ? '' : ` · ${esp.areaCalculadaM2} m²`}
+                      {esp.largoM == null || esp.anchoM == null
+                        ? ''
+                        : ` · ${esp.largoM} × ${esp.anchoM}${esp.altoM == null ? '' : ` × ${esp.altoM}`} m`}
+                    </span>
+                  </span>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <span className="text-[11px] text-slate-500">{espKw} kW</span>
                     <svg

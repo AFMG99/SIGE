@@ -3,6 +3,8 @@ import { expect, within } from 'storybook/test'
 
 import {
   actualizarEdificacion,
+  actualizarDimensionesBloque,
+  actualizarEspacio,
   crearBloque,
   crearEdificacion,
   crearEspacio,
@@ -28,8 +30,10 @@ const meta = {
     actualizarEdificacion,
     eliminarEdificacion,
     crearBloque,
+    actualizarDimensionesBloque,
     eliminarBloque,
     crearEspacio,
+    actualizarEspacio,
     eliminarEspacio,
   },
 } satisfies Meta<typeof EdificacionesPanel>
@@ -77,6 +81,11 @@ export const CrearBloque: Story = {
 
     await userEvent.type(within(dialog).getByLabelText(/código/i), 'A-103')
     await userEvent.type(within(dialog).getByLabelText(/^nombre/i), 'Ala Este')
+    await userEvent.click(
+      within(dialog).getByText('Opciones avanzadas: dimensiones del bloque')
+    )
+    await userEvent.type(within(dialog).getByLabelText('Largo (m)'), '20')
+    await userEvent.type(within(dialog).getByLabelText('Ancho (m)'), '8')
     await userEvent.click(within(dialog).getByRole('button', { name: /crear bloque/i }))
 
     await screen.findByText(/Bloque "Ala Este" creado/, {}, { timeout: 3000 })
@@ -157,10 +166,33 @@ export const AniadirEspacio: Story = {
     await userEvent.type(campo, 'Aula 103')
     // Hay un botón «Añadir espacio» por bloque: se usa el del formulario A-101.
     const formulario = campo.closest('form') as HTMLElement
+    await userEvent.click(within(formulario).getByText('Avanzado'))
+    await userEvent.type(within(formulario).getByLabelText('Piso o nivel'), '1')
+    await userEvent.type(within(formulario).getByLabelText('Largo (m)'), '6')
+    await userEvent.type(within(formulario).getByLabelText('Ancho (m)'), '4')
     await userEvent.click(within(formulario).getByRole('button', { name: /añadir espacio/i }))
 
     await screen.findByText(/Espacio "Aula 103" creado/, {}, { timeout: 3000 })
     // En Storybook el panel es stateless: la lista no se muta; el alta se
     // verifica por el toast del servidor.
+  },
+}
+
+export const EditarUbicacionYDimensionesEspacio: Story = {
+  name: 'Asignar piso y dimensiones a un espacio existente',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const screen = within(canvasElement.ownerDocument.body)
+    const botonConfigurar = canvas.getByRole('button', {
+      name: 'Configurar piso y dimensiones del espacio Aula 101, piso Sin asignar, bloque A-101',
+    })
+    const tarjetaEspacio = botonConfigurar.closest('.rounded-md') as HTMLElement
+    const espacio = within(tarjetaEspacio)
+    await userEvent.click(botonConfigurar)
+    await userEvent.type(espacio.getByLabelText('Piso o nivel'), '1')
+    await userEvent.type(espacio.getByLabelText('Largo (m)'), '6')
+    await userEvent.type(espacio.getByLabelText('Ancho (m)'), '4')
+    await userEvent.click(espacio.getByRole('button', { name: 'Guardar' }))
+
+    await screen.findByText('Datos espaciales del espacio actualizados.')
   },
 }
