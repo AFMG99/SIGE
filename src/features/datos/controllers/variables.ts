@@ -7,6 +7,8 @@
 import { prisma } from '@/shared/models/prisma'
 import { canWithOverrides, getCurrentUser } from '@/shared/models/authz'
 import { auditarAccion } from '@/features/datos/controllers/auditoria'
+import { autorizarCarga } from '@/features/datos/controllers/edificaciones'
+import { obtenerTempsHorarias } from '@/features/datos/controllers/clima'
 import {
   edicionVariableSchema,
   filaVariableOperativaschema,
@@ -18,6 +20,15 @@ import type {
   ResultadoGestion,
   ResultadoImportacionVariables,
 } from '@/features/datos/models/validations'
+import {
+  diasOperativosDelMes,
+  mapaXeDelMes,
+  calcularGde,
+  type ConfigCalendario,
+  type PoliticaOperatividad,
+  type RangoFechas,
+  type TempDia,
+} from '@/features/datos/models/calendario'
 
 /** Límite de filas por importación para proteger la transacción. */
 const MAX_FILAS_POR_IMPORTACION = 5000
@@ -403,5 +414,493 @@ export async function vaciarVariables(): Promise<ResultadoGestion> {
       estado: 'error',
       mensaje: 'No fue posible vaciar las variables operativas. Intente de nuevo.',
     }
+  }
+}
+
+// ============================================================
+// Cálculo masivo de Variables Operativas (días lectivos/laborales + GDE)
+// ============================================================
+
+/** Modo de aplicación de un cálculo. */
+export type ModoCalculo = 'solo-vacios' | 'reemplazar'
+
+/** Qué calcular en el lote. */
+export interface QueCalcular {
+  diasLaborales: boolean
+  gde: boolean
+}
+
+/** Opciones por tipo de cálculo. */
+export interface OpcionesCalculoVariables {
+  modoDias: ModoCalculo
+  modoGde: ModoCalculo
+}
+
+/** Entrada para la vista previa del cálculo masivo de variables. */
+export interface PrepararCalculoVariablesInput {
+  edificacionId: string
+  desde: { mes: number; ano: number }
+  hasta: { mes: number; ano: number }
+  queCalcular: QueCalcular
+  opciones: OpcionesCalculoVariables
+}
+
+/** Resultado de un periodo en la vista previa. */
+export interface PeriodoVariableVistaPrevia {
+  clave: string
+  bloqueId: string
+  bloqueCodigo: string
+  mes: number
+  ano: number
+  tieneVariable: boolean
+  diasLaborales: {
+    actual: number | null
+    calculado: number | null
+    seEscribe: boolean
+  }
+  gde: {
+    actual: number | null
+    calculado: number | null
+    seEscribe: boolean
+  }
+  advertencias: string[]
+}
+
+/** Vista previa completa del cálculo masivo de variables. */
+export interface VistaPreviaVariables {
+  intervalo: { desde: { mes: number; ano: number }; hasta: { mes: number; ano: number }; cantidadMeses: number }
+  periodos: PeriodoVariableVistaPrevia[]
+  conteos: {
+    totalPeriodos: number
+    seEscribenDias: number
+    seEscribenGde: number
+    sinVariable: number
+  }
+}
+
+/** Entrada para la ejecución del cálculo masivo. */
+export interface EjecutarCalculoVariablesInput {
+  edificacionId: string
+  desde: { mes: number; ano: number }
+  hasta: { mes: number; ano: number }
+  queCalcular: QueCalcular
+  opciones: OpcionesCalculoVariables
+  loteId?: string
+}
+
+/** Respuesta de una invocación del lote. */
+export interface EjecucionLoteVariables {
+  loteId: string
+  procesados: { clave: string; diasLaborales?: 'calculado' | 'conservado' | 'fallido'; gde?: 'calculado' | 'conservado' | 'fallido'; mensaje?: string }[]
+  restantes: number
+  continuar: boolean
+  resumenParcial: {
+    calculadosDias: number
+    conservadosDias: number
+    fallidosDias: number
+    calculadosGde: number
+    conservadosGde: number
+    fallidosGde: number
+  }
+}
+
+const MAX_PERIODOS_POR_LLAMADA_VARIABLES = 10
+const PRESUPUESTO_MS_VARIABLES = 30_000
+
+function generarLoteIdVariables(): string {
+  return crypto.randomUUID()
+}
+
+function clavePeriodoVariables(mes: number, ano: number): string {
+  return `${ano}-${String(mes).padStart(2, '0')}`
+}
+
+function expandirIntervaloVariables(desde: { mes: number; ano: number }, hasta: { mes: number; ano: number }): { mes: number; ano: number }[] {
+  const total = (hasta.ano - desde.ano) * 12 + (hasta.mes - desde.mes)
+  const base = desde.ano * 12 + (desde.mes - 1)
+  const periodos: { mes: number; ano: number }[] = []
+  for (let i = 0; i <= total; i++) {
+    const indice = base + i
+    periodos.push({ ano: Math.floor(indice / 12), mes: (indice % 12) + 1 })
+  }
+  return periodos
+}
+
+async function autorizarCalculoVariables(): Promise<{ ok: true; userId: string } | { ok: false; mensaje: string }> {
+  try {
+    const user = await getCurrentUser()
+    if (!user) return { ok: false, mensaje: 'Sesión expirada. Inicie sesión nuevamente.' }
+    if (!(await canWithOverrides(user, 'consumption', 'upload'))) {
+      return { ok: false, mensaje: 'Su rol no tiene permiso para calcular variables operativas.' }
+    }
+    return { ok: true, userId: user.id }
+  } catch {
+    return { ok: false, mensaje: 'No fue posible autorizar el cálculo.' }
+  }
+}
+
+async function cargarContextoVariables(edificacionId: string, mes: number, ano: number) {
+  const edificacion = await prisma.edificacion.findUnique({
+    where: { id: edificacionId },
+    select: { id: true, nombre: true, lat: true, lon: true, calendario: true },
+  })
+  if (!edificacion) return { ok: false as const, mensaje: 'La edificación indicada no existe.' }
+  if (!edificacion.calendario) {
+    return { ok: false as const, mensaje: 'Esta edificación no tiene configuración operativa.' }
+  }
+
+  const [rangos, bloquesResult, variablesExistentes, horarios] = await Promise.all([
+    prisma.rangoCalendario.findMany({
+      where: { calendario: { edificacionId } },
+      orderBy: { fechaInicio: 'asc' },
+      select: { fechaInicio: true, fechaFin: true, tipoDia: true },
+    }),
+    prisma.bloque.findMany({
+      where: { edificacionId },
+      select: { id: true, codigo: true },
+    }),
+    prisma.variableOperativa.findMany({
+      where: { bloqueId: { in: (await prisma.bloque.findMany({ where: { edificacionId }, select: { id: true } })).map(b => b.id) }, mes, ano },
+      select: { bloqueId: true, diasLectivosLaborales: true, gradesDiaEnfriamiento: true },
+    }),
+    prisma.horarioEquipo.findMany({
+      where: { edificacionId },
+      select: { diasSemana: true, horaInicio: true, horaFin: true, desde: true, hasta: true, bloqueId: true, espacioId: true, equipoId: true },
+    }),
+  ])
+  const bloques = bloquesResult
+
+  const rangosIso = rangos.map(r => ({
+    fechaInicio: r.fechaInicio.toISOString().slice(0, 10),
+    fechaFin: r.fechaFin.toISOString().slice(0, 10),
+    tipoDia: r.tipoDia,
+  }))
+
+  const politica: PoliticaOperatividad = {
+    domingosOperativos: edificacion.calendario.domingosOperativos ?? true,
+    festivosOperativos: edificacion.calendario.festivosOperativos ?? true,
+  }
+
+  const config: ConfigCalendario = {
+    horaInicioOperacion: edificacion.calendario.horaInicioOperacion,
+    horasOperacionDia: edificacion.calendario.horasOperacionDia,
+    temperaturaBase: edificacion.calendario.temperaturaBase,
+  }
+
+  let horasUsoPorFecha: Map<string, number> | null = null
+  if (edificacion.calendario.usarHorariosXe) {
+    horasUsoPorFecha = mapaXeDelMes({
+      rangos: rangosIso,
+      config,
+      horarios: horarios.map(h => ({
+        diasSemana: h.diasSemana,
+        horaInicio: h.horaInicio,
+        horaFin: h.horaFin,
+        desde: h.desde ? h.desde.toISOString().slice(0, 10) : null,
+        hasta: h.hasta ? h.hasta.toISOString().slice(0, 10) : null,
+      })),
+      usarHorariosXe: true,
+      mes,
+      ano,
+      politica,
+    })
+  }
+
+  let tempsHorarias: TempDia[] | null = null
+  if (edificacion.lat != null && edificacion.lon != null) {
+    try {
+      tempsHorarias = await obtenerTempsHorarias(edificacion.lat, edificacion.lon, mes, ano)
+    } catch {
+      tempsHorarias = null
+    }
+  }
+
+  const variablesPorBloque = new Map(variablesExistentes.map(v => [v.bloqueId, v]))
+
+  return {
+    ok: true as const,
+    edificacion,
+    rangos: rangosIso,
+    bloques,
+    config,
+    politica,
+    horasUsoPorFecha,
+    tempsHorarias,
+    variablesPorBloque,
+  }
+}
+
+/**
+ * Vista previa del cálculo masivo de variables operativas (SOLO LECTURA).
+ * Calcula qué se escribiría en cada periodo/bloque según el modo elegido.
+ */
+export async function prepararCalculoVariablesMasivo(
+  input: PrepararCalculoVariablesInput
+): Promise<({ estado: 'ok' } & { vistaPrevia: VistaPreviaVariables }) | { estado: 'error'; mensaje: string }> {
+  try {
+    const auth = await autorizarCalculoVariables()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    const { edificacionId, desde, hasta, queCalcular, opciones } = input
+
+    const id = String(edificacionId ?? '').trim()
+    if (!id) return { estado: 'error', mensaje: 'La edificación es obligatoria.' }
+
+    // Validar intervalo
+    if (desde.ano > hasta.ano || (desde.ano === hasta.ano && desde.mes > hasta.mes)) {
+      return { estado: 'error', mensaje: 'El mes final debe ser posterior o igual al inicial.' }
+    }
+    const mesesTotal = (hasta.ano - desde.ano) * 12 + (hasta.mes - desde.mes) + 1
+    if (mesesTotal > 120) {
+      return { estado: 'error', mensaje: 'El intervalo supera los 120 meses permitidos.' }
+    }
+
+    const periodos = expandirIntervaloVariables(desde, hasta)
+    const primerPeriodo = periodos[0]
+    const contexto = await cargarContextoVariables(id, primerPeriodo.mes, primerPeriodo.ano)
+    if (!contexto.ok) return { estado: 'error', mensaje: contexto.mensaje }
+
+    const { bloques, config, politica, rangos, horasUsoPorFecha, tempsHorarias, variablesPorBloque } = contexto
+
+    const periodosVista: PeriodoVariableVistaPrevia[] = []
+    let seEscribenDias = 0
+    let seEscribenGde = 0
+    let sinVariable = 0
+
+    for (const p of periodos) {
+      // Recalcular días operativos y GDE para cada mes (pueden variar por rangos)
+      const diasOp = diasOperativosDelMes(rangos, p.mes, p.ano, politica)
+
+      let gdeCalculado: number | null = null
+      if (queCalcular.gde && tempsHorarias) {
+        const resGde = calcularGde({
+          rangos,
+          config,
+          tempsHorarias,
+          mes: p.mes,
+          ano: p.ano,
+          horasUsoPorFecha,
+          politica,
+        })
+        gdeCalculado = resGde.gde
+      }
+
+      for (const bloque of bloques) {
+        const variable = variablesPorBloque.get(bloque.id)
+        const tieneVariable = variable !== undefined
+
+        if (!tieneVariable) sinVariable++
+
+        const diasActual = variable?.diasLectivosLaborales ?? null
+        const gdeActual = variable?.gradesDiaEnfriamiento ?? null
+
+        const diasCalculado = queCalcular.diasLaborales && diasOp > 0 ? diasOp : null
+        const gdeCalculadoBloque = queCalcular.gde ? gdeCalculado : null
+
+        let seEscribeDias = false
+        let seEscribeGde = false
+
+        if (queCalcular.diasLaborales && diasCalculado !== null) {
+          if (opciones.modoDias === 'reemplazar' || (opciones.modoDias === 'solo-vacios' && (diasActual === null || diasActual === 0))) {
+            seEscribeDias = true
+            seEscribenDias++
+          }
+        }
+
+        if (queCalcular.gde && gdeCalculadoBloque !== null) {
+          if (opciones.modoGde === 'reemplazar' || (opciones.modoGde === 'solo-vacios' && (gdeActual === null || gdeActual === 0))) {
+            seEscribeGde = true
+            seEscribenGde++
+          }
+        }
+
+        const advertencias: string[] = []
+        if (queCalcular.diasLaborales && diasOp === 0) advertencias.push('Sin días operativos en el mes')
+        if (queCalcular.gde && !tempsHorarias) advertencias.push('Sin datos climáticos para el mes')
+        if (queCalcular.gde && horasUsoPorFecha && gdeCalculado !== null && gdeCalculado === 0) advertencias.push('GDE calculada en 0 (revisar horarios Xe)')
+
+        periodosVista.push({
+          clave: `${bloque.id}|${clavePeriodoVariables(p.mes, p.ano)}`,
+          bloqueId: bloque.id,
+          bloqueCodigo: bloque.codigo,
+          mes: p.mes,
+          ano: p.ano,
+          tieneVariable,
+          diasLaborales: { actual: diasActual, calculado: diasCalculado, seEscribe: seEscribeDias },
+          gde: { actual: gdeActual, calculado: gdeCalculadoBloque, seEscribe: seEscribeGde },
+          advertencias,
+        })
+      }
+    }
+
+    return {
+      estado: 'ok',
+      vistaPrevia: {
+        intervalo: { desde, hasta, cantidadMeses: periodos.length },
+        periodos: periodosVista,
+        conteos: {
+          totalPeriodos: periodosVista.length,
+          seEscribenDias,
+          seEscribenGde,
+          sinVariable,
+        },
+      },
+    }
+  } catch (error) {
+    console.error('Error en prepararCalculoVariablesMasivo:', error)
+    return { estado: 'error', mensaje: 'No fue posible generar la vista previa. Intente de nuevo.' }
+  }
+}
+
+/**
+ * Ejecuta el cálculo masivo de variables por lotes acotados.
+ * Escribe directamente en BD (upsert por bloque+mes+ano).
+ */
+export async function ejecutarCalculoVariablesMasivo(
+  input: EjecutarCalculoVariablesInput
+): Promise<({ estado: 'ok' } & { ejecucion: EjecucionLoteVariables }) | { estado: 'error'; mensaje: string }> {
+  try {
+    const auth = await autorizarCalculoVariables()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    const { edificacionId, desde, hasta, queCalcular, opciones, loteId } = input
+    const id = String(edificacionId ?? '').trim()
+    if (!id) return { estado: 'error', mensaje: 'La edificación es obligatoria.' }
+
+    const lote = loteId ?? generarLoteIdVariables()
+    const periodos = expandirIntervaloVariables(desde, hasta)
+
+    await auditarAccion({
+      action: 'variables.calcular_masivo.inicio',
+      targetId: id,
+      detail: `Lote ${lote}: ${clavePeriodoVariables(desde.mes, desde.ano)}–${clavePeriodoVariables(hasta.mes, hasta.ano)}, ${periodos.length} mes(es).`,
+    })
+
+    const primerPeriodo = periodos[0]
+    const contexto = await cargarContextoVariables(id, primerPeriodo.mes, primerPeriodo.ano)
+    if (!contexto.ok) return { estado: 'error', mensaje: contexto.mensaje }
+
+    const { bloques, config, politica, rangos, horasUsoPorFecha, tempsHorarias, variablesPorBloque } = contexto
+
+    // Pendientes: cruzar bloques x periodos y filtrar según modo
+    const pendientes: { bloqueId: string; mes: number; ano: number; calcularDias: boolean; calcularGde: boolean }[] = []
+    for (const p of periodos) {
+      const diasOp = diasOperativosDelMes(rangos, p.mes, p.ano, politica)
+      let gdeCalc: number | null = null
+      if (queCalcular.gde && tempsHorarias) {
+        const resGde = calcularGde({ rangos, config, tempsHorarias, mes: p.mes, ano: p.ano, horasUsoPorFecha, politica })
+        gdeCalc = resGde.gde
+      }
+      for (const bloque of bloques) {
+        const variable = variablesPorBloque.get(bloque.id)
+        const diasActual = variable?.diasLectivosLaborales ?? null
+        const gdeActual = variable?.gradesDiaEnfriamiento ?? null
+        const diasCalculado = queCalcular.diasLaborales && diasOp > 0 ? diasOp : null
+        const gdeCalculado = queCalcular.gde ? gdeCalc : null
+
+        let calcularDias = false
+        let calcularGde = false
+        if (queCalcular.diasLaborales && diasCalculado !== null) {
+          if (opciones.modoDias === 'reemplazar' || (opciones.modoDias === 'solo-vacios' && (diasActual === null || diasActual === 0))) {
+            calcularDias = true
+          }
+        }
+        if (queCalcular.gde && gdeCalculado !== null) {
+          if (opciones.modoGde === 'reemplazar' || (opciones.modoGde === 'solo-vacios' && (gdeActual === null || gdeActual === 0))) {
+            calcularGde = true
+          }
+        }
+        if (calcularDias || calcularGde) {
+          pendientes.push({ bloqueId: bloque.id, mes: p.mes, ano: p.ano, calcularDias, calcularGde })
+        }
+      }
+    }
+
+    const inicio = Date.now()
+    let intentados = 0
+    const procesados: EjecucionLoteVariables['procesados'] = []
+    const resumenParcial = {
+      calculadosDias: 0,
+      conservadosDias: 0,
+      fallidosDias: 0,
+      calculadosGde: 0,
+      conservadosGde: 0,
+      fallidosGde: 0,
+    }
+
+    for (const p of pendientes) {
+      if (intentados >= MAX_PERIODOS_POR_LLAMADA_VARIABLES) break
+      if (Date.now() - inicio > PRESUPUESTO_MS_VARIABLES) break
+      intentados++
+
+      const clave = `${p.bloqueId}|${clavePeriodoVariables(p.mes, p.ano)}`
+      try {
+        const variable = await prisma.variableOperativa.findUnique({
+          where: { bloqueId_mes_ano: { bloqueId: p.bloqueId, mes: p.mes, ano: p.ano } },
+        })
+
+        let nuevoDias: number | undefined
+        let nuevoGde: number | undefined
+
+        if (p.calcularDias) {
+          const diasOp = diasOperativosDelMes(rangos, p.mes, p.ano, politica)
+          nuevoDias = diasOp
+        }
+        if (p.calcularGde && tempsHorarias) {
+          const resGde = calcularGde({ rangos, config, tempsHorarias, mes: p.mes, ano: p.ano, horasUsoPorFecha, politica })
+          nuevoGde = resGde.gde
+        }
+
+        if (variable) {
+          await prisma.variableOperativa.update({
+            where: { bloqueId_mes_ano: { bloqueId: p.bloqueId, mes: p.mes, ano: p.ano } },
+            data: {
+              ...(nuevoDias !== undefined && { diasLectivosLaborales: nuevoDias }),
+              ...(nuevoGde !== undefined && { gradesDiaEnfriamiento: nuevoGde }),
+            },
+          })
+          if (nuevoDias !== undefined) resumenParcial.calculadosDias++
+          if (nuevoGde !== undefined) resumenParcial.calculadosGde++
+        } else {
+          // No hay variable existente: no creamos filas parciales desde aquí
+          // (el importador es responsable de crear la fila completa)
+          if (nuevoDias !== undefined) resumenParcial.fallidosDias++
+          if (nuevoGde !== undefined) resumenParcial.fallidosGde++
+        }
+
+        procesados.push({
+          clave,
+          diasLaborales: nuevoDias !== undefined ? 'calculado' : undefined,
+          gde: nuevoGde !== undefined ? 'calculado' : undefined,
+        })
+      } catch (error) {
+        console.error(`Error en periodo ${clave} del lote ${lote}:`, error)
+        if (p.calcularDias) resumenParcial.fallidosDias++
+        if (p.calcularGde) resumenParcial.fallidosGde++
+        procesados.push({ clave, mensaje: 'Error al calcular' })
+      }
+    }
+
+    const restantes = pendientes.length - intentados
+
+    await auditarAccion({
+      action: 'variables.calcular_masivo.fin',
+      targetId: id,
+      detail: `Lote ${lote}: ${resumenParcial.calculadosDias} días calculados, ${resumenParcial.calculadosGde} GDE calculadas, ${restantes} pendientes.`,
+    })
+
+    return {
+      estado: 'ok',
+      ejecucion: {
+        loteId: lote,
+        procesados,
+        restantes,
+        continuar: restantes > 0,
+        resumenParcial,
+      },
+    }
+  } catch (error) {
+    console.error('Error en ejecutarCalculoVariablesMasivo:', error)
+    return { estado: 'error', mensaje: 'No fue posible ejecutar el cálculo. Intente de nuevo.' }
   }
 }

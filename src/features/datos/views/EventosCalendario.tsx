@@ -425,7 +425,7 @@ export function EventosCalendario({
                   >
                     <option value="">Seleccione un espacio…</option>
                     {espaciosSel.map((s) => (
-                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                      <option key={s.id} value={s.id}>{s.nombre} · piso {s.piso || 'Sin asignar'}</option>
                     ))}
                   </select>
                 </div>

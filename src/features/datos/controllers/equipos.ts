@@ -13,6 +13,7 @@ import {
   normalizarEspacio,
   tipoEdificacionPorCodigo,
 } from '@/features/datos/models/validations'
+import { PISO_SIN_ASIGNAR } from '@/features/datos/models/geometria'
 import type {
   EdicionEquipo,
   FilaEnvioEquipos,
@@ -28,6 +29,7 @@ type FilaValida = {
   fila: number
   bloqueId?: string
   espacio: string
+  piso?: string
   tipo: 'HVAC' | 'ILUMINACION' | 'OFICINA' | 'MOTORES'
   cantidad: number
   potenciaNominal: number
@@ -125,7 +127,7 @@ export async function importarFilasEquipos(
       }
 
       const datos = resultado.data
-      const clave = `${datos.bloqueId ?? ''}|${datos.espacio}|${datos.tipo}`
+      const clave = `${datos.bloqueId ?? ''}|${datos.espacio}|${datos.piso ?? ''}|${datos.tipo}`
       const filaPrevia = clavesVistas.get(clave)
       if (filaPrevia !== undefined) {
         errores.push({
@@ -194,7 +196,7 @@ export async function importarFilasEquipos(
 
     if (confirmadas.length === 0) return sinValidas()
 
-    // Espacios existentes (se resuelven por nombre dentro de cada bloque)
+    // Los espacios se resuelven por nombre y, cuando se informa, por piso.
     const pares: { bloqueId: string; nombre: string }[] = []
     const paresVistos = new Set<string>()
     for (const v of confirmadas) {
@@ -207,22 +209,70 @@ export async function importarFilasEquipos(
 
     const espacios = await prisma.espacio.findMany({
       where: { OR: pares },
-      select: { id: true, bloqueId: true, nombre: true },
+      select: { id: true, bloqueId: true, nombre: true, piso: true },
     })
-    const mapaEspacios = new Map<string, string>(
-      espacios.map((e) => [`${e.bloqueId}|${e.nombre}`, e.id])
-    )
-    const paresFaltantes = pares.filter((p) => !mapaEspacios.has(`${p.bloqueId}|${p.nombre}`))
+    const claveBaseEspacio = (bloqueId: string, nombre: string) => `${bloqueId}|${nombre}`
+    const claveFilaEspacio = (fila: FilaValida) =>
+      `${fila.bloqueId}|${fila.espacio}|${fila.piso ?? ''}`
+    const porNombre = new Map<string, typeof espacios>()
+    for (const espacio of espacios) {
+      const clave = claveBaseEspacio(espacio.bloqueId, espacio.nombre)
+      porNombre.set(clave, [...(porNombre.get(clave) ?? []), espacio])
+    }
+
+    const mapaEspacios = new Map<string, string>()
+    const paresFaltantes = new Map<string, { bloqueId: string; nombre: string; piso: string }>()
+    const confirmadasResueltas: FilaValida[] = []
+    const clavesEquiposResueltas = new Set<string>()
+    for (const fila of confirmadas) {
+      const existentes = porNombre.get(claveBaseEspacio(fila.bloqueId!, fila.espacio)) ?? []
+      const candidatos = fila.piso
+        ? existentes.filter((espacio) => espacio.piso === fila.piso)
+        : existentes
+      if (!fila.piso && candidatos.length > 1) {
+        errores.push({
+          fila: fila.fila,
+          razon: `El espacio "${fila.espacio}" existe en varios pisos; indique la columna opcional "piso" para identificarlo.`,
+        })
+        continue
+      }
+
+      const existente = candidatos[0]
+      const idONuevoEspacio = existente
+        ? existente.id
+        : `${fila.bloqueId}|${fila.espacio}|${fila.piso ?? PISO_SIN_ASIGNAR}`
+      const claveEquipo = `${fila.bloqueId}|${idONuevoEspacio}|${fila.tipo}`
+      if (clavesEquiposResueltas.has(claveEquipo)) {
+        errores.push({
+          fila: fila.fila,
+          razon: `Duplicado: ${fila.tipo} en "${fila.espacio}" ya está asignado al mismo piso.`,
+        })
+        continue
+      }
+      clavesEquiposResueltas.add(claveEquipo)
+      if (existente) {
+        mapaEspacios.set(claveFilaEspacio(fila), existente.id)
+      } else {
+        const piso = fila.piso ?? PISO_SIN_ASIGNAR
+        paresFaltantes.set(
+          `${fila.bloqueId}|${fila.espacio}|${piso}`,
+          { bloqueId: fila.bloqueId!, nombre: fila.espacio, piso }
+        )
+      }
+      confirmadasResueltas.push(fila)
+    }
+
+    const faltantes = Array.from(paresFaltantes.values())
 
     // Equipos ya guardados (solo filas cuyo espacio ya existe)
-    const conEspacio = confirmadas.filter((v) => mapaEspacios.has(`${v.bloqueId}|${v.espacio}`))
+    const conEspacio = confirmadasResueltas.filter((v) => mapaEspacios.has(claveFilaEspacio(v)))
     const equiposExistentes =
       conEspacio.length > 0
         ? await prisma.equipoElectrico.findMany({
             where: {
               OR: conEspacio.map((v) => ({
                 bloqueId: v.bloqueId!,
-                espacioId: mapaEspacios.get(`${v.bloqueId}|${v.espacio}`)!,
+                espacioId: mapaEspacios.get(claveFilaEspacio(v))!,
                 tipo: v.tipo,
               })),
             },
@@ -236,13 +286,14 @@ export async function importarFilasEquipos(
     const conflictos: ConflictoEquipo[] = conEspacio
       .filter((v) =>
         conjuntoEquipos.has(
-          `${v.bloqueId}|${mapaEspacios.get(`${v.bloqueId}|${v.espacio}`)!}|${v.tipo}`
+          `${v.bloqueId}|${mapaEspacios.get(claveFilaEspacio(v))!}|${v.tipo}`
         )
       )
       .map((v) => ({
         fila: v.fila,
         bloqueId: v.bloqueId!,
         espacio: v.espacio,
+        piso: v.piso,
         tipo: v.tipo,
       }))
 
@@ -250,37 +301,51 @@ export async function importarFilasEquipos(
       return {
         estado: 'confirmacion_requerida',
         conflictos,
-        validas: confirmadas.length,
+        validas: confirmadasResueltas.length,
         rechazadas: errores.length,
         errores,
         mensaje:
-          `${conflictos.length} de ${confirmadas.length} filas coinciden con equipos ya guardados ` +
-          '(mismo bloque, espacio y tipo). Confirme para reemplazarlos.',
+          `${conflictos.length} de ${confirmadasResueltas.length} filas coinciden con equipos ya guardados ` +
+          '(mismo bloque, piso, espacio y tipo). Confirme para reemplazarlos.',
       }
     }
 
     // Importación atómica: se crean espacios faltantes y luego los equipos
     await prisma.$transaction(async (tx) => {
-      for (const par of paresFaltantes) {
+      for (const par of faltantes) {
         await tx.espacio.upsert({
-          where: { bloqueId_nombre: { bloqueId: par.bloqueId, nombre: par.nombre } },
+          where: {
+            bloqueId_piso_nombre: {
+              bloqueId: par.bloqueId,
+              piso: par.piso,
+              nombre: par.nombre,
+            },
+          },
           update: {},
-          create: { bloqueId: par.bloqueId, nombre: par.nombre },
+          create: { bloqueId: par.bloqueId, nombre: par.nombre, piso: par.piso },
         })
       }
 
-      if (paresFaltantes.length > 0) {
+      if (faltantes.length > 0) {
         const nuevos = await tx.espacio.findMany({
-          where: { OR: pares },
-          select: { id: true, bloqueId: true, nombre: true },
+          where: { OR: faltantes },
+          select: { id: true, bloqueId: true, nombre: true, piso: true },
         })
-        for (const e of nuevos) {
-          mapaEspacios.set(`${e.bloqueId}|${e.nombre}`, e.id)
+        for (const fila of confirmadasResueltas) {
+          if (mapaEspacios.has(claveFilaEspacio(fila))) continue
+          const piso = fila.piso ?? PISO_SIN_ASIGNAR
+          const espacio = nuevos.find(
+            (e) =>
+              e.bloqueId === fila.bloqueId &&
+              e.nombre === fila.espacio &&
+              e.piso === piso
+          )
+          if (espacio) mapaEspacios.set(claveFilaEspacio(fila), espacio.id)
         }
       }
 
-      for (const v of confirmadas) {
-        const espacioId = mapaEspacios.get(`${v.bloqueId}|${v.espacio}`)!
+      for (const v of confirmadasResueltas) {
+        const espacioId = mapaEspacios.get(claveFilaEspacio(v))!
         await tx.equipoElectrico.upsert({
           where: { bloqueId_espacioId_tipo: { bloqueId: v.bloqueId!, espacioId, tipo: v.tipo } },
           update: {
@@ -306,8 +371,8 @@ export async function importarFilasEquipos(
 
     let insertadas = 0
     let actualizadas = 0
-    for (const v of confirmadas) {
-      const espacioId = mapaEspacios.get(`${v.bloqueId}|${v.espacio}`)!
+    for (const v of confirmadasResueltas) {
+      const espacioId = mapaEspacios.get(claveFilaEspacio(v))!
       if (conjuntoEquipos.has(`${v.bloqueId}|${espacioId}|${v.tipo}`)) actualizadas++
       else insertadas++
     }
@@ -315,7 +380,7 @@ export async function importarFilasEquipos(
     const partes: string[] = []
     if (insertadas > 0) partes.push(`${insertadas} nuevos`)
     if (actualizadas > 0) partes.push(`${actualizadas} actualizados`)
-    if (paresFaltantes.length > 0) partes.push(`${paresFaltantes.length} espacios creados`)
+    if (faltantes.length > 0) partes.push(`${faltantes.length} espacios creados`)
     if (errores.length > 0) partes.push(`${errores.length} rechazadas`)
 
     await auditarAccion({
@@ -329,7 +394,7 @@ export async function importarFilasEquipos(
       insertadas,
       actualizadas,
       rechazadas: errores.length,
-      espaciosCreados: paresFaltantes.length,
+      espaciosCreados: faltantes.length,
       errores,
       mensaje: `Importación finalizada: ${partes.join(', ')}.`,
     }

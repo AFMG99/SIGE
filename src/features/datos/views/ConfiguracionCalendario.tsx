@@ -184,7 +184,7 @@ export function ConfiguracionCalendario({
     })),
     ...espaciosEdif.map((s) => ({
       valor: `espacio:${s.id}:${s.bloqueId}`,
-      etiqueta: `Espacio ${s.nombre}`,
+      etiqueta: `Espacio ${s.nombre} · piso ${s.piso || 'Sin asignar'}`,
     })),
     ...equiposEdif.map((q) => ({
       valor: `equipo:${q.id}:${q.espacioId}:${q.bloqueId}`,

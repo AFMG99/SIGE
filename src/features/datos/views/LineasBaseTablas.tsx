@@ -14,8 +14,9 @@ import { TEXTOS_CRITERIO } from '@/features/datos/models/lineasBase'
  *
  * - `TablaPreparacion`: qué le pasa a cada factura antes de modelar
  *   (crudo → normalizado a 30 d → asignado al alcance → decisión de la
- *   banda del mes: ±10 % (ec. 3); ajustes no rutinarios Anexo 4 corrigen
- *   anómalos antes de la verificación; §7.5.1).
+ *   banda del mes: ±10 % (ec. 3); ajustes no rutinarios Anexo 4 ajustan
+ *   los meses homólogos de los demás años antes de la verificación;
+ *   §7.5.1).
  * - `TablaJerarquia`: cómo se segmenta el consumo por la cadena
  *   facturas → bloques → espacios y la línea base desglosada por nodo.
  *
@@ -125,7 +126,7 @@ export function TablaPreparacion({
       </div>
 
       <div className="border-b border-gray-100 bg-emerald-50/60 px-4 py-2 text-xs text-gray-600 dark:border-slate-800 dark:bg-emerald-950/30 dark:text-slate-300">
-        Banda ±10 % por mes (§7.5.1, ec. 3); ajustes no rutinarios Anexo 4 corrigen anómalos antes de la verificación:{' '}
+        Banda ±10 % por mes (§7.5.1, ec. 3); ajustes no rutinarios Anexo 4 ajustan los meses homólogos de los demás años antes de la verificación:{' '}
         <strong className="font-semibold text-gray-900 dark:text-gray-100">
           {fueraBanda}
         </strong>{' '}

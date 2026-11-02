@@ -66,7 +66,7 @@ const MODELOS: Record<ModeloId, ModeloDef> = {
     Icon: IconValorAbsoluto,
     subtitulo: 'Promedio simple mensual',
     concepto:
-      'Toma el promedio de cada mes calendario (ene–dic) sobre un periodo base de al menos 36 meses (3 años) ya depurado con banda por mes (§7.5.1: ±10 % ec. 3; los valores anómalos con causa conocida se corrigen mediante ajustes no rutinarios del Anexo 4 antes de la verificación), y proyecta esos 12 valores como línea base. Es el modelo más directo: no requiere variables explicativas y sirve de referencia para validar los demás.',
+      'Toma el promedio de cada mes calendario (ene–dic) sobre un periodo base de al menos 36 meses (3 años) ya depurado con banda por mes (§7.5.1: ±10 % ec. 3; los meses anómalos con causa conocida motivan ajustes no rutinarios del Anexo 4, que se aplican antes de la verificación sobre los meses homólogos de los demás años dejando intactos los anómalos), y proyecta esos 12 valores como línea base. Es el modelo más directo: no requiere variables explicativas y sirve de referencia para validar los demás.',
     formula: 'LBEn_m = (1 / n_m) · Σ consumo_normalizado(m)',
     formulaNota: '12 valores (ene–dic) · banda por mes (§7.5.1)',
     variables: [
@@ -88,7 +88,7 @@ const MODELOS: Record<ModeloId, ModeloDef> = {
       'MAPE del ajuste',
     ],
     ejemplo:
-      'Con un consumo promedio de 12.480 kWh/mes, la línea base queda en 12.480 kWh: la banda por defecto (ec. 3, ±10 %) es 11.232 – 13.728 kWh. Los meses fuera de banda con causa conocida se corrigen con ajustes no rutinarios (Anexo 4) antes de la verificación.',
+      'Con un consumo promedio de 12.480 kWh/mes, la línea base queda en 12.480 kWh: la banda por defecto (ec. 3, ±10 %) es 11.232 – 13.728 kWh. Los meses fuera de banda con causa conocida motivan ajustes no rutinarios (Anexo 4), que ajustan los meses homólogos de los demás años antes de la verificación y dejan intactos los anómalos.',
   },
   cociente: {
     label: 'Cociente',
@@ -187,9 +187,9 @@ const MODELOS: Record<ModeloId, ModeloDef> = {
 
 const CRITERIOS = [
   'Periodo base mínimo: 36 meses (3 años)',
-  'Depuración: por mes con recomputo (§7.5.1): banda ±10 % (ec. 3); ajustes no rutinarios (Anexo 4) corrigen anómalos antes de la verificación',
+  'Depuración: por mes con recomputo (§7.5.1): banda ±10 % (ec. 3); ajustes no rutinarios (Anexo 4) ajustan los meses homólogos de los demás años antes de la verificación',
   'Meses con menos de 3 valores: sin banda (regla 3×12)',
-  'Banda de confianza: ±10 % (ec. 3) por defecto; ajustes no rutinarios Anexo 4 corrigen anómalos antes de la verificación',
+  'Banda de confianza: ±10 % (ec. 3) por defecto; ajustes no rutinarios Anexo 4 ajustan los meses homólogos de los demás años antes de la verificación',
   'Significancia: p-value ≤ 0,05 (§7.5.3)',
   'Bondad de ajuste: R² sin tope (§7.5.3: un R² bajo no invalida)',
   'Error promedio: MAPE ≤ 5 % (confiabilidad, ejemplo Anexo 3)',

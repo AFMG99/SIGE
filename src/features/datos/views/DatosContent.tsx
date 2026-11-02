@@ -165,8 +165,10 @@ export function DatosContent({
     actualizarEdificacion,
     eliminarEdificacion,
     crearBloque,
+    actualizarDimensionesBloque,
     eliminarBloque,
     crearEspacio,
+    actualizarEspacio,
     eliminarEspacio,
   } = useCatalogoEdificaciones(edificaciones, bloques, espacios)
 
@@ -557,8 +559,10 @@ export function DatosContent({
                   actualizarEdificacion={actualizarEdificacion}
                   eliminarEdificacion={eliminarEdificacion}
                   crearBloque={crearBloque}
+                  actualizarDimensionesBloque={actualizarDimensionesBloque}
                   eliminarBloque={eliminarBloque}
                   crearEspacio={crearEspacio}
+                  actualizarEspacio={actualizarEspacio}
                   eliminarEspacio={eliminarEspacio}
                 />
               )}
@@ -720,4 +724,3 @@ const ROLE_CORTO: Record<Role, string> = {
   DIRECTIVO: 'Directivo',
   COMUNIDAD_UNIVERSITARIA: 'Comunidad Universitaria',
 }
-

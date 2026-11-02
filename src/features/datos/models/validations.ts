@@ -191,6 +191,12 @@ export const filaEquipoElectricoschema = z.object({
     .trim()
     .min(1, 'El espacio es obligatorio en la fila')
     .max(100, 'Máximo 100 caracteres'),
+  piso: z
+    .string()
+    .trim()
+    .max(60, 'El piso no puede superar 60 caracteres')
+    .optional()
+    .transform((valor) => valor?.replace(/\s+/g, ' ') || undefined),
   tipo: z.enum(['HVAC', 'ILUMINACION', 'OFICINA', 'MOTORES'], {
     errorMap: () => ({ message: 'Tipo de equipo inválido en la fila' }),
   }),
@@ -406,6 +412,8 @@ export interface FilaEnvioEquipos {
   bloqueId?: string;
   /** Nombre del espacio dentro del bloque (se crea si no existe). */
   espacio: string;
+  /** Nivel espacial opcional; vacío mantiene la compatibilidad con inventarios existentes. */
+  piso?: string
   tipo: 'HVAC' | 'ILUMINACION' | 'OFICINA' | 'MOTORES';
   cantidad: number | string;
   potenciaNominal: number | string;
@@ -419,6 +427,7 @@ export interface ConflictoEquipo {
   fila: number;
   bloqueId: string;
   espacio: string;
+  piso?: string
   tipo: string;
 }
 
