@@ -199,6 +199,10 @@ model Bloque {
   codigo                String              @unique
   nombre                String
   areaUtil              Float
+  largoM                Float?
+  anchoM                Float?
+  altoM                 Float?
+  areaHuellaM2          Float?
   factorInfraestructura Float
   edificacionId         String
   createdAt             DateTime            @default(now())
@@ -216,16 +220,21 @@ model Bloque {
 }
 
 model Espacio {
-  id        String            @id @default(cuid())
-  bloqueId  String
-  nombre    String
-  createdAt DateTime          @default(now())
-  equipos   EquipoElectrico[]
-  bloque    Bloque            @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
-  eventos   Evento[]
-  horarios  HorarioEquipo[]
+  id              String            @id @default(cuid())
+  bloqueId        String
+  nombre          String
+  piso            String            @default("Sin asignar")
+  largoM          Float?
+  anchoM          Float?
+  altoM           Float?
+  areaCalculadaM2 Float?
+  createdAt       DateTime          @default(now())
+  equipos         EquipoElectrico[]
+  bloque          Bloque            @relation(fields: [bloqueId], references: [id], onDelete: Cascade)
+  eventos         Evento[]
+  horarios        HorarioEquipo[]
 
-  @@unique([bloqueId, nombre])
+  @@unique([bloqueId, piso, nombre])
   @@map("espacios")
 }
 
