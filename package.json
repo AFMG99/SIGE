@@ -71,7 +71,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^5.4.0",
     "vite": "latest",
-    "vitest": "^4",
+    "vitest": "^5",
     "vitest-browser-react": "^2.3.0"
   },
   "eslintConfig": {
