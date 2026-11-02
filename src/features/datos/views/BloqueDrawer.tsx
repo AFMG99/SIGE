@@ -18,6 +18,9 @@ export type BloqueFormData = {
   nombre: string
   area: string
   factor: string
+  largoM: string
+  anchoM: string
+  altoM: string
 }
 
 type FieldKey = keyof BloqueFormData
@@ -54,6 +57,18 @@ function validate(form: BloqueFormData): Partial<Record<FieldKey, string>> {
     }
   }
 
+  for (const field of ['largoM', 'anchoM', 'altoM'] as const) {
+    if (!form[field].trim()) continue
+    const dimension = Number(form[field])
+    if (!Number.isFinite(dimension) || dimension <= 0) {
+      errors[field] = 'Ingrese una dimensión positiva en metros'
+    }
+  }
+  if (Boolean(form.largoM.trim()) !== Boolean(form.anchoM.trim())) {
+    errors.largoM = 'Ingrese largo y ancho para calcular la huella'
+    errors.anchoM = 'Ingrese largo y ancho para calcular la huella'
+  }
+
   return errors
 }
 
@@ -69,7 +84,15 @@ export function BloqueDrawer({
   const [touched, setTouched] = useState<Partial<Record<FieldKey, boolean>>>({})
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const [form, setForm] = useState<BloqueFormData>({ codigo: '', nombre: '', area: '', factor: '' })
+  const [form, setForm] = useState<BloqueFormData>({
+    codigo: '',
+    nombre: '',
+    area: '',
+    factor: '',
+    largoM: '',
+    anchoM: '',
+    altoM: '',
+  })
 
   // Reset al abrir
   useEffect(() => {
@@ -78,7 +101,7 @@ export function BloqueDrawer({
     setTouched({})
     setSubmitted(false)
     setSubmitError('')
-    setForm({ codigo: '', nombre: '', area: '', factor: '' })
+    setForm({ codigo: '', nombre: '', area: '', factor: '', largoM: '', anchoM: '', altoM: '' })
     const firstInput = drawerRef.current?.querySelector<HTMLInputElement>('input')
     firstInput?.focus()
   }, [isOpen])
@@ -120,6 +143,9 @@ export function BloqueDrawer({
         nombre: form.nombre.trim(),
         area: form.area.trim(),
         factor: form.factor.trim(),
+        largoM: form.largoM.trim(),
+        anchoM: form.anchoM.trim(),
+        altoM: form.altoM.trim(),
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudo crear el bloque'
@@ -284,6 +310,53 @@ export function BloqueDrawer({
               )}
             </div>
           </div>
+
+          <details className="rounded-lg border border-gray-200 p-3 dark:border-slate-700">
+            <summary className="focus-ring cursor-pointer rounded text-sm font-medium">
+              Opciones avanzadas: dimensiones del bloque
+            </summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              {([
+                ['largoM', 'Largo (m)'],
+                ['anchoM', 'Ancho (m)'],
+                ['altoM', 'Altura (m)'],
+              ] as const).map(([field, label]) => (
+                <div key={field}>
+                  <label htmlFor={`bloque-${field}`} className="ui-label mb-1.5">
+                    {label}
+                  </label>
+                  <input
+                    id={`bloque-${field}`}
+                    type="number"
+                    min="0.01"
+                    max="10000"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={form[field]}
+                    onChange={(e) => update({ [field]: e.target.value }, field)}
+                    onBlur={() => {
+                      setTouched((t) => ({ ...t, [field]: true }))
+                      setErrors(validate(form))
+                    }}
+                    disabled={submitting}
+                    className={inputClass(field)}
+                    aria-invalid={show(field) ? 'true' : undefined}
+                  />
+                  {show(field) && (
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                      {errors[field]}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            {form.largoM && form.anchoM && Number(form.largoM) > 0 && Number(form.anchoM) > 0 && (
+              <p className="ui-muted mt-2 text-xs">
+                Área de huella calculada: {(Number(form.largoM) * Number(form.anchoM)).toLocaleString('es-CO', { maximumFractionDigits: 2 })} m².
+                No modifica el área útil energética.
+              </p>
+            )}
+          </details>
 
           <p className="ui-muted text-xs">
             Área y factor son opcionales: se usarán 0 y 1 si se dejan vacíos.

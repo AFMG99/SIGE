@@ -724,4 +724,3 @@ const ROLE_CORTO: Record<Role, string> = {
   DIRECTIVO: 'Directivo',
   COMUNIDAD_UNIVERSITARIA: 'Comunidad Universitaria',
 }
-
