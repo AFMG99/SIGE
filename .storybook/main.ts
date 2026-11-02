@@ -35,7 +35,6 @@ const ESTIMACIONES_MOCK = path.resolve(
   dirname,
   '../src/features/estimaciones/views/__mocks__/serverActions.ts'
 );
-
 const ESPACIAL_MOCK = path.resolve(
   dirname,
   '../src/features/espacial/views/__mocks__/serverActions.ts'
