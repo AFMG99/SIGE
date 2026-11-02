@@ -127,7 +127,7 @@ export function EstimacionesView({
         },
         {
           clave: 'pronostico',
-          nombre: 'Proyección ARIMA',
+          nombre: `Proyección ${proyeccion.modelo}`,
           tipo: 'area' as const,
           color: 'sky' as const,
           valores: [
