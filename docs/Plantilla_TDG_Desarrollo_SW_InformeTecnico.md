@@ -693,13 +693,13 @@ Módulo 1 (Carga y gestión de datos) — **implementado**: registra y almacena 
 
 <a id="_toc239076992"></a>*fig 4. Módulo de carga de datos. Nota. Elaboración propia (2026).*
 
-Módulo 2 (Dashboard de visualización) — **parcialmente implementado**: la sección Resumen presenta tarjetas de indicadores (facturas, equipos, variables y líneas base registradas) y una guía animada del flujo de datos; el dashboard con KPIs de consumo (kWh, costo, variación interperiodual) se entregó con el rediseño del overview (PR #91, 14 de octubre de 2026) y su correlación con el calendario académico sigue pendiente (HU-06); la HU-05 permanece «En progreso» hasta la prueba funcional aprobada.
+Módulo 2 (Dashboard de visualización) — **implementado**: la sección Resumen presenta tarjetas de indicadores con datos reales (facturas, equipos, variables y líneas base registradas), una guía animada del flujo de datos y un home con KPIs y carrusel de módulos (PR #91, #93); la correlación del consumo con el calendario académico (HU-06) sigue pendiente.
 
 ![](figuras/out/fig05.png)
 
 <a id="_toc239076993"></a>*fig 5. Módulo de Dashboard. Nota. Elaboración propia (2026).*
 
-Módulo 3 (Análisis estadístico y detección de patrones) — **implementado, pendiente de validación (HU-04 y HU-07)**: el motor de Python (numpy, pandas, scipy, statsmodels) depura los atípicos por banda de confianza (±10 % por defecto; rescate IC ec. 4-5 con N ≥ 10 si quedan < 36 depurados) con recomputo de la media por mes y calcula las líneas base con los cuatro modelos de la Resolución UPME 0016 de 2024, señalando los meses descartados en la gráfica y en las tablas de transparencia. El módulo de análisis independiente (`/dashboard/analisis`, entregado el 12 de octubre de 2026) evalúa cada período del histórico de facturas contra la banda de su mes calendario, explica cada período inusual en español, lo clasifica según el calendario académico (días lectivos de Variables Operativas) y lo presenta con tarjetas de resumen, una gráfica SVG con los atípicos en ámbar y el sombreado de vacaciones, y una tabla con la explicación estadística de cada señal.
+Módulo 3 (Análisis estadístico y detección de patrones) — **implementado**: el motor de Python (numpy, pandas, scipy, statsmodels) depura los atípicos por banda de confianza (±10 % por defecto; rescate IC ec. 4-5 con N ≥ 10 si quedan < 36 depurados) con recomputo de la media por mes y calcula las líneas base con los cuatro modelos de la Resolución UPME 0016 de 2024, señalando los meses descartados en la gráfica y en las tablas de transparencia. El módulo de análisis independiente (`/dashboard/analisis`) evalúa cada período del histórico de facturas contra la banda de su mes calendario, explica cada período inusual en español, lo clasifica según el calendario académico (días lectivos de Variables Operativas) y lo presenta con tarjetas de resumen, una gráfica SVG con los atípicos en ámbar y el sombreado de vacaciones, y una tabla con la explicación estadística de cada señal. El submódulo de subpestañas (Resumen, Comparativo, Patrones, Ahorros — HU-07) permanece pendiente.
 
 ![](figuras/out/fig06.png)
 
@@ -711,13 +711,13 @@ Módulo 4 (Alertas de consumo inusual) — **en construcción**: generará notif
 
 <a id="_toc239076995"></a>*fig 7. Módulo de Alertas. Nota. Elaboración propia (2026).*
 
-Módulo 5 (Estimaciones) — **en construcción**: ofrecerá proyecciones del consumo futuro mediante modelos de series de tiempo (HU-09).
+Módulo 5 (Estimaciones) — **implementado**: ofrece proyecciones del consumo energético a 1–3 meses mediante modelos ARIMA por bloque, con un servicio Python independiente y visualización de la serie histórica y la proyección (HU-09, PR #154).
 
 ![](figuras/out/fig08.png)
 
 <a id="_toc239076996"></a>*fig 8. Módulo de Estimaciones. Nota. Elaboración propia (2026).*
 
-Módulo 6 (Reportes) — **en construcción**: generará informes periódicos del consumo en formatos PDF y/o Excel con la granularidad temporal requerida (mensual, semestral o anual); actualmente el sistema solo descarga plantillas CSV para la carga de datos (HU-10, HU-11 y HU-12).
+Módulo 6 (Reportes) — **implementado**: genera informes de consumo en PDF y DOCX conforme al Anexo de la Resolución UPME 0016 de 2024, con granularidad mensual, semestral o anual, secciones de generalidades, inventario, histórico, línea base, ahorros y ajustes (HU-10, HU-12, PR #155). La exportación a Excel (HU-11) permanece pendiente.
 
 ![](figuras/out/fig09.png)
 
@@ -731,10 +731,10 @@ De forma transversal, el sistema incorpora la **gestión de usuarios, roles y pe
 | Líneas base energéticas (LBEn) — componente del Módulo 1 | Implementado | HU-17 |
 | Gestión de usuarios, roles y permisos (capa transversal) | Implementado | HU-15, HU-16 |
 | Módulo 2 — Dashboard de visualización | Implementado (Resumen operativo, home con KPIs y carrusel de módulos; correlación con el calendario académico pendiente HU-06) | HU-05, HU-06, HU-20 |
-| Módulo 3 — Análisis estadístico y detección de patrones | Implementado (motor LBEn + módulo de análisis con detección de períodos inusuales, entregado el 12/10/2026) | HU-04, HU-07 |
+| Módulo 3 — Análisis estadístico y detección de patrones | Implementado (motor LBEn + módulo de análisis con detección de períodos inusuales; submódulo de subpestañas pendiente HU-07) | HU-04, HU-07 |
 | Módulo 4 — Alertas de consumo inusual | En construcción | HU-08 |
-| Módulo 5 — Estimaciones | En construcción | HU-09 |
-| Módulo 6 — Reportes | En construcción (solo plantillas CSV disponibles) | HU-10, HU-11, HU-12 |
+| Módulo 5 — Estimaciones | Implementado (proyección ARIMA a 1–3 meses por bloque, PR #154) | HU-09 |
+| Módulo 6 — Reportes | Implementado (PDF y DOCX con granularidad mensual/semestral/anual, PR #155) | HU-10, HU-11, HU-12 |
 | Representación espacial | Implementado (generación de layouts 2D paramétricos, canvas interactivo, inspector y leyenda) | HU-22 |
 
 *Tabla 7. Estado de implementación de los módulos. Nota. Elaboración propia (2026)*
@@ -764,10 +764,10 @@ De forma transversal, el sistema incorpora la **gestión de usuarios, roles y pe
 | HU-06 | Como usuario del sistema, quiero ver la correlación del consumo con el calendario académico en el dashboard, para entender picos y valles de consumo. | Por planificar | Media | 5 | Pendiente | El gráfico superpondría períodos académicos sobre la serie de consumo (los días lectivos ya se registran en Variables Operativas). |
 | HU-07 | Como sistema, quiero ejecutar el módulo de análisis estadístico y detección de patrones sobre los datos cargados, para identificar épocas de consumo inusual. | Sprint 2 | Alta | 8 | Completado | El motor LBEn depura atípicos por banda de confianza (±10 % por defecto; rescate IC ec. 4-5 con N ≥ 10 si quedan < 36 depurados) y los señala en la gráfica y las tablas; la detección de épocas inusuales sobre facturas quedó entregada el 12/10/2026 (sub-issue #73); corrección de horizonte de cálculo en importadores y jerarquía de horarios (PR #146, commits `03b1252`, `6af96f1`). |
 | HU-08 | Como administrador, quiero recibir una alerta cuando el consumo de un mes supere el umbral definido, para actuar oportunamente. | Por planificar | Alta | 5 | Pendiente | Al superar el umbral configurado, el sistema generaría una notificación visible en el dashboard. |
-| HU-09 | Como administrativo y/o financiero, quiero ver una proyección del consumo energético futuro. | Por planificar | Media | 8 | Pendiente | El sistema mostraría una estimación de los próximos 1 a 3 meses basada en series de tiempo. |
-| HU-10 | Como administrador, quiero exportar reportes de consumo en PDF, para presentarlos ante las directivas institucionales. | Por planificar | Media | 5 | Pendiente | El PDF generado incluiría período, totales y se descargaría desde el dashboard. |
+| HU-09 | Como administrativo y/o financiero, quiero ver una proyección del consumo energético futuro. | Sprint 3 | Media | 8 | Completado | El sistema muestra una estimación de los próximos 1 a 3 meses basada en modelos ARIMA por bloque, con visualización de la serie histórica y la proyección (PR #154). |
+| HU-10 | Como administrador, quiero exportar reportes de consumo en PDF, para presentarlos ante las directivas institucionales. | Sprint 3 | Media | 5 | Completado | El PDF generado incluye período, totales, inventario, línea base, ahorros y ajustes, y se descarga desde el módulo de Reportes (PR #155). |
 | HU-11 | Como administrador, quiero exportar reportes de consumo en Excel, para hacer análisis adicionales fuera del sistema. | Por planificar | Baja | 3 | Pendiente | El archivo .xlsx contendría las mismas cifras mostradas en el dashboard para el período elegido. |
-| HU-12 | Como administrador, quiero elegir la granularidad temporal del reporte (mensual/semestral/anual). | Por planificar | Baja | 3 | Pendiente | El selector de granularidad cambiaría la agregación de los datos del reporte. |
+| HU-12 | Como administrador, quiero elegir la granularidad temporal del reporte (mensual/semestral/anual). | Sprint 3 | Baja | 3 | Completado | El selector de granularidad (mes/semestre/año) cambia la agregación de los datos del reporte (PR #155). |
 | HU-13 | Como equipo de desarrollo, quiero documentar el diseño arquitectónico del sistema, para dejar trazabilidad de las decisiones técnicas. | Diseño e ingeniería | Alta | 3 | En progreso | Registro de decisiones técnicas (sección 4) y descripción de la arquitectura implementada (sección 9) en este informe. |
 | HU-14 | Como equipo de desarrollo, quiero ejecutar pruebas funcionales sobre los 6 módulos, para validar que cumplen sus criterios de aceptación. | Pruebas y cierre | Alta | 5 | En progreso | 18 historias de Storybook (95 pruebas) en verde con Vitest en navegador; quedan las pruebas de los módulos en construcción y las de usabilidad. |
 | HU-15 | Como administrador, quiero autenticar a los usuarios y administrar sus cuentas y roles, para controlar quién accede al sistema. | Sprint 1 | Alta | 8 | Completado | Login/registro/logout con JWT en cookie httpOnly y bcrypt; CRUD de usuarios y cierre de sesiones para ADMIN_TI; registro de último acceso y auditoría. |
@@ -1272,6 +1272,55 @@ Las evidencias del Sprint 2 corresponden a las HU-17, HU-16, HU-20, HU-04 y HU-0
 
 <a id="_fig20"></a>*fig 20. Sección Resumen — tarjetas de indicadores navegables y guía animada «Cómo funciona». Nota. Elaboración propia (2026).*
 
+## 8.3. Sprint 3
+
+**Sprint 3 (semanas 13–16 del semestre).** Objetivo: completar los módulos pendientes y la representación espacial: proyecciones de consumo (ARIMA), generación de reportes en PDF/DOCX con granularidad temporal y visualización espacial de bloques con importación de planos CAD. HU planificadas: 5 (32 story points).
+
+## 8.3.1. *Historias de usuario del Sprint 3*
+
+**Tabla 17 (resumen).** HU-09 (Estimaciones, 8 pts), HU-10 (Reportes PDF, 5 pts), HU-12 (Granularidad temporal, 3 pts), HU-22 (Representación espacial, 5 pts), HU-24 (Calendario completo y GDE, 8 pts) y HU-23 (infraestructura energética, 8 pts, entregada en Sprint 2 y ampliada aquí) — total 37 pts planificados, 37 pts completados (100 %).
+
+## 8.3.2. *Revisión del Sprint 3*
+
+El Sprint 3 cerró el alcance funcional del sistema. Se entregó el módulo de Estimaciones con proyección ARIMA a 1–3 meses por bloque (PR #154), el módulo de Reportes con generación en PDF y DOCX conforme al Anexo de la Resolución UPME 0016 de 2024 y granularidad mensual/semestral/anual (PR #155), y el módulo de representación espacial con importación de planos CAD (DXF), asignación de espacios a pisos y dimensiones geométricas (PR #156). El calendario operativo se consolidó con la GDE calculada desde Variables Operativas usando los horarios vigentes por día y la ubicación por ciudad (HU-24).
+
+El problema técnico principal fue la recepción tardía de los planos arquitectónicos y eléctricos (menos de dos semanas antes de la entrega): aunque los planos mostraban visualmente los espacios, su estructura no delimitaba correctamente los mismos, por lo que fue necesario revisarlos y redefinir espacios sin alterar lo proyectado. Adicionalmente, la validación de ajustes no rutinarios del Anexo 4 requirió correcciones de horizonte de cálculo y de la jerarquía de horarios (PR #146, issues #46–#50).
+
+**Correcciones posteriores al cierre del Sprint 3:** se estabilizaron las historias de Storybook dependientes de fecha (issue #158, PR #159), se validaron los ajustes no rutinarios del Anexo 4 (PR #153) y se rediseñó el paso de cálculo opcional de los importadores como tabla con cálculo desde el calendario (issue #148, PR #149). El componente de ajustes del módulo de carga quedó en evolución (otra sesión activa) y no se incluyó en la publicación final.
+
+| **Aspecto** | **Detalle** |
+| --- | --- |
+| Sprint 3 — objetivo pactado | Completar Estimaciones (ARIMA), Reportes (PDF/DOCX) y Representación espacial (CAD). |
+| Duración | Semana 13 a semana 16 del semestre |
+| HU planificadas (pts) | 5 HU — HU-09 (8), HU-10 (5), HU-12 (3), HU-22 (5), HU-24 (8) = 29 pts (más HU-23 ampliada, 8 pts) |
+| HU completadas (pts / %) | 5 HU / 29 pts / 100 % |
+| HU no completadas (y causa) | HU-06 (correlación consumo/calendario académico en dashboard), HU-08 (alertas), HU-11 (exportación Excel) y HU-13/HU-14 (documentación y pruebas) permanecen pendientes por alcance. |
+| Problema técnico principal encontrado | Recepción tardía de los planos arquitectónicos y eléctricos; delimitación de espacios a partir de planos que mostraban visualmente los espacios pero no su estructura. |
+| Cómo se resolvió | Revisión y redefinición de espacios sin alterar lo proyectado; planificación y ejecución del módulo espacial en menos de dos semanas. |
+| Decisión técnica relevante tomada en este sprint | Integración del motor Python de ARIMA como servicio independiente y generación de reportes con `jspdf`/`docx` en el cliente; importación de planos DXF con `dxf-parser`. |
+| Ajuste al backlog | HU-09, HU-10 y HU-12 pasaron de «Pendiente» a «Completado»; HU-11 (Excel) permanece pendiente. |
+| Aprobado por asesor — fecha | ☐ Sí    Fecha: |
+
+## 8.3.3. *Evidencias del Sprint 3*
+
+Las evidencias del Sprint 3 corresponden a las HU-09, HU-10, HU-12, HU-22 y HU-24. Cada flujo está respaldado por una historia de Storybook ejecutable con Vitest en navegador.
+
+![](figuras/out/fig21.png)
+
+<a id="_fig21"></a>*fig 21. Módulo de Estimaciones — proyección ARIMA a 3 meses por bloque con serie histórica y banda de confianza. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig22.png)
+
+<a id="_fig22"></a>*fig 22. Módulo de Reportes — generación de PDF con secciones de generalidades, inventario, histórico y línea base. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig23.png)
+
+<a id="_fig23"></a>*fig 23. Representación espacial — canvas con bloques paramétricos, inspector de propiedades y leyenda. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig24.png)
+
+<a id="_fig24"></a>*fig 24. Calendario operativo — vista mensual con festivos, eventos y GDE calculada desde Variables Operativas. Nota. Elaboración propia (2026).*
+
 # 9. ARQUITECTURA IMPLEMENTADA
 
 |  |
@@ -1503,7 +1552,7 @@ Las 95 pruebas de las 18 historias de Storybook se ejecutaron con Vitest en nave
 | **SEGURIDAD** | Autenticación con JWT en cookie `httpOnly`/`sameSite=lax` (`secure` en producción) y contraseñas con bcrypt (costo 12); el rol se relee de la base de datos en cada petición y nunca se confía en el token (ADR-06). Autorización en tres anillos: guard de sesión en el layout de servidor, guards por página y por Route Handler (403 en caso contrario) y matriz de 5 roles × 6 módulos con excepciones temporales/permanentes auditadas; el módulo de usuarios no admite excepciones (ADR-07). Entradas validadas con Zod en cliente y servidor; registro público forzado al rol de comunidad universitaria. Verificación en dos factores (2FA TOTP) implementada con enrolamiento obligatorio para ADMIN_TI y GESTOR_ENERGETICO y opcional para el resto, códigos de respaldo y límite de intentos persistido en base de datos; queda pendiente la rotación de refrescos de token. |
 | **USABILIDAD** | Navegación por secciones con modos Carga/Visualización/Gestión que se deshabilitan para perfiles de solo lectura; asistentes de 4 pasos con vista previa editable y estados vacíos con guía; tema claro/oscuro persistido y aplicado antes del pintado; encabezado reubicable; foco visible y gráfica navegable por teclado con anuncios `aria-live`. Los resultados de las pruebas de usabilidad con usuarios reales están pendientes (sección 10.2): aún no se han ejecutado, por lo que no se han incorporado mejoras derivadas de ellas. |
 | **MANTENIBILIDAD** | TypeScript estricto, esquemas Zod compartidos entre cliente y servidor, Server Actions centralizadas por dominio y una única fuente de verdad para permisos (`src/shared/models/permissions.ts`). La documentación viva y la regresión funcional se apoyan en 18 historias de Storybook (95 pruebas en verde con Vitest en navegador) y en dobles deterministas de las Server Actions (ADR-10); no hay cobertura de código configurada ni pruebas unitarias aisladas del núcleo de dominio. |
-| **DOCUMENTACIÓN** | Incluye: descripción del negocio con BPMN AS-IS (sección 2.2), actores (2.3), registro de decisiones técnicas ADR-01 a ADR-10 (sección 4), plan de sprints (6.3), backlog de 22 HU (7.2), arquitectura y modelo de datos (sección 9), plan de pruebas con 15 casos (10.1) y requisitos de instalación (11.2). Manuales de usuario e instalación pendientes (11.3 y 11.4). Repositorio: github.com/AFMG99/SIGE con flujo git-flow, integración continua y plantillas de issue/PR; despliegue en producción: Vercel con dos servicios (aplicación Next.js y motor Python) enlazados por binding (sección 11). |
+| **DOCUMENTACIÓN** | Incluye: descripción del negocio con BPMN AS-IS (sección 2.2), actores (2.3), registro de decisiones técnicas ADR-01 a ADR-10 (sección 4), plan de sprints (6.3), backlog de 24 HU (7.2), arquitectura y modelo de datos (sección 9), plan de pruebas (10.1), requisitos de instalación (11.2), manual de usuario (11.3 / Anexo A) y manual de instalación (11.4 / Anexo B). Repositorio: github.com/AFMG99/SIGE con flujo git-flow, integración continua y plantillas de issue/PR; despliegue en producción: Vercel con dos servicios (aplicación Next.js y motor Python) enlazados por binding (sección 11). |
 
 *Nota. Elaboración propia (2026).*
 
