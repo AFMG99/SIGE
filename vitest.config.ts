@@ -75,6 +75,7 @@ export default defineConfig({
             'react',
             'react-dom',
             'react/jsx-runtime',
+            'react/jsx-dev-runtime',
             'react-dom/client',
             '@prisma/client',
             'bcryptjs',
