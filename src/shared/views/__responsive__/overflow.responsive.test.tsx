@@ -705,8 +705,6 @@ describe('Fase 3 — objetivos táctiles y desplegables', () => {
           ajustesAplicados={[]}
           modo="datos"
           puedeCargar={false}
-          edificaciones={edificacionesDemo}
-          bloques={bloquesDemo}
         />
       )
       const grupo = await vi.waitFor(() => {
