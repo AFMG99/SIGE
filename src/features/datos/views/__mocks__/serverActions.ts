@@ -1010,7 +1010,19 @@ export async function calcularModelosLineaBase(
       'poblacion_flotante',
       'grades_dia_enfriamiento',
     ],
-    ajustesAplicados: [],
+    // Un ajuste real del Anexo 4 (A4.1) para que la pestaña «Aplicados» de
+    // Ajustes tenga algo que mostrar cuando el cálculo se propaga al módulo.
+    // El motor reporta los meses homólogos ajustados (años 1 y 3), no el
+    // periodo anómalo registrado.
+    ajustesAplicados: [
+      {
+        ano: 1,
+        mes: 5,
+        proporcion: 0.25,
+        direccion: 'reduccion',
+        descripcion: 'Remodelación piso 3: AC fuera de servicio (may–sep año 2)',
+      },
+    ],
     resultados: resultadosMock(share),
     serie: serieMock(share),
     preparacion: preparacionMock(share),

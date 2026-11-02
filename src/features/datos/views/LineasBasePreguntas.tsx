@@ -167,8 +167,10 @@ const CATEGORIAS: Categoria[] = [
             la Resolución 16 de 2024 (corregida por Auto 444/2024).
             Primero se aplican los <strong>ajustes no rutinarios</strong> del
             Anexo 4: si hay una causa conocida (remodelación, mantenimiento,
-            paro, etc.) que provocó consumos anómalos, se corrigen mediante la
-            proporción del Anexo 4 <em>antes</em> de la verificación.
+            paro, etc.) que provocó consumos anómalos, con la proporción del
+            Anexo 4 se ajustan los meses homólogos de los demás años del
+            periodo base —los meses anómalos quedan intactos como
+            referencia— <em>antes</em> de la verificación.
             Luego, el <strong>pase único</strong> aplica la banda de la
             <strong>ec. (3)</strong> <code className="ui-chip">media ± 10 %</code>,
             con recomputo de la media tras cada descarte (la Resolución exige
@@ -988,9 +990,9 @@ MAPE_MAXIMO = 0.05          # confiabilidad (ejemplo del Anexo 3)`}
             linea={186}
             codigo={`const CRITERIOS = [
   'Periodo base mínimo: 36 meses (3 años)',
-  'Depuración: por mes con recomputo (§7.5.1): banda ±10 % (ec. 3); ajustes no rutinarios (Anexo 4) corrigen anómalos antes de la verificación',
+  'Depuración: por mes con recomputo (§7.5.1): banda ±10 % (ec. 3); ajustes no rutinarios (Anexo 4) ajustan los meses homólogos de los demás años antes de la verificación',
   'Meses con menos de 3 valores: sin banda (regla 3×12)',
-  'Banda de confianza: ±10 % (ec. 3) por defecto; ajustes no rutinarios Anexo 4 corrigen anómalos antes de la verificación',
+  'Banda de confianza: ±10 % (ec. 3) por defecto; ajustes no rutinarios Anexo 4 ajustan los meses homólogos de los demás años antes de la verificación',
   'Significancia: p-value ≤ 0,05 (§7.5.3)',
   'Bondad de ajuste: R² sin tope (§7.5.3: un R² bajo no invalida)',
   'Error promedio: MAPE ≤ 5 % (confiabilidad, ejemplo Anexo 3)',

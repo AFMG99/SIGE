@@ -407,3 +407,53 @@ export async function vaciarFacturas(): Promise<ResultadoGestion> {
     }
   }
 }
+
+/**
+ * Periodos (`YYYY-MM`) con facturas registradas para una edificación.
+ *
+ * Alimenta el paso «Cálculos opcionales» del importador de Equipos: la lista
+ * de meses/años sobre los que se previsualiza el uso calculado desde el
+ * calendario (S3 del rediseño). Solo lectura: no muta nada.
+ *
+ * Exige sesión + permiso `read` sobre `consumption`; la lista sale ordenada
+ * ascendentemente y sin duplicados (`distinct` por periodo).
+ */
+export async function periodosConFactura(
+  edificacionId: string
+): Promise<{ estado: 'ok' | 'error'; periodos?: string[]; mensaje?: string }> {
+  try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return { estado: 'error', mensaje: 'Sesión expirada. Inicie sesión nuevamente.' }
+    }
+    // Mismo gate que el resto del módulo: el importador y sus consultas de
+    // apoyo exigen `consumption:upload` (los roles que cargan datos no tienen
+    // `read`, que está reservado a la consulta de solo lectura).
+    if (!(await canWithOverrides(user, 'consumption', 'upload'))) {
+      return {
+        estado: 'error',
+        mensaje: 'Su rol no tiene permiso para consultar los periodos con facturas.',
+      }
+    }
+
+    const idEdificacion = String(edificacionId ?? '').trim()
+    if (!idEdificacion) {
+      return { estado: 'error', mensaje: 'Debe indicar la edificación.' }
+    }
+
+    const filas = await prisma.facturaEnergia.findMany({
+      where: { edificacionId: idEdificacion },
+      distinct: ['periodo'],
+      select: { periodo: true },
+      orderBy: { periodo: 'asc' },
+    })
+
+    return { estado: 'ok', periodos: filas.map((f) => f.periodo) }
+  } catch (error) {
+    console.error('Error en periodosConFactura:', error)
+    return {
+      estado: 'error',
+      mensaje: 'No fue posible consultar los periodos con facturas. Intente de nuevo.',
+    }
+  }
+}

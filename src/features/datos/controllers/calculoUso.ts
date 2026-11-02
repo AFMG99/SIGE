@@ -18,6 +18,7 @@ import { auditarAccion } from '@/features/datos/controllers/auditoria'
 import {
   CLAIM_TTL_MS,
   MAX_PERIODOS_POR_LLAMADA,
+  ModoCalculoUso,
   calcularPeriodo,
   clasificarPeriodos,
   clavePeriodo,
@@ -532,7 +533,8 @@ async function clasificarIntervalo(
 export async function prepararCalculoMasivo(
   edificacionId: string,
   desde: PeriodoRef,
-  hasta: PeriodoRef
+  hasta: PeriodoRef,
+  modo: ModoCalculoUso = 'solo-vacios'
 ): Promise<Exito<{ vistaPrevia: VistaPrevia }>> {
   try {
     const auth = await autorizarCalculoUso()
@@ -591,8 +593,9 @@ export async function prepararCalculoMasivo(
 
     // AC5.3: el modo por defecto solo escribe lo que NO está intacto;
     // los intactos se conservan (nunca aparecen aquí).
+    // En modo 'reemplazar', también se escriben los intactos.
     const seEscribiran = periodos
-      .filter((f) => f.clasificacion !== 'existente-intacto')
+      .filter((f) => f.clasificacion !== 'existente-intacto' || modo === 'reemplazar')
       .map((f) => f.clave)
 
     return {
@@ -766,6 +769,7 @@ export interface EntradaEjecucion {
   desde: PeriodoRef
   hasta: PeriodoRef
   loteId?: string
+  modo?: ModoCalculoUso
 }
 
 /** Lote por defecto cuando el cliente no manda uno (retomada = re-derivar). */
@@ -832,8 +836,9 @@ export async function ejecutarCalculoMasivo(
         mensaje: valido.error.issues[0]?.message ?? 'Datos de ejecución inválidos.',
       }
     }
-    const { edificacionId, desde, hasta } = valido.data
+    const { edificacionId, desde, hasta, modo } = valido.data
     const lote = valido.data.loteId ?? generarLoteId()
+    const modoCalculo = modo ?? 'solo-vacios'
 
     const edificacion = await prisma.edificacion.findUnique({
       where: { id: edificacionId },
@@ -841,11 +846,13 @@ export async function ejecutarCalculoMasivo(
     })
     if (!edificacion) return { estado: 'error', mensaje: 'La edificación indicada no existe.' }
 
-    // Pendientes del servidor (AC5/AC10): nada intacto, nada ya intentado por
-    // ESTE lote (su FALLIDO/REVISAR es trazabilidad, no un pendiente nuevo).
+    // Pendientes del servidor (AC5/AC10): según modo, incluye o excluye intactos.
+    // - 'solo-vacios' (default): solo pendientes, fallidos, revisar, desactualizados
+    // - 'reemplazar': también incluye existentes-intactos (sobrescribe todo)
     const clasificados = await clasificarIntervalo(edificacionId, desde, hasta)
     const pendientes = clasificados.filter((f) => {
-      if (f.clasificacion === 'existente-intacto') return false
+      const esIntacto = f.clasificacion === 'existente-intacto'
+      if (esIntacto && modoCalculo === 'solo-vacios') return false
       if (
         f.fila?.loteId === lote &&
         f.fila.estado !== 'PENDIENTE' &&
@@ -859,12 +866,13 @@ export async function ejecutarCalculoMasivo(
     await auditarAccion({
       action: 'uso.calcular_masivo.inicio',
       targetId: edificacionId,
-      detail: `Lote ${lote}: ${clavePeriodo(desde)}–${clavePeriodo(hasta)}, ${pendientes.length} periodo(s) pendiente(s).`,
+      detail: `Lote ${lote}: ${clavePeriodo(desde)}–${clavePeriodo(hasta)}, ${pendientes.length} periodo(s) pendiente(s) (modo: ${modoCalculo}).`,
     })
 
     // Paso 0 (design §4): placeholder PENDIENTE de cada seleccionado no
-    // intacto, para que una ejecución interrumpida deje filas visibles. Nunca
-    // sobre un reclamo CALCULANDO vigente de OTRA ejecución (AC7).
+    // intacto (o intactos si modo=reemplazar), para que una ejecución
+    // interrumpida deje filas visibles. Nunca sobre un reclamo CALCULANDO
+    // vigente de OTRA ejecución (AC7).
     for (const p of pendientes) {
       const reclamoVigente =
         p.fila?.estado === 'CALCULANDO' &&
@@ -887,9 +895,15 @@ export async function ejecutarCalculoMasivo(
 
     // Intactos: reportados como conservados (o calculados si ya los escribió
     // ESTE lote en una llamada anterior de la misma ejecución).
+    // En modo 'reemplazar', los intactos se recalculan y aparecen como 'calculado'.
     const procesados: ProcesadoLote[] = []
     for (const f of clasificados) {
       if (f.clasificacion !== 'existente-intacto') continue
+      if (modoCalculo === 'reemplazar') {
+        // En modo reemplazar, los intactos se recalcularán en el bucle de abajo
+        // así que no los pre-reportamos aquí
+        continue
+      }
       procesados.push({
         clave: f.clave,
         resultado: f.fila?.loteId === lote ? 'calculado' : 'conservado',

@@ -80,17 +80,15 @@ export const Paso3VistaPrevia: Story = {
     await userEvent.click(continuar)
 
     await expect(await canvas.findByText(/listo para importar/i)).toBeVisible()
-    await expect(canvas.getByRole('button', { name: /importar \d+ filas/i })).toBeVisible()
+    // La vista previa deja de importar directo: el flujo pasa por cálculos opcionales.
+    await expect(
+      canvas.getByRole('button', { name: /continuar a cálculos opcionales/i })
+    ).toBeVisible()
   },
 }
 
-export const Paso4Resultado: Story = {
-  name: 'Paso 4 · Resultado de la importación',
-  args: { resultadoInicial: resultadoEquiposDemo, edificacionInicial: EDIFICACION_CAMPUS },
-}
-
-export const ImportacionExitosa: Story = {
-  name: 'Flujo completo · Edificación → resultado',
+export const Paso4Calculos: Story = {
+  name: 'Paso 4 · Cálculo global desde el calendario con diff antes de aplicar',
   play: async ({ canvas, canvasElement, userEvent }) => {
     await elegirEdificacion(canvas, userEvent)
     await subirArchivo(canvasElement, userEvent, archivoEquipos())
@@ -101,6 +99,193 @@ export const ImportacionExitosa: Story = {
       { timeout: 5000 }
     )
     await userEvent.click(continuar)
+    await userEvent.click(
+      await canvas.findByRole(
+        'button',
+        { name: /continuar a cálculos opcionales/i },
+        { timeout: 5000 }
+      )
+    )
+
+    // Tabla espejo de la vista previa: descriptivas en solo lectura (sin input
+    // de tipo/bloque) y horas/días con los valores que trajo el archivo.
+    await expect(
+      await canvas.findByRole('heading', { name: /cálculo de uso desde el calendario/i })
+    ).toBeVisible()
+    expect(canvas.queryByLabelText(/fila 1, tipo de equipo/i)).toBeNull()
+    const horasFila1 = (await canvas.findByLabelText(
+      /fila 1, horas de uso por día/i
+    )) as HTMLInputElement
+    expect(horasFila1.value).toBe('8')
+
+    // Cálculo global → modal: 5 meses con facturas (mock 2026) que alimentan
+    // el PROMEDIO aplicable (12 h / 28 días); el último mes viene
+    // preseleccionado como referencia (mayo 2026 → 12 h / 31 días).
+    await userEvent.click(await canvas.findByRole('button', { name: /calcular todas las filas/i }))
+
+    const dialog = await canvas.findByRole('dialog', { name: /cambios antes de aplicar/i })
+    expect(
+      within(dialog).getByRole('button', { name: 'mayo 2026' }).getAttribute('aria-pressed')
+    ).toBe('true')
+    for (const etiqueta of ['enero 2026', 'febrero 2026', 'marzo 2026', 'abril 2026']) {
+      expect(within(dialog).getByRole('button', { name: etiqueta })).toBeVisible()
+    }
+
+    // Diff: las 7 filas cambian al promedio 12 h / 28 días (cabecera + 7 filas);
+    // el mes elegido aparece como referencia entre paréntesis.
+    const filasDiff = within(dialog).getAllByRole('row')
+    expect(filasDiff).toHaveLength(8)
+    expect(filasDiff[1].textContent).toContain('→')
+    expect(filasDiff[1].textContent).toContain('(mayo 2026: 31)')
+
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: /aplicar 7 cambios \(promedio de 5 meses\)/i })
+    )
+
+    await waitFor(() => {
+      expect(canvas.queryByRole('dialog', { name: /cambios antes de aplicar/i })).toBeNull()
+    })
+    const toast = await canvas.findByText(
+      /se actualizaron 7 filas con el promedio de 5 meses con facturas/i
+    )
+    await waitFor(() => expect(toast).toBeVisible(), { timeout: 2000 })
+
+    // Las filas quedaron con el promedio de la serie (12 h / 28 días).
+    const horasTras = (await canvas.findByLabelText(
+      /fila 1, horas de uso por día/i
+    )) as HTMLInputElement
+    const diasTras = (await canvas.findByLabelText(
+      /fila 1, días de uso por mes/i
+    )) as HTMLInputElement
+    expect(horasTras.value).toBe('12')
+    expect(diasTras.value).toBe('28')
+  },
+}
+
+export const ModoCalculoUso: Story = {
+  name: 'Paso 4 · Cálculo por fila: meses con facturas y cancelar no aplica',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await elegirEdificacion(canvas, userEvent)
+    await subirArchivo(canvasElement, userEvent, archivoEquipos())
+
+    const continuar = await canvas.findByRole(
+      'button',
+      { name: /continuar a vista previa/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(continuar)
+    await userEvent.click(
+      await canvas.findByRole(
+        'button',
+        { name: /continuar a cálculos opcionales/i },
+        { timeout: 5000 }
+      )
+    )
+
+    // Cálculo individual desde la columna Acciones (alcance de 1 fila).
+    await userEvent.click(await canvas.findByRole('button', { name: /calcular uso de la fila 1/i }))
+
+    const dialog = await canvas.findByRole('dialog', { name: /cambios antes de aplicar/i })
+    await expect(await within(dialog).findByText(/^Fila 1\./)).toBeVisible()
+
+    // Los 5 meses con facturas son chips seleccionables; el último viene activo.
+    for (const etiqueta of [
+      'enero 2026',
+      'febrero 2026',
+      'marzo 2026',
+      'abril 2026',
+      'mayo 2026',
+    ]) {
+      expect(within(dialog).getByRole('button', { name: etiqueta })).toBeVisible()
+    }
+    expect(
+      within(dialog).getByRole('button', { name: 'mayo 2026' }).getAttribute('aria-pressed')
+    ).toBe('true')
+
+    // Enero 2026 no tiene días operativos (los rangos empiezan el 09/02): su
+    // referencia en la tabla es «—», pero el diff NO depende del mes elegido —
+    // lo que se aplica es el promedio de la serie (12 h / 28 días).
+    await userEvent.click(within(dialog).getByRole('button', { name: 'enero 2026' }))
+    const filasEnero = within(dialog).getAllByRole('row')
+    expect(filasEnero).toHaveLength(2)
+    expect(filasEnero[1].textContent).toContain('→')
+    expect(filasEnero[1].textContent).toContain('(enero 2026: —)')
+
+    // Volver a mayo cambia la referencia mostrada; el promedio aplicable es el mismo.
+    await userEvent.click(within(dialog).getByRole('button', { name: 'mayo 2026' }))
+    const filasVuelta = within(dialog).getAllByRole('row')
+    expect(filasVuelta).toHaveLength(2)
+    expect(filasVuelta[1].textContent).toContain('→')
+    expect(filasVuelta[1].textContent).toContain('(mayo 2026: 31)')
+
+    // Cancelar: nada se aplica.
+    await userEvent.click(within(dialog).getByRole('button', { name: /cancelar/i }))
+    await waitFor(() => {
+      expect(canvas.queryByRole('dialog', { name: /cambios antes de aplicar/i })).toBeNull()
+    })
+    const horas1 = (await canvas.findByLabelText(
+      /fila 1, horas de uso por día/i
+    )) as HTMLInputElement
+    expect(horas1.value).toBe('8')
+
+    // Reabrir y aplicar: solo cambia la fila 1 (la 2 conserva el archivo).
+    await userEvent.click(await canvas.findByRole('button', { name: /calcular uso de la fila 1/i }))
+    const dialog2 = await canvas.findByRole('dialog', { name: /cambios antes de aplicar/i })
+    await userEvent.click(
+      within(dialog2).getByRole('button', { name: /aplicar 1 cambio \(promedio de 5 meses\)/i })
+    )
+    await waitFor(() => {
+      expect(canvas.queryByRole('dialog', { name: /cambios antes de aplicar/i })).toBeNull()
+    })
+    const toast = await canvas.findByText(
+      /se actualizaron 1 fila con el promedio de 5 meses con facturas/i
+    )
+    await waitFor(() => expect(toast).toBeVisible(), { timeout: 2000 })
+
+    const horas1Tras = (await canvas.findByLabelText(
+      /fila 1, horas de uso por día/i
+    )) as HTMLInputElement
+    const horas2 = (await canvas.findByLabelText(
+      /fila 2, horas de uso por día/i
+    )) as HTMLInputElement
+    expect(horas1Tras.value).toBe('12')
+    expect(horas2.value).toBe('8')
+  },
+}
+
+export const Paso5Resultado: Story = {
+  name: 'Paso 5 · Resultado de la importación',
+  args: { resultadoInicial: resultadoEquiposDemo, edificacionInicial: EDIFICACION_CAMPUS },
+}
+
+export const ImportacionExitosa: Story = {
+  name: 'Flujo completo · Edificación → cálculos opcionales → resultado',
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await elegirEdificacion(canvas, userEvent)
+    await subirArchivo(canvasElement, userEvent, archivoEquipos())
+
+    const continuar = await canvas.findByRole(
+      'button',
+      { name: /continuar a vista previa/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(continuar)
+
+    // Vista previa navega al paso de cálculos (obligatorio pasar por él).
+    const aCalculos = await canvas.findByRole(
+      'button',
+      { name: /continuar a cálculos opcionales/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(aCalculos)
+
+    // El cálculo es opcional: se puede saltar directo a la importación.
+    const aImportacion = await canvas.findByRole(
+      'button',
+      { name: /continuar a importación/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(aImportacion)
 
     const importar = await canvas.findByRole(
       'button',
@@ -155,109 +340,8 @@ export const SoloLectura: Story = {
   },
 }
 
-export const UsoDesdeCalendario: Story = {
-  name: '6d4 · Uso de equipos auto-completado desde el calendario',
-  play: async ({ canvas, userEvent }) => {
-    await elegirEdificacion(canvas, userEvent)
-    // Ingreso manual: 5 filas vacías → vista previa editable.
-    await userEvent.click(await canvas.findByRole('button', { name: /ingreso manual/i }))
-
-    // El bloque de uso aparece porque el campus tiene configuración operativa.
-    const completar = await canvas.findByRole('button', {
-      name: /completar horas y días de uso desde el calendario/i,
-    })
-    // Mes por defecto = actual (fuera de rangos en las fixtures); elegimos junio:
-    // período académico hasta el 13/06 → 13 días operativos a H = 12 h.
-    await userEvent.selectOptions(canvas.getByLabelText(/^mes$/i), '6')
-
-    // Override manual: la fila 2 conserva sus 9 h escritas a mano.
-    const manual = canvas.getByLabelText('Fila 2, Horas de uso por día') as HTMLInputElement
-    await userEvent.clear(manual)
-    await userEvent.type(manual, '9')
-
-    await userEvent.click(completar)
-
-    // Celdas vacías completadas con la media de Xe del mes elegido.
-    const horas1 = canvas.getByLabelText('Fila 1, Horas de uso por día') as HTMLInputElement
-    const dias1 = canvas.getByLabelText('Fila 1, Días de uso por mes') as HTMLInputElement
-    expect(horas1.value).toBe('12')
-    expect(dias1.value).toBe('13')
-    // La fila 2 solo recibió el día vacío: su valor manual sigue intacto.
-    expect(
-      (canvas.getByLabelText('Fila 2, Horas de uso por día') as HTMLInputElement).value
-    ).toBe('9')
-    expect((canvas.getByLabelText('Fila 2, Días de uso por mes') as HTMLInputElement).value).toBe(
-      '13'
-    )
-    // Confirmación de la operación (5 filas: 4 completamente vacías + la de la fila 2).
-    // El aviso entra con `animate-slide-up` (0,5 s, arranca en opacity 0): la
-    // visibilidad se ESPERA. Comprobar en el mismo tick lo vuelve una carrera
-    // contra la animación.
-    await waitFor(() =>
-      expect(canvas.getByText(/Se completaron 5 filas/i)).toBeVisible()
-    )
-  },
-}
-
-export const OverrideHorariosPorAmbito: Story = {
-  name: 'S1 · Horario efectivo por ámbito: espacio > bloque > edificación',
-  args: {
-    // Xe ON para el campus: el cálculo usa los horarios vigentes por fila.
-    calendarios: calendariosDemo.map((c) =>
-      c.edificacionId === 'ed-campus-00000001' ? { ...c, usarHorariosXe: true } : c
-    ),
-  },
-  play: async ({ canvas, userEvent }) => {
-    await elegirEdificacion(canvas, userEvent)
-    await userEvent.click(await canvas.findByRole('button', { name: /ingreso manual/i }))
-    // Rango lectivo 01/06–13/06 (13 días operativos; sábados 6 y 13).
-    await userEvent.selectOptions(canvas.getByLabelText(/^mes$/i), '6')
-
-    // Fila 1: Aula 101 — tiene horario propio (SAB 08–14): manda él.
-    await elegirListbox(canvas.getByLabelText('Fila 1, Bloque'), 'bk-campus-a101-001', userEvent)
-    await userEvent.type(canvas.getByLabelText('Fila 1, Espacio'), 'Aula 101')
-    // Fila 2: solo bloque A-101 (LUN–VIE 06–22): hereda del bloque.
-    await elegirListbox(canvas.getByLabelText('Fila 2, Bloque'), 'bk-campus-a101-001', userEvent)
-    // Fila 3: sin bloque ni espacio: hereda de la edificación (unión de sus dos horarios).
-    // Fila 4: bloque A-102 solo tiene el horario vencido (2025): como no está
-    // vigente en junio 2026, el nivel BLOQUE no manda y cae a la edificación.
-    await elegirListbox(canvas.getByLabelText('Fila 4, Bloque'), 'bk-campus-a102-001', userEvent)
-
-    await userEvent.click(
-      await canvas.findByRole('button', {
-        name: /completar horas y días de uso desde el calendario/i,
-      })
-    )
-
-    // Fila 1 (ESPACIO SAB 08–14): corre solo los sábados 6 y 13 → 12 h / 2 días = 6 h.
-    expect(
-      (canvas.getByLabelText('Fila 1, Horas de uso por día') as HTMLInputElement).value
-    ).toBe('6')
-    expect(
-      (canvas.getByLabelText('Fila 1, Días de uso por mes') as HTMLInputElement).value
-    ).toBe('2')
-    // Fila 2 (BLOQUE LUN–VIE 06–22): 10 hábiles × 16 h → 16 h y 10 días
-    // (si se sumaran los niveles, los sábados aportarían y daría 15/12).
-    expect(
-      (canvas.getByLabelText('Fila 2, Horas de uso por día') as HTMLInputElement).value
-    ).toBe('16')
-    expect(
-      (canvas.getByLabelText('Fila 2, Días de uso por mes') as HTMLInputElement).value
-    ).toBe('10')
-    // Fila 3 (EDIFICACIÓN): 10 hábiles × 14 h + 2 sábados × 12 h = 164 h
-    // sobre 12 días (el domingo 7 no corre) → 14 h y 12 días.
-    expect(
-      (canvas.getByLabelText('Fila 3, Horas de uso por día') as HTMLInputElement).value
-    ).toBe('14')
-    expect(
-      (canvas.getByLabelText('Fila 3, Días de uso por mes') as HTMLInputElement).value
-    ).toBe('12')
-    // Fila 4: el horario vencido del A-102 no cuenta → mismos números que la edificación.
-    expect(
-      (canvas.getByLabelText('Fila 4, Horas de uso por día') as HTMLInputElement).value
-    ).toBe('14')
-    expect(
-      (canvas.getByLabelText('Fila 4, Días de uso por mes') as HTMLInputElement).value
-    ).toBe('12')
-  },
-}
+// La precedencia por nivel de los horarios (espacio > bloque > edificación) y
+// la política de operatividad del calendario viven en los tests unitarios de
+// models/horarios.test.ts, models/calculoUso.test.ts y
+// models/calculoUsoFilas.test.ts; las stories del paso 4 ejercitan el modal de
+// diff (global y por fila) con el calendario demo.
