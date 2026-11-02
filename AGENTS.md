@@ -232,6 +232,7 @@ El tablero **SIGE** (GitHub Projects v2: `github.com/users/AFMG99/projects/5`) e
 
 ## 📚 Docs relacionados
 
+- `docs/estimaciones_arima.md` — alcance, depuración, permisos y operación de las proyecciones ARIMA.
 - `GIT_WORKFLOW.md` — flujo git completo, ramas, Dependabot, secrets, staging/production.
 - `README.md` — quick start y scripts.
 - `docs/modelos_lben_y_formulas_ahorro-v2.md` — fórmulas LBEn con atribuciones.
