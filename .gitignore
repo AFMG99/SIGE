@@ -88,6 +88,8 @@ report_t4_analysis.md
 answers.md
 respuesta_actual.md
 handoff_*.md
+.issue-hu09-task.md
+/estimaciones_arima.md
 
 # Instrucciones y docs temporales de auditoría/IA
 docs/INSTRUCCIONES_OPENCODE_ASISTENTE_IA.md

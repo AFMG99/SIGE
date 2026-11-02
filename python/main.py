@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lben.analisis import analizar_desde_payload  # noqa: E402
 from lben.cli import _json_default, calcular_desde_payload  # noqa: E402
+from lben.forecast import proyectar_desde_payload  # noqa: E402
 
 app = FastAPI(title="SIGE motor LBEn", docs_url=None, redoc_url=None)
 
@@ -95,4 +96,15 @@ def analizar_consumo(
     _verificar_llave(x_lben_key)
 
     salida = analizar_desde_payload(payload)
+    return _json_safe(json.loads(json.dumps(salida, default=_json_default)))
+
+
+@app.post("/api/forecast")
+def proyectar_consumo(
+    payload: dict,
+    x_lben_key: str | None = Header(default=None),
+):
+    """Proyección ARIMA exploratoria, protegida por la llave interna del engine."""
+    _verificar_llave(x_lben_key)
+    salida = proyectar_desde_payload(payload)
     return _json_safe(json.loads(json.dumps(salida, default=_json_default)))

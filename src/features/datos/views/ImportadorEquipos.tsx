@@ -26,14 +26,26 @@ import {
 } from '@/features/datos/models/validations'
 import type { ConflictoEquipo, FilaEnvioEquipos } from '@/features/datos/models/validations'
 import { importarFilasEquipos } from '@/features/datos/controllers/equipos'
-import { usoEquiposDelMes } from '@/features/datos/models/calendario'
-import { horariosDelNivelGanador } from '@/features/datos/models/horarios'
+import { periodosConFactura } from '@/features/datos/controllers/facturas'
+import {
+  calcularCambiosPromedio,
+  calcularCambiosUso,
+  mesesDesdePeriodos,
+  mesActual,
+  parCambia,
+} from '@/features/datos/models/calculoUsoFilas'
+import type {
+  CambioUso,
+  ContextoCalculoFilas,
+  ParUso,
+  PeriodoUso,
+} from '@/features/datos/models/calculoUsoFilas'
+import type { RangoFechas } from '@/features/datos/models/calendario'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
 import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
-import { CalculoUsoOpcional } from './CalculoUsoOpcional'
 import type {
   BloqueInfo,
   CalendarioInfo,
@@ -57,28 +69,10 @@ const MAX_FILAS = 5000
 const ETIQUETA_FORMATOS = '.xlsx, .xls o .csv'
 const ETIQUETA_TAMANO = '5 MB'
 
-/** Meses en minúscula para los selectores del bloque de uso (6d4). */
-const MESES = [
-  'enero',
-  'febrero',
-  'marzo',
-  'abril',
-  'mayo',
-  'junio',
-  'julio',
-  'agosto',
-  'septiembre',
-  'octubre',
-  'noviembre',
-  'diciembre',
-]
-
-/** Años ofrecidos por el selector de uso: el actual ± 1. */
-const ANOS_USO = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1]
-
 type CampoId =
   | 'bloque'
   | 'espacio'
+  | 'piso'
   | 'tipo'
   | 'cantidad'
   | 'potenciaNominal'
@@ -86,7 +80,7 @@ type CampoId =
   | 'diasUsoMes'
   | 'usenIndicador'
 type CampoFila = CampoId
-type Paso = 'carga' | 'mapeo' | 'vista' | 'resultado'
+type Paso = 'carga' | 'mapeo' | 'vista' | 'calculos' | 'resultado'
 
 interface DefCampo {
   id: CampoId
@@ -95,11 +89,13 @@ interface DefCampo {
   tipo: 'texto' | 'numero'
   /** Campo que puede resolverse con un valor global (si el archivo no lo trae). */
   respaldadoGlobal?: boolean
+  opcional?: boolean
 }
 
 const CAMPOS: DefCampo[] = [
   { id: 'bloque', etiqueta: 'Bloque', ejemplo: 'BLOQUE-A-001', tipo: 'texto', respaldadoGlobal: true },
   { id: 'espacio', etiqueta: 'Espacio', ejemplo: 'Aula Mayor', tipo: 'texto', respaldadoGlobal: true },
+  { id: 'piso', etiqueta: 'Piso o nivel', ejemplo: '2', tipo: 'texto', opcional: true },
   { id: 'tipo', etiqueta: 'Tipo de equipo', ejemplo: 'HVAC', tipo: 'texto' },
   { id: 'cantidad', etiqueta: 'Cantidad', ejemplo: '3', tipo: 'numero' },
   { id: 'potenciaNominal', etiqueta: 'Potencia nominal (kW)', ejemplo: '45.5', tipo: 'numero' },
@@ -111,6 +107,7 @@ const CAMPOS: DefCampo[] = [
 const SINONIMOS: Record<CampoId, string[]> = {
   bloque: ['bloque', 'bloqueid', 'idbloque', 'codigobloque', 'codigo', 'edificio'],
   espacio: ['espacio', 'ambiente', 'zona', 'aula', 'salon', 'espaciofisico', 'local'],
+  piso: ['piso', 'nivel', 'planta', 'pisonivel'],
   tipo: ['tipo', 'tipoequipo', 'equipotipo', 'clase', 'equipo'],
   cantidad: ['cantidad', 'nro', 'numero', 'unidades', 'und', 'total'],
   potenciaNominal: ['potencianominal', 'potencia', 'kw', 'potenciakw', 'potenciakwnominal'],
@@ -150,6 +147,7 @@ function autoMapear(encabezados: string[]): Record<CampoFila, number | null> {
   const mapeo: Record<CampoFila, number | null> = {
     bloque: null,
     espacio: null,
+    piso: null,
     tipo: null,
     cantidad: null,
     potenciaNominal: null,
@@ -197,6 +195,7 @@ const nuevaFila = (): FilaTrabajo => ({
   datos: {
     bloque: '',
     espacio: '',
+    piso: '',
     tipo: '',
     cantidad: '',
     potenciaNominal: '',
@@ -278,9 +277,6 @@ export function ImportadorEquipos({
 
   // Segmentación: edificación (obligatoria) + valores globales
   const [edificacionSel, setEdificacionSel] = useState(edificacionInicial ?? '')
-  // Mes/año de referencia del bloque de uso (6d4); por defecto el mes actual.
-  const [usoMes, setUsoMes] = useState(new Date().getMonth() + 1)
-  const [usoAno, setUsoAno] = useState(new Date().getFullYear())
   const [bloqueGlobal, setBloqueGlobal] = useState('')
   const [espacioGlobal, setEspacioGlobal] = useState('')
 
@@ -300,6 +296,7 @@ export function ImportadorEquipos({
   const [mapeo, setMapeo] = useState<Record<CampoFila, number | null>>({
     bloque: null,
     espacio: null,
+    piso: null,
     tipo: null,
     cantidad: null,
     potenciaNominal: null,
@@ -310,6 +307,17 @@ export function ImportadorEquipos({
 
   const [filas, setFilas] = useState<FilaTrabajo[]>([])
   const [pagina, setPagina] = useState(0)
+
+  // Cálculo de uso por fila (paso «Cálculos opcionales»): modal con diff
+  // antes→después; nada se aplica hasta que el usuario confirma (2A).
+  const [modalCalculo, setModalCalculo] = useState<{ alcance: 'fila' | 'todas'; filaId?: string } | null>(null)
+  const [mesesCalculo, setMesesCalculo] = useState<{
+    meses: PeriodoUso[]
+    error: boolean
+    mensaje?: string
+  }>({ meses: [], error: false })
+  const [mesCalculo, setMesCalculo] = useState<PeriodoUso | null>(null)
+  const [cargandoPeriodos, setCargandoPeriodos] = useState(false)
 
   const [importando, setImportando] = useState(false)
   const [progreso, setProgreso] = useState<number | null>(null)
@@ -346,7 +354,9 @@ export function ImportadorEquipos({
     const mapa = new Map<string, string[]>()
     for (const e of espacios) {
       const lista = mapa.get(e.bloqueId)
-      if (lista) lista.push(e.nombre)
+      if (lista) {
+        if (!lista.includes(e.nombre)) lista.push(e.nombre)
+      }
       else mapa.set(e.bloqueId, [e.nombre])
     }
     mapa.forEach((lista) => lista.sort((a, b) => a.localeCompare(b)))
@@ -506,6 +516,7 @@ export function ImportadorEquipos({
   const faltanCampos = CAMPOS.filter((campo) => {
     // La columna "bloque" se ignora cuando el tipo de edificación no la requiere
     if (campo.id === 'bloque' && !requiereBloque) return false
+    if (campo.opcional) return false
     if (mapeo[campo.id] !== null) return false
     if (campo.id === 'bloque' && bloqueGlobal.trim()) return false
     if (campo.id === 'espacio' && espacioGlobal.trim()) return false
@@ -528,6 +539,7 @@ export function ImportadorEquipos({
         if (campo.id === 'bloque')
           trabajo.datos.bloque = requiereBloque ? resolverBloque(crudo) : ''
         else if (campo.id === 'espacio') trabajo.datos.espacio = crudo
+        else if (campo.id === 'piso') trabajo.datos.piso = crudo
         else if (campo.id === 'tipo') trabajo.datos.tipo = normalizarTipoEquipo(crudo)
         else if (campo.id === 'usenIndicador') trabajo.datos.usenIndicador = normalizarIndicador(crudo)
         else trabajo.datos[campo.id] = crudo
@@ -590,7 +602,8 @@ export function ImportadorEquipos({
         datos.codigo,
         datos.nombre,
         datos.area || undefined,
-        datos.factor || undefined
+        datos.factor || undefined,
+        { largoM: datos.largoM, anchoM: datos.anchoM, altoM: datos.altoM }
       )
       if (res.estado === 'error') {
         throw new Error(res.mensaje)
@@ -655,69 +668,151 @@ export function ImportadorEquipos({
     : []
   const horariosDeEdif = horarios.filter((h) => h.edificacionId === edificacionSel)
 
-  /**
-   * Completa SOLO las celdas vacías de «Horas de uso por día» y «Días de uso
-   * por mes» con el calendario operativo del mes elegido (media de Xe sobre
-   * los días operativos). Lo escrito a mano se conserva: el valor manual
-   * siempre manda (override). Ninguna fila descartada se toca.
-   */
-  const completarUsoDesdeCalendario = () => {
-    if (!edificacionSel || !calendarioDeEdif) return
-    let completadas = 0
-    const nuevas = filas.map((fila) => {
-      if (fila.descartada) return fila
-      const faltaHoras = !fila.datos.horasUsoDia.trim()
-      const faltaDias = !fila.datos.diasUsoMes.trim()
-      if (!faltaHoras && !faltaDias) return fila
-      const bloqueId = resolverBloque(bloqueEfectivo(fila))
-      const nombreEspacio = normalizar(espacioEfectivo(fila))
-      const candidatos = nombreEspacio
-        ? espacios.filter((s) => normalizar(s.nombre) === nombreEspacio)
-        : []
-      // Con bloque resuelto solo cuenta el espacio de ESE bloque; sin bloque,
-      // el primer espacio homónimo del catálogo.
-      const espacioId = (
-        bloqueId ? candidatos.find((s) => s.bloqueId === bloqueId) : candidatos[0]
-      )?.id ?? ''
-      // S1: el nivel más específico con horario vigente ese mes manda; dentro
-      // del nivel se unen sus horarios y entre niveles no se suman.
-      const horariosFila = horariosDelNivelGanador(
-        horariosDeEdif,
-        { edificacionId: edificacionSel, bloqueId, espacioId },
-        { mes: usoMes, ano: usoAno }
-      )
-      const calc = usoEquiposDelMes({
-        rangos: rangosDeEdif,
-        config: calendarioDeEdif,
-        horarios: horariosFila,
-        usarHorariosXe: calendarioDeEdif.usarHorariosXe ?? false,
-        mes: usoMes,
-        ano: usoAno,
-        // S2: domingos/festivos operativos de la edificación (default ON).
-        politica: {
-          domingosOperativos: calendarioDeEdif.domingosOperativos ?? true,
-          festivosOperativos: calendarioDeEdif.festivosOperativos ?? true,
-        },
-      })
-      if (!calc) return fila
-      const datos = { ...fila.datos }
-      if (faltaHoras) datos.horasUsoDia = String(calc.horasUsoDia)
-      if (faltaDias) datos.diasUsoMes = String(calc.diasUsoMes)
-      completadas += 1
-      return { ...fila, datos }
-    })
-    if (completadas === 0) {
-      showToast(
-        'No se completó ninguna celda: el mes elegido no tiene días operativos o las filas no tienen campos de uso vacíos.',
-        'error'
-      )
-      return
+  // ---------- Cálculo de uso desde el calendario (paso 4 rediseñado) ----------
+  // Mismo motor que la GDE y que el histórico «completar uso»: ámbito por fila
+  // SIN equipoId (los horarios de nivel EQUIPO no mandan), política `?? true`
+  // y `usarHorariosXe === true` (patrón AC6 de controllers/calculoUso.ts).
+  const contextoCalculo: ContextoCalculoFilas | null =
+    calendarioDeEdif && edificacionSel
+      ? {
+          edificacionId: edificacionSel,
+          horarios: horariosDeEdif,
+          rangos: rangosDeEdif.map((r) => ({
+            fechaInicio: r.fechaInicio,
+            fechaFin: r.fechaFin,
+            tipoDia: r.tipoDia as RangoFechas['tipoDia'],
+          })),
+          config: {
+            horaInicioOperacion: calendarioDeEdif.horaInicioOperacion,
+            horasOperacionDia: calendarioDeEdif.horasOperacionDia,
+          },
+          usarHorariosXe: calendarioDeEdif.usarHorariosXe === true,
+          politica: {
+            domingosOperativos: calendarioDeEdif.domingosOperativos ?? true,
+            festivosOperativos: calendarioDeEdif.festivosOperativos ?? true,
+          },
+        }
+      : null
+
+  /** Clave `bloqueId|nombreNormalizado` → id de espacio (resolución O(1) por fila). */
+  const espaciosPorClave = useMemo(() => {
+    const mapa = new Map<string, EspacioInfo[]>()
+    for (const e of espacios) {
+      const clave = `${e.bloqueId}|${normalizarEspacio(e.nombre)}`
+      mapa.set(clave, [...(mapa.get(clave) ?? []), e])
     }
-    setFilas(nuevas)
-    showToast(
-      `Se completaron ${completadas} filas desde el calendario (${MESES[usoMes - 1]} de ${usoAno}).`,
-      'success'
+    return mapa
+  }, [espacios])
+
+  /** Ámbito jerárquico de una fila (ids; sin equipoId — semántica del importador). */
+  const ambitoDeFila = (fila: FilaTrabajo): { bloqueId: string | null; espacioId: string | null } => {
+    const bloqueId = fila.datos.bloque.trim() || bloqueGlobal.trim()
+    const nombre = normalizarEspacio(espacioEfectivo(fila))
+    const piso = fila.datos.piso.trim()
+    const candidatos = bloqueId && nombre
+      ? espaciosPorClave.get(`${bloqueId}|${nombre}`) ?? []
+      : []
+    const encontrados = piso ? candidatos.filter((e) => e.piso === piso) : candidatos
+    return {
+      bloqueId: bloqueId || null,
+      espacioId: encontrados.length === 1 ? encontrados[0].id : null,
+    }
+  }
+
+  /** Filas sobre las que actúa el cálculo: no descartadas, no vacías. */
+  const filasElegibles = (alcance: 'fila' | 'todas', filaId?: string): FilaTrabajo[] =>
+    filas.filter((f) => !f.descartada && !filaVacia(f) && (alcance === 'todas' || f.id === filaId))
+
+  const filasPorId = new Map(filas.map((f) => [f.id, f]))
+
+  /** Abre el modal: consulta los periodos con facturas y preselecciona el último (S3). */
+  const abrirModalCalculo = async (alcance: 'fila' | 'todas', filaId?: string) => {
+    if (!contextoCalculo) return
+    setCargandoPeriodos(true)
+    try {
+      const res = await periodosConFactura(edificacionSel)
+      const periodos = res.estado === 'ok' && Array.isArray(res.periodos) ? res.periodos : []
+      const meses = mesesDesdePeriodos(periodos)
+      setMesesCalculo({
+        meses,
+        error: res.estado !== 'ok',
+        mensaje: res.estado !== 'ok' ? res.mensaje : undefined,
+      })
+      setMesCalculo(meses.length > 0 ? meses[meses.length - 1] : mesActual())
+      setModalCalculo({ alcance, filaId })
+    } finally {
+      setCargandoPeriodos(false)
+    }
+  }
+
+  // Diff antes→después. Lo que se APLICA es el PROMEDIO de la serie de meses
+  // con facturas (el valor general de EquipoElectrico debe ser representativo
+  // del año, no el de un mes aislado); el mes elegido en los chips sirve
+  // únicamente de referencia visual en la tabla.
+  const entradasCalculo = () =>
+    filasElegibles(modalCalculo?.alcance ?? 'todas', modalCalculo?.filaId).map((f) => ({
+      id: f.id,
+      horasUsoDia: f.datos.horasUsoDia,
+      diasUsoMes: f.datos.diasUsoMes,
+      ambito: ambitoDeFila(f),
+    }))
+
+  /** Meses que alimentan el promedio: todos los que tienen facturas (S3). */
+  const mesesPromedio: { mes: number; ano: number }[] = (() => {
+    if (!modalCalculo || !mesCalculo) return []
+    const serie = mesesCalculo.meses.length > 0 ? mesesCalculo.meses : [mesCalculo]
+    return serie.map(({ mes, ano }) => ({ mes, ano }))
+  })()
+
+  const cambiosAplicar: CambioUso[] = (() => {
+    if (!modalCalculo || !contextoCalculo || mesesPromedio.length === 0) return []
+    return calcularCambiosPromedio(entradasCalculo(), mesesPromedio, contextoCalculo)
+  })()
+
+  /** Mes elegido en los chips: valores calculados de ese mes, solo para ver. */
+  const cambiosReferencia: CambioUso[] = (() => {
+    if (!modalCalculo || !mesCalculo || !contextoCalculo) return []
+    return calcularCambiosUso(entradasCalculo(), mesCalculo, contextoCalculo)
+  })()
+
+  const referenciaPorId = new Map(cambiosReferencia.map((c) => [c.id, c.despues]))
+
+  const cambiosAplicables = cambiosAplicar.filter((c) => parCambia(c.antes, c.despues))
+  const sinCalculoPosible = cambiosAplicar.filter((c) => c.despues === null).length
+  const mesesIncluidos = mesesPromedio.length
+
+  /** Meses con facturas agrupados por año: el modal se lee como un calendario. */
+  const mesesPorAno = (() => {
+    const grupos = new Map<number, PeriodoUso[]>()
+    for (const m of mesesCalculo.meses) {
+      const lista = grupos.get(m.ano) ?? []
+      lista.push(m)
+      grupos.set(m.ano, lista)
+    }
+    return Array.from(grupos, ([ano, meses]) => ({ ano, meses }))
+  })()
+
+  /** Escribe los pares calculados en las filas (solo tras confirmar en el modal). */
+  const aplicarCambiosUso = () => {
+    if (cambiosAplicables.length === 0 || !mesCalculo) return
+    const porId = new Map<string, ParUso>()
+    for (const c of cambiosAplicables) {
+      if (c.despues) porId.set(c.id, c.despues)
+    }
+    setFilas((prev) =>
+      prev.map((f) => {
+        const d = porId.get(f.id)
+        if (!d) return f
+        return { ...f, datos: { ...f.datos, horasUsoDia: d.horasUsoDia, diasUsoMes: d.diasUsoMes } }
+      })
     )
+    const cuenta = `${porId.size} fila${porId.size === 1 ? '' : 's'}`
+    const fuente =
+      mesesIncluidos > 1
+        ? `el promedio de ${mesesIncluidos} meses con facturas`
+        : `el uso de ${mesCalculo.etiqueta}`
+    showToast(`Se actualizaron ${cuenta} con ${fuente}.`, 'success')
+    setModalCalculo(null)
   }
 
   const validaciones = useMemo(() => {
@@ -751,7 +846,7 @@ export function ImportadorEquipos({
       if (!espacio) errores.espacio = 'Campo obligatorio'
 
       for (const campo of CAMPOS) {
-        if (campo.respaldadoGlobal) continue
+        if (campo.respaldadoGlobal || campo.opcional) continue
         const valor = String(fila.datos[campo.id] ?? '').trim()
         if (!valor) errores[campo.id] = 'Campo obligatorio'
       }
@@ -760,6 +855,7 @@ export function ImportadorEquipos({
         const r = filaEquipoElectricoschema.safeParse({
           ...(requiereBloque ? { bloqueId: bloqueEfectivo(fila) } : {}),
           espacio,
+          piso: fila.datos.piso.trim() || undefined,
           tipo: fila.datos.tipo.trim(),
           cantidad: fila.datos.cantidad.trim(),
           potenciaNominal: fila.datos.potenciaNominal.trim(),
@@ -785,7 +881,7 @@ export function ImportadorEquipos({
       if (!validacion || fila.descartada || filaVacia(fila)) return
       if (Object.keys(validacion.errores).length > 0) return
 
-      const clave = `${bloqueEfectivo(fila)}|${espacioEfectivo(fila)}|${fila.datos.tipo.trim().toUpperCase()}`
+      const clave = `${bloqueEfectivo(fila)}|${espacioEfectivo(fila)}|${fila.datos.piso.trim()}|${fila.datos.tipo.trim().toUpperCase()}`
       const numero = numerosDeFila.get(fila.id) ?? 0
       const previa = claves.get(clave)
       if (previa !== undefined) {
@@ -835,6 +931,7 @@ export function ImportadorEquipos({
         fila: i + 1,
         ...(requiereBloque ? { bloqueId: bloqueEfectivo(fila) } : {}),
         espacio: espacioEfectivo(fila),
+        piso: fila.datos.piso.trim() || undefined,
         tipo: fila.datos.tipo.trim() as FilaEnvioEquipos['tipo'],
         cantidad: fila.datos.cantidad.trim(),
         potenciaNominal: fila.datos.potenciaNominal.trim(),
@@ -890,11 +987,11 @@ export function ImportadorEquipos({
   // ------------------------------------------
 
   const descargarPlantilla = () => {
-    const encabezado = 'bloque,espacio,tipo,cantidad,potenciaNominal,horasUsoDia,diasUsoMes,usenIndicador'
+    const encabezado = 'bloque,espacio,piso,tipo,cantidad,potenciaNominal,horasUsoDia,diasUsoMes,usenIndicador'
     const ejemplos = [
-      'BLOQUE-A-001,Aula Mayor,HVAC,3,45.5,12,22,ACTIVO',
-      'BLOQUE-A-001,Pasillo,ILUMINACION,150,18.2,10,22,ACTIVO',
-      'BLOQUE-A-001,Oficina Administrativa,OFICINA,45,12.8,8,22,ACTIVO',
+      'BLOQUE-A-001,Aula Mayor,2,HVAC,3,45.5,12,22,ACTIVO',
+      'BLOQUE-A-001,Pasillo,1,ILUMINACION,150,18.2,10,22,ACTIVO',
+      'BLOQUE-A-001,Oficina Administrativa,1,OFICINA,45,12.8,8,22,ACTIVO',
     ]
     const csv = '\uFEFF' + [encabezado, ...ejemplos].join('\r\n')
     descargar('plantilla-inventario-equipos.csv', csv, 'text/csv;charset=utf-8')
@@ -989,13 +1086,15 @@ export function ImportadorEquipos({
       ? [
           { id: 'carga', etiqueta: '1. Edificación y carga' },
           { id: 'vista', etiqueta: '2. Vista previa' },
-          { id: 'resultado', etiqueta: '3. Importación' },
+          { id: 'calculos', etiqueta: '3. Cálculos opcionales' },
+          { id: 'resultado', etiqueta: '4. Importación' },
         ]
       : [
           { id: 'carga', etiqueta: '1. Edificación y carga' },
           { id: 'mapeo', etiqueta: '2. Mapeo' },
           { id: 'vista', etiqueta: '3. Vista previa' },
-          { id: 'resultado', etiqueta: '4. Importación' },
+          { id: 'calculos', etiqueta: '4. Cálculos opcionales' },
+          { id: 'resultado', etiqueta: '5. Importación' },
         ]
   const ordenPasos: Paso[] = pasos.map((p) => p.id)
   const pasoActual = ordenPasos.indexOf(paso)
@@ -1004,6 +1103,11 @@ export function ImportadorEquipos({
     carga: <IconCarga />,
     mapeo: <IconMapeo />,
     vista: <IconVistaPrevia />,
+    calculos: (
+      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg>
+    ),
     resultado: <IconImportar />,
   }
 
@@ -1454,7 +1558,8 @@ export function ImportadorEquipos({
             <h3 className="ui-title text-base">Mapeo de columnas</h3>
             <p className="ui-muted mt-1 text-xs">
               Se sugirió una asignación automática. Si los nombres no coinciden, ajústela aquí.
-              Espacio puede omitirse si definió un valor global en el paso 1
+              Espacio puede omitirse si definió un valor global en el paso 1. Piso es opcional, pero
+              debe indicarse si el mismo nombre de espacio existe en varios niveles.
               {requiereBloque
                 ? ', igual que el bloque.'
                 : '; la columna de bloque no aplica a esta edificación.'}
@@ -1637,70 +1742,6 @@ export function ImportadorEquipos({
               </div>
             </div>
           </div>
-
-          {/* Uso desde el calendario (6d4/S5): opt-in que completa SOLO las
-              celdas vacías; lo escrito a mano se conserva (override). */}
-          {edificacionSel && calendarioDeEdif && puedeCargar && (
-            <div className="ui-card">
-              <h3 className="ui-title text-sm">Uso de equipos desde el calendario</h3>
-              <p className="ui-muted mt-1 text-xs">
-                «Horas de uso por día» y «Días de uso por mes» derivan del calendario operativo:
-                media de Xe sobre los días operativos del mes elegido, con los horarios del ámbito
-                de cada fila. El botón completa solo las celdas vacías: cualquier valor escrito a
-                mano se conserva y manda.
-              </p>
-              <div className="mt-3 flex flex-wrap items-end gap-3">
-                <div>
-                  <label htmlFor="uso-mes" className="ui-label">
-                    Mes
-                  </label>
-                  <select
-                    id="uso-mes"
-                    value={usoMes}
-                    onChange={(e) => setUsoMes(Number(e.target.value))}
-                    className="ui-input mt-1"
-                  >
-                    {MESES.map((m, i) => (
-                      <option key={m} value={i + 1}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="uso-ano" className="ui-label">
-                    Año
-                  </label>
-                  <select
-                    id="uso-ano"
-                    value={usoAno}
-                    onChange={(e) => setUsoAno(Number(e.target.value))}
-                    className="ui-input mt-1"
-                  >
-                    {ANOS_USO.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  onClick={completarUsoDesdeCalendario}
-                  className="ui-btn ui-btn-secondary"
-                >
-                  Completar horas y días de uso desde el calendario
-                </button>
-                <p className="ui-muted basis-full text-xs">
-                  Xe{' '}
-                  {calendarioDeEdif.usarHorariosXe
-                    ? 'desde los horarios vigentes'
-                    : `= ${calendarioDeEdif.horasOperacionDia} h (H fija)`}{' '}
-                  · fuente: la configuración operativa de la edificación.
-                </p>
-              </div>
-            </div>
-          )}
 
           {/* Tabla editable */}
           <div className="ui-table-shell">
@@ -2002,6 +2043,270 @@ export function ImportadorEquipos({
 
               <button
                 type="button"
+                onClick={() => setPaso('calculos')}
+                disabled={payload.length === 0}
+                className="ui-btn ui-btn-primary"
+              >
+                Continuar a cálculos opcionales
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ PASO 4: CÁLCULOS OPCIONALES ============ */}
+      {paso === 'calculos' && (
+        <div className="space-y-4">
+          {/* Volver a vista previa */}
+          <button
+            type="button"
+            onClick={() => setPaso('vista')}
+            className="focus-ring inline-flex cursor-pointer items-center gap-2 rounded text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Volver a vista previa
+          </button>
+
+          {/* Tabla de cálculo: mismas columnas que la vista previa, con las
+              descriptivas en solo lectura y horas/días editables + calculables
+              por fila (Acciones) o en global, con diff antes de aplicar (2A). */}
+          <div className="ui-card">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="ui-title text-base">Cálculo de uso desde el calendario</h2>
+                <p className="ui-muted mt-1 text-sm">
+                  Las columnas de la vista previa en solo lectura; las horas y días de uso se
+                  calculan desde el calendario de{' '}
+                  <strong>{edificacionActual?.nombre ?? 'la edificación seleccionada'}</strong>{' '}
+                  para todos los meses con facturas registradas. Nada se escribe en la base hasta
+                  confirmar la importación.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void abrirModalCalculo('todas')}
+                disabled={!contextoCalculo || filasElegibles('todas').length === 0 || cargandoPeriodos}
+                title={!contextoCalculo ? 'La edificación no tiene calendario configurado' : undefined}
+                className="ui-btn ui-btn-primary"
+              >
+                {cargandoPeriodos ? 'Consultando facturas…' : 'Calcular todas las filas'}
+              </button>
+            </div>
+
+            <div className="ui-table-shell mt-4">
+              <div className="overflow-x-auto">
+                <table className="ui-table">
+                  <caption className="sr-only">
+                    Filas a importar con horas y días de uso editables y cálculo desde el
+                    calendario. Las columnas descriptivas están en solo lectura.
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">
+                        #
+                      </th>
+                      {camposVisibles.map((campo) => (
+                        <th key={campo.id} scope="col">
+                          {campo.etiqueta}
+                        </th>
+                      ))}
+                      <th scope="col">
+                        Estado
+                      </th>
+                      <th scope="col" className="text-right">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filasVisibles.length === 0 && (
+                      <tr>
+                        <td colSpan={camposVisibles.length + 3} className="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
+                          No hay filas. Vuelva al paso anterior.
+                        </td>
+                      </tr>
+                    )}
+                    {filasVisibles.map((fila) => {
+                      const indiceAbsoluto = filas.indexOf(fila)
+                      const numero = indiceAbsoluto + 1
+                      const v = validaciones.get(fila.id)
+                      const errores = v?.errores ?? {}
+                      const tieneError = !fila.descartada && Object.keys(errores).length > 0
+                      const filaClass = fila.descartada
+                        ? 'bg-gray-50 opacity-60 dark:bg-slate-800/40'
+                        : v?.duplicada
+                          ? 'bg-amber-50 dark:bg-amber-500/10'
+                          : tieneError
+                            ? 'bg-red-50/60 dark:bg-red-500/10'
+                            : ''
+
+                      return (
+                        <tr key={fila.id} className={filaClass}>
+                          <td className="px-3 py-2 font-mono text-xs text-gray-400 dark:text-gray-500">{numero}</td>
+
+                          {camposVisibles.map((campo) => {
+                            const editable = campo.id === 'horasUsoDia' || campo.id === 'diasUsoMes'
+                            const idError = `err-calc-${fila.id}-${campo.id}`
+                            const mensaje = errores[campo.id]
+
+                            if (!editable) {
+                              const valorBruto = String(fila.datos[campo.id] ?? '').trim()
+                              const valor =
+                                campo.id === 'bloque'
+                                  ? etiquetaDeBloque(fila.datos.bloque.trim() || bloqueGlobal)
+                                  : campo.id === 'espacio'
+                                    ? espacioEfectivo(fila)
+                                    : valorBruto
+                              return (
+                                <td key={campo.id} className="px-3 py-2 align-top text-gray-700 dark:text-gray-200">
+                                  {valor || <span className="text-gray-400 dark:text-slate-500">—</span>}
+                                </td>
+                              )
+                            }
+
+                            const baseInput = `w-full rounded-md border px-2 py-1 text-sm placeholder:text-gray-300 focus-visible:border-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-uv-lime focus-visible:ring-offset-1 disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-100 dark:placeholder:text-slate-500 dark:focus-visible:ring-offset-slate-950 dark:disabled:bg-slate-800 ${
+                              mensaje
+                                ? 'border-red-300 bg-white dark:border-red-900 dark:bg-red-950/40'
+                                : 'border-gray-200'
+                            }`
+
+                            return (
+                              <td key={campo.id} className="px-3 py-2 align-top">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={fila.datos[campo.id]}
+                                  onChange={(e) => actualizarCelda(fila.id, campo.id, e.target.value)}
+                                  disabled={fila.descartada}
+                                  placeholder={campo.ejemplo}
+                                  aria-label={`Fila ${numero}, ${campo.etiqueta}`}
+                                  aria-invalid={Boolean(mensaje)}
+                                  aria-describedby={mensaje ? idError : undefined}
+                                  className={baseInput}
+                                />
+                                {mensaje && (
+                                  <p id={idError} className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
+                                    {mensaje}
+                                  </p>
+                                )}
+                              </td>
+                            )
+                          })}
+
+                          <td className="px-3 py-2">
+                            {fila.descartada ? (
+                              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600 dark:bg-slate-700 dark:text-gray-300">
+                                Descartada
+                              </span>
+                            ) : v?.duplicada ? (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-500/15 dark:text-amber-400">
+                                Duplicada
+                              </span>
+                            ) : tieneError ? (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700 dark:bg-red-500/15 dark:text-red-400">
+                                Con error
+                              </span>
+                            ) : filaVacia(fila) ? (
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-slate-800 dark:text-gray-400">
+                                Vacía
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                                Válida
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => void abrirModalCalculo('fila', fila.id)}
+                              disabled={!contextoCalculo || fila.descartada || cargandoPeriodos}
+                              title={!contextoCalculo ? 'La edificación no tiene calendario configurado' : undefined}
+                              className="focus-ring cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                              aria-label={`Calcular uso de la fila ${numero}`}
+                            >
+                              Calcular
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Paginación: 50 filas por página (misma que la vista previa) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-800/50">
+                <p className="text-gray-600 dark:text-gray-300">
+                  Mostrando{' '}
+                  <strong>
+                    {filasVisibles.length > 0 ? indicePagina * FILAS_POR_PAGINA + 1 : 0}–
+                    {Math.min((indicePagina + 1) * FILAS_POR_PAGINA, filas.length)}
+                  </strong>{' '}
+                  de {filas.length} filas (50 por página)
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPagina((p) => Math.max(0, p - 1))}
+                    disabled={indicePagina <= 0}
+                    className="ui-btn ui-btn-secondary ui-btn-sm"
+                  >
+                    Anterior
+                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Página {indicePagina + 1} de {totalPaginas}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPagina((p) => Math.min(totalPaginas - 1, p + 1))}
+                    disabled={indicePagina >= totalPaginas - 1}
+                    className="ui-btn ui-btn-secondary ui-btn-sm"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Continuar a importación */}
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setPaso('resultado')}
+              className="ui-btn ui-btn-primary"
+            >
+              Continuar a importación
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============ PASO 5: RESULTADO ============ */}
+      {/* Confirmación de importación (llega desde el paso de cálculos) */}
+      {paso === 'resultado' && !resultado && (
+        <div className="space-y-4">
+          <div className="ui-card">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                <p>
+                  Listo para importar: <strong className="text-emerald-700 dark:text-emerald-400">{payload.length}</strong>{' '}
+                  filas válidas
+                  {resumen.conError + resumen.duplicadas > 0 && (
+                    <span>
+                      {' '}
+                      · se omitirán {resumen.conError + resumen.duplicadas} con error o duplicadas
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              <button
+                type="button"
                 onClick={() => void ejecutarImportacion(false)}
                 disabled={payload.length === 0 || importando}
                 className="ui-btn ui-btn-primary"
@@ -2035,7 +2340,6 @@ export function ImportadorEquipos({
         </div>
       )}
 
-      {/* ============ PASO 4: RESULTADO ============ */}
       {paso === 'resultado' && resultado && (
         <div className="space-y-4">
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
@@ -2106,11 +2410,26 @@ export function ImportadorEquipos({
             </div>
           )}
 
-          {edificacionSel && (
-            <CalculoUsoOpcional
-              edificacionId={edificacionSel}
-              edificacionNombre={edificacionActual?.nombre}
-            />
+          {progreso !== null && (
+            <div className="ui-card" aria-live="polite">
+              <div className="ui-muted flex items-center justify-between text-xs">
+                <span>{progreso < 100 ? 'Guardando registros…' : 'Listo'}</span>
+                <span>{progreso}%</span>
+              </div>
+              <div
+                className="ui-progress mt-1"
+                role="progressbar"
+                aria-valuenow={progreso}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Progreso de importación"
+              >
+                <div
+                  className="ui-progress-fill"
+                  style={{ width: `${progreso}%` }}
+                />
+              </div>
+            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-4">
@@ -2135,6 +2454,178 @@ export function ImportadorEquipos({
         </div>
       )}
 
+      {/* ============ MODAL: CAMBIOS DE USO ANTES DE APLICAR ============ */}
+      {modalCalculo && mesCalculo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setModalCalculo(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-calculo-uso"
+            className="ui-modal max-w-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="titulo-calculo-uso" className="ui-title text-base">
+              Cambios antes de aplicar
+            </h3>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+              {modalCalculo.alcance === 'todas'
+                ? `Se revisará el uso de las ${filasElegibles('todas').length} filas elegibles.`
+                : `Fila ${numerosDeFila.get(modalCalculo.filaId ?? '') ?? '—'}.`}{' '}
+              Fuente: calendario de{' '}
+              <strong>{edificacionActual?.nombre ?? 'la edificación'}</strong> sobre los{' '}
+              {mesesIncluidos > 0 ? `${mesesIncluidos} meses con facturas` : 'meses disponibles'}:
+              se aplica el <strong>promedio</strong> (representativo del año) y el mes elegido sirve
+              de referencia. Nada se aplica hasta confirmar.
+            </p>
+
+            {/* Meses con facturas registradas (S3) */}
+            {mesesCalculo.meses.length > 0 ? (
+              <div className="mt-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Meses con facturas registradas ({mesesCalculo.meses.length})
+                </p>
+                <div className="mt-1.5 max-h-36 space-y-1 overflow-y-auto pr-1">
+                  {mesesPorAno.map((grupo) => (
+                    <div key={grupo.ano} className="flex flex-wrap items-center gap-1.5">
+                      <span className="w-9 shrink-0 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                        {grupo.ano}
+                      </span>
+                      {grupo.meses.map((m) => {
+                        const activo = mesCalculo.ano === m.ano && mesCalculo.mes === m.mes
+                        return (
+                          <button
+                            key={`${m.ano}-${m.mes}`}
+                            type="button"
+                            onClick={() => setMesCalculo(m)}
+                            aria-pressed={activo}
+                            className={`focus-ring cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                              activo
+                                ? 'border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-500/15 dark:text-emerald-400'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300'
+                            }`}
+                          >
+                            {m.etiqueta}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  Se aplicará el promedio de los {mesesIncluidos} meses listados. Elija un mes para
+                  ver sus valores calculados en la tabla (solo referencia).
+                </p>
+              </div>
+            ) : mesesCalculo.error ? (
+              <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
+                {mesesCalculo.mensaje ?? 'No fue posible consultar los periodos con facturas.'} Se
+                calcula sobre el mes actual ({mesCalculo.etiqueta}).
+              </p>
+            ) : (
+              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                Esta edificación no tiene facturas registradas: se calcula sobre el mes actual (
+                {mesCalculo.etiqueta}).
+              </p>
+            )}
+
+            {/* Diff antes → después */}
+            <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/60">
+              <table className="ui-table">
+                <caption className="sr-only">
+                  Promedio de horas y días de uso a aplicar, con los valores actuales de cada fila.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Bloque</th>
+                    <th scope="col">Espacio</th>
+                    <th scope="col">Horas de uso</th>
+                    <th scope="col">Días de uso</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cambiosAplicables.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                        Sin cambios que aplicar: el cálculo coincide con los valores actuales
+                        {sinCalculoPosible > 0
+                          ? ` (${sinCalculoPosible} fila(s) sin cálculo posible)`
+                          : ''}
+                        .
+                      </td>
+                    </tr>
+                  )}
+                  {cambiosAplicables.map((c) => {
+                    const fila = filasPorId.get(c.id)
+                    const numero = numerosDeFila.get(c.id) ?? 0
+                    return (
+                      <tr key={c.id}>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-400 dark:text-gray-500">{numero}</td>
+                        <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200">
+                          {etiquetaDeBloque(fila?.datos.bloque.trim() || bloqueGlobal) || '—'}
+                        </td>
+                        <td className="px-3 py-2 text-sm text-gray-700 dark:text-gray-200">
+                          {fila ? espacioEfectivo(fila) || '—' : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">{c.antes.horasUsoDia || '—'}</span>
+                          {' → '}
+                          <strong className="text-emerald-700 dark:text-emerald-400">
+                            {c.despues?.horasUsoDia ?? '—'}
+                          </strong>
+                          <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">
+                            ({mesCalculo.etiqueta}: {referenciaPorId.get(c.id)?.horasUsoDia ?? '—'})
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">{c.antes.diasUsoMes || '—'}</span>
+                          {' → '}
+                          <strong className="text-emerald-700 dark:text-emerald-400">
+                            {c.despues?.diasUsoMes ?? '—'}
+                          </strong>
+                          <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">
+                            ({mesCalculo.etiqueta}: {referenciaPorId.get(c.id)?.diasUsoMes ?? '—'})
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {sinCalculoPosible > 0 && (
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                {sinCalculoPosible} fila(s) sin cálculo posible (sin días operativos u horario
+                vigente en ningún mes de la serie); conservan sus valores.
+              </p>
+            )}
+
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setModalCalculo(null)}
+                className="ui-btn ui-btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={aplicarCambiosUso}
+                disabled={cambiosAplicables.length === 0}
+                className="ui-btn ui-btn-primary"
+              >
+                Aplicar {cambiosAplicables.length} cambio
+                {cambiosAplicables.length === 1 ? '' : 's'} (promedio de {mesesIncluidos}{' '}
+                {mesesIncluidos === 1 ? 'mes' : 'meses'})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ============ MODAL DE CONFIRMACIÓN (sobrescritura) ============ */}
       {conflictos && (
         <div
@@ -2153,7 +2644,7 @@ export function ImportadorEquipos({
             </h3>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
               Se encontraron <strong>{conflictos.length}</strong> equipos ya guardados con el
-              mismo bloque, espacio y tipo. Si continúa, esos registros serán{' '}
+              mismo bloque, piso, espacio y tipo. Si continúa, esos registros serán{' '}
               <strong>reemplazados</strong> con los datos del archivo.
             </p>
 
@@ -2161,7 +2652,7 @@ export function ImportadorEquipos({
               {conflictos.slice(0, 20).map((c, i) => (
                 <li key={i} className="text-gray-700 dark:text-gray-200">
                   <span className="font-mono text-xs text-gray-400 dark:text-gray-500">Fila {c.fila}</span> —{' '}
-                  {etiquetaDeBloque(c.bloqueId)} · {c.espacio} · {c.tipo}
+                  {etiquetaDeBloque(c.bloqueId)} · {c.piso || 'Piso sin especificar'} · {c.espacio} · {c.tipo}
                 </li>
               ))}
               {conflictos.length > 20 && (

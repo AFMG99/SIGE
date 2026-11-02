@@ -63,4 +63,64 @@ describe('generateCampus3DLayout', () => {
     // Base reposa sobre el suelo Y = height / 2
     expect(bloque.position[1]).toBe(bloque.dimensions[1] / 2)
   })
+
+  it('usa dimensiones medidas de bloque y mantiene pisos y áreas de los espacios', () => {
+    const [bloque] = generateCampus3DLayout([
+      {
+        id: 'bloque-medido',
+        codigo: 'BL-02',
+        nombre: 'Bloque medido',
+        areaUtil: 100,
+        areaHuellaM2: 120,
+        largoM: 20,
+        anchoM: 6,
+        altoM: 9,
+        factorInfraestructura: 2,
+        espacios: [
+          {
+            id: 'espacio-medido',
+            nombre: 'Aula 201',
+            bloqueId: 'bloque-medido',
+            piso: '2',
+            largoM: 5,
+            anchoM: 4,
+            altoM: 3,
+            areaCalculadaM2: 20,
+            equipos: [],
+          },
+        ],
+      },
+    ])
+
+    expect(bloque.dimensions[0]).toBeCloseTo(5.6)
+    expect(bloque.dimensions[1]).toBeCloseTo(2.52)
+    expect(bloque.dimensions[2]).toBeCloseTo(1.68)
+    expect(bloque.areaUtil).toBe(100)
+    expect(bloque.areaHuellaM2).toBe(120)
+    expect(bloque.espacios[0]).toMatchObject({
+      piso: '2',
+      largoM: 5,
+      anchoM: 4,
+      altoM: 3,
+      areaCalculadaM2: 20,
+    })
+  })
+
+  it('usa el layout paramétrico heredado cuando las dimensiones no están completas', () => {
+    const [bloque] = generateCampus3DLayout([
+      {
+        id: 'bloque-legado',
+        codigo: 'BL-03',
+        nombre: 'Bloque legado',
+        areaUtil: 400,
+        factorInfraestructura: 1.5,
+        largoM: 20,
+        espacios: [],
+      },
+    ])
+
+    expect(bloque.dimensions[0]).toBeCloseTo(5.6)
+    expect(bloque.dimensions[1]).toBe(6)
+    expect(bloque.dimensions[2]).toBeCloseTo(5.6)
+  })
 })

@@ -34,6 +34,16 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+const ANO_GDE_STORY = new Date().getFullYear()
+const RANGO_GDE_STORY = {
+  id: 'rg-story-gde-marzo',
+  calendarioId: 'cal-campus-0000001',
+  fechaInicio: `${ANO_GDE_STORY}-03-01`,
+  fechaFin: `${ANO_GDE_STORY}-03-31`,
+  tipoDia: 'LECTIVO',
+  nombre: 'Marzo operativo',
+}
+
 /**
  * El asistente exige elegir la edificación antes de leer cualquier archivo.
  * El catálogo de edificaciones vive en Facturas de energía › Edificaciones: aquí
@@ -53,6 +63,7 @@ export const Paso1Carga: Story = {
 
 export const CalculoGde: Story = {
   name: 'Cálculo de la GDE: entradas efectivas y botón único (S2)',
+  args: { rangos: [RANGO_GDE_STORY] },
   play: async ({ canvas, canvasElement, userEvent }) => {
     const screen = within(canvasElement.ownerDocument.body)
     await elegirEdificacion(canvas, userEvent)
@@ -61,15 +72,20 @@ export const CalculoGde: Story = {
     await expect(await canvas.findByText('GDE = Σ (Tp − Tb) · Xe')).toBeVisible()
     await expect(canvas.getByText('06:00–18:00 (12 h/día)')).toBeVisible()
     await expect(canvas.getByText('Xe = H (fijo, 12 h)')).toBeVisible()
-    // Periodo por defecto (octubre 2026): fuera de los rangos del fixture.
+    // Fijar octubre para que la interacción no dependa del mes actual.
+    await userEvent.selectOptions(canvas.getByLabelText(/^mes/i), '10')
     await expect(
-      canvas.getByText(/Configurado · 0 día\(s\) operativo\(s\) en octubre de 2026/)
+      canvas.getByText(
+        new RegExp(`Configurado · 0 día\\(s\\) operativo\\(s\\) en octubre de ${ANO_GDE_STORY}`)
+      )
     ).toBeVisible()
 
-    // Mes de marzo 2026: dentro del rango lectivo → 31 días operativos.
+    // Marzo del año actual está dentro del rango lectivo → 31 días operativos.
     await userEvent.selectOptions(canvas.getByLabelText(/^mes/i), '3')
     await expect(
-      await canvas.findByText(/31 día\(s\) operativo\(s\) en marzo de 2026/)
+      await canvas.findByText(
+        new RegExp(`31 día\\(s\\) operativo\\(s\\) en marzo de ${ANO_GDE_STORY}`)
+      )
     ).toBeVisible()
 
     // Un solo botón: calcula en el servidor y registra (mocks deterministas).

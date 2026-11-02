@@ -317,11 +317,15 @@ export function presupuestoRestante(ahora: number, inicio: number): number {
   return Math.max(0, inicio + PRESUPUESTO_MS - ahora)
 }
 
-/** Entrada de `ejecutarCalculoMasivo`: edificación + intervalo + lote opcional. */
+/** Modo de ejecución del cálculo masivo. */
+export type ModoCalculoUso = 'solo-vacios' | 'reemplazar'
+
+/** Entrada de `ejecutarCalculoMasivo`: edificación + intervalo + lote opcional + modo. */
 export const ejecutarSchema = intervaloBase
   .extend({
     edificacionId: z.string().min(1, 'La edificación es obligatoria'),
     loteId: z.string().min(1).optional(),
+    modo: z.enum(['solo-vacios', 'reemplazar']).default('solo-vacios'),
   })
   .superRefine(validaReglasDeIntervalo)
 

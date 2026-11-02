@@ -227,7 +227,7 @@ export const ContextoDeEdificacion: Story = {
     horarios: horariosEquipoDemo,
     eventos: eventosDemo,
   },
-  play: async ({ canvas, userEvent }) => {
+  play: async ({ canvas, canvasElement, userEvent }) => {
     // Resumen del mes (solo display): 30 días lectivos (rango 2026-2),
     // 2 festivos nacionales (2 y 16 nov) y 3 eventos del árbol del campus.
     await expect(
@@ -252,8 +252,20 @@ export const ContextoDeEdificacion: Story = {
 
     // Vista semanal (lun 9 – dom 15 nov): chip de tipo + badge de horas.
     await userEvent.click(canvas.getByRole('button', { name: 'Semana' }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Semana ›' }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Semana ›' }))
+    const primeraFecha = canvasElement
+      .querySelector('time[datetime]')
+      ?.getAttribute('datetime')
+    if (!primeraFecha) throw new Error('No se encontró la fecha inicial de la semana.')
+    const semanasHastaObjetivo = Math.round(
+      (Date.parse('2026-11-09T00:00:00Z') - Date.parse(`${primeraFecha}T00:00:00Z`)) /
+        (7 * 24 * 60 * 60 * 1000)
+    )
+    const botonSemana = canvas.getByRole('button', {
+      name: semanasHastaObjetivo < 0 ? '‹ Semana' : 'Semana ›',
+    })
+    for (let semana = 0; semana < Math.abs(semanasHastaObjetivo); semana += 1) {
+      await userEvent.click(botonSemana)
+    }
     await expect(canvas.getByText('2026-11-09')).toBeVisible()
     await expect(canvas.getByText('2026-11-15')).toBeVisible()
     expect(canvas.getAllByText('Lectivo')).toHaveLength(7)

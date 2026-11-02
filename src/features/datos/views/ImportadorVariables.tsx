@@ -23,18 +23,13 @@ import { parse as parseCsv } from 'papaparse'
 import { filaVariableOperativaschema, tipoEdificacionPorCodigo } from '@/features/datos/models/validations'
 import type { ConflictoVariable, FilaEnvioVariables } from '@/features/datos/models/validations'
 import { importarFilasVariables } from '@/features/datos/controllers/variables'
-import {
-  calcularGdeMensual,
-  registrarGdeCalculado,
-} from '@/features/datos/controllers/calendario'
-import type { ResultadoCalculoGde } from '@/features/datos/controllers/calendario'
 import { mapaXeDelMes } from '@/features/datos/models/calendario'
 import { ConfirmDialog } from '@/shared/views/ui/ConfirmDialog'
 import { useToast } from '@/shared/views/ui/ToastProvider'
 import { ListboxSelect } from '@/shared/views/ui/ListboxSelect'
 import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
-import { CalculoUsoOpcional } from './CalculoUsoOpcional'
+import { CalculoVariablesOpcional } from './CalculoVariablesOpcional'
 import type {
   BloqueInfo,
   CalendarioInfo,
@@ -80,7 +75,7 @@ type CampoId =
   | 'diasLectivosLaborales'
   | 'gradesDiaEnfriamiento'
 type CampoFila = CampoId
-type Paso = 'carga' | 'mapeo' | 'vista' | 'resultado'
+type Paso = 'carga' | 'mapeo' | 'vista' | 'calculos' | 'resultado'
 
 interface DefCampo {
   id: CampoId
@@ -429,22 +424,6 @@ export function ImportadorVariables({
     resultadoInicial ?? null
   )
 
-  // Cálculo de la GDE (S2): periodo elegido y estado del pedido. Solo se
-  // escribe al pulsar «Calcular y guardar GDE» (nada durante el render).
-  const [gdeMes, setGdeMes] = useState(new Date().getMonth() + 1)
-  const [gdeAno, setGdeAno] = useState(ANO_BASE)
-  const [calculandoGde, setCalculandoGde] = useState(false)
-  const [resultadoGde, setResultadoGde] = useState<ResultadoCalculoGde | null>(null)
-  const [gdeGuardado, setGdeGuardado] = useState(false)
-  const [warnGde, setWarnGde] = useState<string | null>(null)
-
-  /** Limpia el resultado previo de la GDE (cambio de periodo o de edición). */
-  const limpiarGde = () => {
-    setResultadoGde(null)
-    setGdeGuardado(false)
-    setWarnGde(null)
-  }
-
   // ------------------------------------------
   // Datos derivados
   // ------------------------------------------
@@ -466,72 +445,6 @@ export function ImportadorVariables({
     return mapa
   }, [bloques])
 
-  // ---------------- Cálculo de la GDE (S2): datos efectivos ----------------
-
-  /** Configuración operativa (H, Tb, interruptor Xe) de la edificación elegida. */
-  const calendarioSel = useMemo(
-    () => calendarios.find((c) => c.edificacionId === edificacionSel) ?? null,
-    [calendarios, edificacionSel]
-  )
-  /** Rangos del calendario de esa edificación (alcance del mes a calcular). */
-  const rangosCal = useMemo(
-    () => (calendarioSel ? rangos.filter((r) => r.calendarioId === calendarioSel.id) : []),
-    [rangos, calendarioSel]
-  )
-  /** Horarios de equipos de esa edificación (fuente de Xe con el interruptor ON). */
-  const horariosEdif = useMemo(
-    () => horarios.filter((h) => h.edificacionId === edificacionSel),
-    [horarios, edificacionSel]
-  )
-
-  /**
-   * Xe del mes mostrado, previo al clic: el MISMO mapa que usa el servidor
-   * (`mapaXeDelMes` → `calcularGde`), para que el valor efectivo que vea el
-   * usuario antes de guardar coincida con el que se calcula al pulsar.
-   */
-  const xePrevio = useMemo(() => {
-    if (!edificacionSel || !calendarioSel) return null
-    const mapa = mapaXeDelMes({
-      rangos: rangosCal,
-      config: calendarioSel,
-      horarios: horariosEdif,
-      usarHorariosXe: calendarioSel.usarHorariosXe ?? false,
-      mes: gdeMes,
-      ano: gdeAno,
-      // S2: domingos/festivos operativos de la edificación (default ON).
-      politica: {
-        domingosOperativos: calendarioSel.domingosOperativos ?? true,
-        festivosOperativos: calendarioSel.festivosOperativos ?? true,
-      },
-    })
-    let total = 0
-    let fijo: number | null = null
-    mapa.forEach((v) => {
-      total += v
-      if (fijo === null) fijo = v
-    })
-    return { total, dias: mapa.size, fijo }
-  }, [edificacionSel, calendarioSel, rangosCal, horariosEdif, gdeMes, gdeAno])
-
-  /** Línea de fuente/valor de Xe (S2): «Xe = H (fijo, N h)» / «Xe = horarios (N h)». */
-  const lineaXe = (totalDelServidor: number | null): string => {
-    if (!calendarioSel) return '—'
-    const conHorarios = calendarioSel.usarHorariosXe ?? false
-    return conHorarios
-      ? `Xe = horarios (${num(totalDelServidor ?? xePrevio?.total ?? 0)} h)`
-      : `Xe = H (fijo, ${num(xePrevio?.fijo ?? calendarioSel.horasOperacionDia)} h)`
-  }
-
-  /** Estado del calendario operativo (configuración + coordenadas + rangos). */
-  const estadoCalendario = (): string => {
-    if (!calendarioSel) return 'Sin configuración operativa'
-    if (edificacionActual?.lat == null || edificacionActual?.lon == null) {
-      return 'Configurado · faltan coordenadas'
-    }
-    if (rangosCal.length === 0) return 'Configurado · sin rangos de calendario'
-    return `Configurado · ${xePrevio?.dias ?? 0} día(s) operativo(s) en ${MESES[gdeMes - 1]} de ${gdeAno}`
-  }
-
   const etiquetaTipo = (codigo: string): string => tipoEdificacionPorCodigo(codigo).etiqueta
 
   /** Resuelve el valor de la columna "bloque" (código o ID) a un ID de bloque. */
@@ -550,46 +463,6 @@ export function ImportadorVariables({
 
   // ------------------------------------------
   // Cálculo de la GDE (S2): botón único
-  // ------------------------------------------
-
-  /**
-   * Calcula la GDE del periodo en el servidor y, si no hay motivos de bloqueo
-   * (S4: interruptor ON con 0 horas de horarios), la registra en las variables
-   * operativas existentes de la edificación. Nada se escribe sin este clic.
-   */
-  const calcularYGuardarGde = async () => {
-    if (!edificacionSel || calculandoGde) return
-    setAviso(null)
-    limpiarGde()
-    setCalculandoGde(true)
-    try {
-      const res = await calcularGdeMensual(edificacionSel, gdeMes, gdeAno)
-      if (res.estado === 'error') {
-        setAviso(res.mensaje)
-        return
-      }
-      // Gate S4: flag ON + 0 horas de uso → warn y NO escribir.
-      if (res.resultado.usarHorariosXe && (res.resultado.xeTotalHoras ?? 0) === 0) {
-        setResultadoGde(res)
-        setWarnGde(
-          'El interruptor «Usar horarios como Xe» está encendido y los horarios vigentes suman 0 horas en el mes seleccionado: la GDE quedaría en 0. No se guardó nada; revise los horarios de funcionamiento o apague el interruptor en Edificaciones › Configuración operativa.'
-        )
-        return
-      }
-      const reg = await registrarGdeCalculado(edificacionSel, res.mes, res.ano, res.resultado.gde)
-      setResultadoGde(res)
-      if (reg.estado === 'error') {
-        setAviso(reg.mensaje)
-        return
-      }
-      setGdeGuardado(true)
-      showToast(reg.mensaje, 'success')
-      router.refresh()
-    } finally {
-      setCalculandoGde(false)
-    }
-  }
-
   // ------------------------------------------
   // Utilidades de archivo
   // ------------------------------------------
@@ -811,7 +684,8 @@ export function ImportadorVariables({
         datos.codigo,
         datos.nombre,
         datos.area || undefined,
-        datos.factor || undefined
+        datos.factor || undefined,
+        { largoM: datos.largoM, anchoM: datos.anchoM, altoM: datos.altoM }
       )
       if (res.estado === 'error') {
         throw new Error(res.mensaje)
@@ -1132,13 +1006,15 @@ export function ImportadorVariables({
       ? [
           { id: 'carga', etiqueta: '1. Edificación y carga' },
           { id: 'vista', etiqueta: '2. Vista previa' },
-          { id: 'resultado', etiqueta: '3. Importación' },
+          { id: 'calculos', etiqueta: '3. Cálculos opcionales' },
+          { id: 'resultado', etiqueta: '4. Importación' },
         ]
       : [
           { id: 'carga', etiqueta: '1. Edificación y carga' },
           { id: 'mapeo', etiqueta: '2. Mapeo' },
           { id: 'vista', etiqueta: '3. Vista previa' },
-          { id: 'resultado', etiqueta: '4. Importación' },
+          { id: 'calculos', etiqueta: '4. Cálculos opcionales' },
+          { id: 'resultado', etiqueta: '5. Importación' },
         ]
   const ordenPasos: Paso[] = pasos.map((p) => p.id)
   const pasoActual = ordenPasos.indexOf(paso)
@@ -1147,6 +1023,11 @@ export function ImportadorVariables({
     carga: <IconCarga />,
     mapeo: <IconMapeo />,
     vista: <IconVistaPrevia />,
+    calculos: (
+      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg>
+    ),
     resultado: <IconImportar />,
   }
 
@@ -1295,7 +1176,6 @@ export function ImportadorVariables({
                 onChange={(v) => {
                   setEdificacionSel(v)
                   setBloqueGlobal('')
-                  limpiarGde()
                 }}
                 invalid={!edificacionSel}
                 placeholder="— Seleccione —"
@@ -1383,152 +1263,6 @@ export function ImportadorVariables({
               )}
             </div>
           </div>
-
-          {/* Cálculo de la GDE (S2): sección dentro de «Variables Operativas» */}
-          {edificacionSel && (
-            <div className="ui-card">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="ui-title text-sm">Cálculo de la GDE</h3>
-                  <p className="ui-muted mt-1 text-xs">
-                    Grados de enfriamiento del mes seleccionado sobre los días operativos del
-                    calendario. Se calcula en el servidor y solo se guarda al pulsar el botón.
-                  </p>
-                </div>
-                <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                  GDE = Σ (Tp − Tb) · Xe
-                </p>
-              </div>
-
-              {/* Periodo (mismo alcance que el bloque retirado del drawer) */}
-              <div className="mt-4 flex flex-wrap items-end gap-3">
-                <div>
-                  <label htmlFor="gde-mes" className="ui-label mb-1.5">Mes</label>
-                  <select
-                    id="gde-mes"
-                    className="ui-input"
-                    value={gdeMes}
-                    disabled={calculandoGde}
-                    onChange={(e) => {
-                      setGdeMes(Number(e.target.value))
-                      limpiarGde()
-                    }}
-                  >
-                    {MESES.map((m, i) => (
-                      <option key={m} value={i + 1}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="gde-ano" className="ui-label mb-1.5">Año</label>
-                  <select
-                    id="gde-ano"
-                    className="ui-input"
-                    value={gdeAno}
-                    disabled={calculandoGde}
-                    onChange={(e) => {
-                      setGdeAno(Number(e.target.value))
-                      limpiarGde()
-                    }}
-                  >
-                    {ANOS.map((a) => (
-                      <option key={a} value={a}>{a}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Entradas efectivas ANTES de guardar */}
-              <dl className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                  <dt className="ui-label">Horario H</dt>
-                  <dd className="text-sm">
-                    {calendarioSel
-                      ? `${hora(calendarioSel.horaInicioOperacion)}–${hora(
-                          (calendarioSel.horaInicioOperacion + calendarioSel.horasOperacionDia) % 24
-                        )} (${calendarioSel.horasOperacionDia} h/día)`
-                      : '—'}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                  <dt className="ui-label">Tb (°C)</dt>
-                  <dd className="text-sm">
-                    {calendarioSel ? num(calendarioSel.temperaturaBase) : '—'}
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                  <dt className="ui-label">Fuente de Xe</dt>
-                  <dd className="font-mono text-xs">{lineaXe(null)}</dd>
-                </div>
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                  <dt className="ui-label">Calendario</dt>
-                  <dd className="text-right text-sm">{estadoCalendario()}</dd>
-                </div>
-              </dl>
-
-              {/* Estado previo al clic */}
-              {!calendarioSel && (
-                <div className="ui-callout ui-callout-warn mt-3" role="status">
-                  Esta edificación no tiene configuración operativa (H, Tb, ubicación e interruptor
-                  Xe). Configure el calendario en Facturas de energía › Edificaciones ›
-                  Configuración operativa.
-                </div>
-              )}
-              {calendarioSel && rangosCal.length === 0 && (
-                <div className="ui-callout ui-callout-warn mt-3" role="status">
-                  El calendario no tiene rangos: sin días operativos no hay GDE que calcular.
-                  Agregue rangos en Edificaciones › Calendario.
-                </div>
-              )}
-              {warnGde && (
-                <div className="ui-callout ui-callout-warn mt-3" role="alert">
-                  {warnGde}
-                </div>
-              )}
-
-              {/* Botón único: calcula en el servidor y, si no hay bloqueo, registra */}
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => void calcularYGuardarGde()}
-                  disabled={!calendarioSel || rangosCal.length === 0 || calculandoGde}
-                  className="ui-btn ui-btn-primary"
-                >
-                  {calculandoGde ? 'Calculando y guardando…' : 'Calcular y guardar GDE'}
-                </button>
-                <p className="ui-muted text-xs">
-                  Escribe solo las variables del mes seleccionado: no modifica meses anteriores,
-                  líneas base ni el resto de los campos.
-                </p>
-              </div>
-
-              {/* Resultado del último cálculo (tras el clic) */}
-              {resultadoGde && (
-                <div className="mt-4 space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/40">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <div>
-                      <p className="ui-label">
-                        GDE de {MESES[resultadoGde.mes - 1]} de {resultadoGde.ano}
-                      </p>
-                      <p className="ui-title text-2xl text-emerald-800 dark:text-emerald-300">
-                        {num(resultadoGde.resultado.gde)} °C·día
-                      </p>
-                    </div>
-                    <p className="text-xs text-emerald-800 dark:text-emerald-300">
-                      {gdeGuardado ? 'Registrada en variables operativas' : 'No se registró'} ·
-                      Fuente: {resultadoGde.fuente}
-                    </p>
-                  </div>
-                  <p className="font-mono text-xs leading-5">
-                    GDE = Σ (Tp − Tb) · Xe sobre {resultadoGde.resultado.diasOperativos} día(s)
-                    operativo(s)
-                    <br />
-                    {lineaXe(resultadoGde.resultado.xeTotalHoras ?? null)}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="space-y-4">
             <div
@@ -2115,80 +1849,145 @@ export function ImportadorVariables({
 
               <button
                 type="button"
-                onClick={() => void ejecutarImportacion(false)}
-                disabled={payload.length === 0 || importando}
+                onClick={() => setPaso('calculos')}
+                disabled={payload.length === 0}
                 className="ui-btn ui-btn-primary"
               >
-                {importando ? 'Importando…' : `Importar ${payload.length} filas`}
+                Continuar a cálculos opcionales
               </button>
             </div>
-
-            {progreso !== null && (
-              <div className="mt-4" aria-live="polite">
-                <div className="ui-muted flex items-center justify-between text-xs">
-                  <span>{progreso < 100 ? 'Guardando registros…' : 'Listo'}</span>
-                  <span>{progreso}%</span>
-                </div>
-                <div
-                  className="ui-progress mt-1"
-                  role="progressbar"
-                  aria-valuenow={progreso}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label="Progreso de importación"
-                >
-                  <div
-                    className="ui-progress-fill"
-                    style={{ width: `${progreso}%` }}
-                  />
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* ============ PASO 4: RESULTADO ============ */}
-      {paso === 'resultado' && resultado && (
+      {/* ============ PASO 4: CÁLCULOS OPCIONALES ============ */}
+      {paso === 'calculos' && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
-            <div className="flex items-start gap-3">
-              <svg className="h-6 w-6 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 0016 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <div className="min-w-0">
-                <h3 className="ui-title text-sm">Importación finalizada</h3>
-                <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-300">{resultado.mensaje}</p>
+          {/* Volver a vista previa */}
+          <button
+            type="button"
+            onClick={() => setPaso('vista')}
+            className="focus-ring inline-flex cursor-pointer items-center gap-2 rounded text-sm font-medium text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Volver a vista previa
+          </button>
+
+          {edificacionSel && (
+            <CalculoVariablesOpcional
+              edificacionId={edificacionSel}
+              edificacionNombre={edificacionActual?.nombre}
+            />
+          )}
+
+          {/* Continuar a importación */}
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setPaso('resultado')}
+              className="ui-btn ui-btn-primary"
+            >
+              Continuar a importación
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============ PASO 5: RESULTADO ============ */}
+      {paso === 'resultado' && (
+        <div className="space-y-4">
+          {!resultado ? (
+            <div className="ui-card">
+              {/* Importar ahora (desde paso cálculos opcionales) */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="text-sm text-gray-600 dark:text-gray-300">
+                  <p>
+                    Listo para importar: <strong className="text-emerald-700 dark:text-emerald-400">{payload.length}</strong>{' '}
+                    filas válidas
+                    {resumen.conError + resumen.duplicadas > 0 && (
+                      <span>
+                        {' '}
+                        · se omitirán {resumen.conError + resumen.duplicadas} con error o duplicadas
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void ejecutarImportacion(false)}
+                  disabled={payload.length === 0 || importando}
+                  className="ui-btn ui-btn-primary"
+                >
+                  Importar {payload.length} filas
+                </button>
               </div>
             </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                { etiqueta: 'Insertadas', valor: resultado.insertadas, clase: 'text-emerald-700 dark:text-emerald-400' },
-                { etiqueta: 'Actualizadas', valor: resultado.actualizadas, clase: 'text-sky-700 dark:text-sky-400' },
-                { etiqueta: 'Rechazadas', valor: resultado.rechazadas, clase: 'text-red-600 dark:text-red-400' },
-                {
-                  etiqueta: 'Total enviado',
-                  valor: resultado.insertadas + resultado.actualizadas + resultado.rechazadas,
-                  clase: 'text-gray-700 dark:text-gray-200',
-                },
-              ].map((c) => (
-                <div
-                  key={c.etiqueta}
-                  className="rounded-lg bg-white/70 p-3 text-center dark:bg-slate-900/70"
-                >
-                  <p className={`text-lg font-semibold ${c.clase}`}>{c.valor}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{c.etiqueta}</p>
+          ) : (
+            <div>
+              {/* Resultado de la importación */}
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
+                <div className="flex items-start gap-3">
+                  <svg className="h-6 w-6 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden>
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 0016 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <div className="min-w-0">
+                    <h3 className="ui-title text-sm">Importación finalizada</h3>
+                    <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-300">{resultado!.mensaje}</p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {resultado.errores.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    { etiqueta: 'Insertadas', valor: resultado!.insertadas, clase: 'text-emerald-700 dark:text-emerald-400' },
+                    { etiqueta: 'Actualizadas', valor: resultado!.actualizadas, clase: 'text-sky-700 dark:text-sky-400' },
+                    { etiqueta: 'Rechazadas', valor: resultado!.rechazadas, clase: 'text-red-600 dark:text-red-400' },
+                    {
+                      etiqueta: 'Total enviado',
+                      valor: resultado!.insertadas + resultado!.actualizadas + resultado!.rechazadas,
+                      clase: 'text-gray-700 dark:text-gray-200',
+                    },
+                  ].map((c) => (
+                    <div
+                      key={c.etiqueta}
+                      className="rounded-lg bg-white/70 p-3 text-center dark:bg-slate-900/70"
+                    >
+                      <p className={`text-lg font-semibold ${c.clase}`}>{c.valor}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{c.etiqueta}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {progreso !== null && (
+                <div className="ui-card" aria-live="polite">
+                  <div className="ui-muted flex items-center justify-between text-xs">
+                    <span>{progreso < 100 ? 'Guardando registros…' : 'Listo'}</span>
+                    <span>{progreso}%</span>
+                  </div>
+                  <div
+                    className="ui-progress mt-1"
+                    role="progressbar"
+                    aria-valuenow={progreso}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Progreso de importación"
+                  >
+                    <div
+                      className="ui-progress-fill"
+                      style={{ width: `${progreso}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {resultado.errores.length > 0 && (
             <div className="rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="ui-title text-sm text-red-700 dark:text-red-400">
@@ -2218,13 +2017,6 @@ export function ImportadorVariables({
             </div>
           )}
 
-          {edificacionSel && (
-            <CalculoUsoOpcional
-              edificacionId={edificacionSel}
-              edificacionNombre={edificacionActual?.nombre}
-            />
-          )}
-
           <div className="flex flex-wrap items-center gap-4">
             <button
               type="button"
@@ -2244,6 +2036,8 @@ export function ImportadorVariables({
               Volver a la vista previa
             </button>
           </div>
+        </div>
+        )}
         </div>
       )}
 

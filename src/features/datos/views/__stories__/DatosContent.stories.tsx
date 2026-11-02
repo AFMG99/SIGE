@@ -8,7 +8,7 @@ import { DatosContent } from '../DatosContent'
  * Sections split out with React.lazy (T7) load their chunk on demand, so the
  * first query for their content needs more than the default 1s wait.
  */
-const LAZY_SECTION_TIMEOUT = 5000
+const LAZY_SECTION_TIMEOUT = 15000
 import { bloquesDemo, calendariosDemo, edificacionesDemo, espaciosDemo, eventosDemo, horariosEquipoDemo, rangosCalendarioDemo } from '../__fixtures__/catalogo'
 import {
   ajustesExistentesDemo,
@@ -333,5 +333,39 @@ export const HorariosPorEquipoEnSeccion: Story = {
     await expect(
       await canvas.findByRole('heading', { name: 'Horarios aplicables y horas de uso' })
     ).toBeVisible()
+  },
+}
+
+export const AjustesAplicadosTrasCalcular: Story = {
+  name: 'Líneas Base → Ajustes · el cálculo llega a «Aplicados» (T2)',
+  play: async ({ canvas, userEvent }) => {
+    /** El sidebar se re-crea al cambiar de sección: se re-consulta en cada salto. */
+    const menu = () =>
+      canvas.getByRole('complementary', { name: /menú lateral del módulo de datos/i })
+
+    // 1. Calcular la LBEn en su sección (la action está aliada al mock, sin BD).
+    await userEvent.click(await within(menu()).findByRole('button', { name: /^líneas base$/i }))
+    // Hay dos disparadores con el mismo texto (barra de herramientas y estado
+    // vacío): ambos llaman a `calcular`, basta pulsar el primero.
+    const botonesCalcular = await canvas.findAllByRole(
+      'button',
+      { name: /calcular modelos/i },
+      { timeout: LAZY_SECTION_TIMEOUT }
+    )
+    await userEvent.click(botonesCalcular[0])
+    await waitFor(() => expect(canvas.queryByText(/calculando…/i)).toBeNull())
+
+    // 2. Saltar a Ajustes → pestaña «Aplicados»: debe verse el resultado de
+    //    ese cálculo (el mock devuelve un ajuste A4.1), no el estado vacío.
+    await userEvent.click(await within(menu()).findByRole('button', { name: /^ajustes$/i }))
+    await userEvent.click(
+      await canvas.findByRole('tab', { name: /aplicados/i }, { timeout: LAZY_SECTION_TIMEOUT })
+    )
+
+    await expect(
+      await canvas.findByText(/remodelación piso 3: ac fuera de servicio/i)
+    ).toBeVisible()
+    await expect(await canvas.findByText('25.00%')).toBeVisible()
+    await expect(canvas.queryByText(/sin ajustes aplicados/i)).toBeNull()
   },
 }

@@ -17,6 +17,11 @@ export interface Espacio3DNode {
   id: string
   nombre: string
   bloqueId: string
+  piso: string
+  largoM?: number | null
+  anchoM?: number | null
+  altoM?: number | null
+  areaCalculadaM2?: number | null
   equipos: EquipoSummary[]
   potenciaTotalW: number
   cantidadEquipos: number
@@ -27,6 +32,10 @@ export interface Bloque3DNode {
   codigo: string
   nombre: string
   areaUtil: number
+  areaHuellaM2?: number | null
+  largoM?: number | null
+  anchoM?: number | null
+  altoM?: number | null
   factorInfraestructura: number
   renderMode: RenderMode
   modelUrl?: string // Espacio para futuros modelos GLTF/GLB

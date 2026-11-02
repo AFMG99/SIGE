@@ -97,6 +97,9 @@ vi.mock('@/features/datos/controllers/eventos', () =>
 vi.mock('@/features/datos/controllers/calculoUso', () =>
   import('@/features/datos/views/__mocks__/serverActions')
 )
+vi.mock('@/features/espacial/controllers/confirmarImportacionCad', () =>
+  import('@/features/espacial/views/__mocks__/serverActions')
+)
 
 // --- componentes bajo prueba ------------------------------------------------
 import {
@@ -124,8 +127,14 @@ import {
   variablesExistentesDemo,
 } from '@/features/datos/views/__fixtures__/existencias'
 import { LineasBasePreguntas } from '@/features/datos/views/LineasBasePreguntas'
+import { EspaciosPorPiso } from '@/features/espacial/views/ui/EspaciosPorPiso'
+import { PlanosCad } from '@/features/espacial/views/ui/PlanosCad'
+import { TODOS_LOS_PISOS } from '@/features/espacial/models/espaciosPorPiso'
+import type { Edificacion3DScene } from '@/features/espacial/models/espacial.types'
 import type {
   ActualizarEdificacion,
+  ActualizarDimensionesBloque,
+  ActualizarEspacio,
   CrearBloque,
   CrearEdificacion,
   CrearEspacio,
@@ -199,13 +208,65 @@ const usuarios: AdminUser[] = [
   },
 ]
 
+const edificacionEspacialDemo: Edificacion3DScene = {
+  id: 'ed-responsive',
+  nombre: 'Edificación demo',
+  tipo: 'EDUCATIVO_CAMPUS',
+  bloques: [
+    {
+      id: 'bloque-responsive',
+      codigo: 'B-01',
+      nombre: 'Bloque académico',
+      areaUtil: 100,
+      factorInfraestructura: 1,
+      renderMode: 'PARAMETRIC',
+      position: [0, 0, 0],
+      dimensions: [5, 3, 5],
+      metricas: {
+        areaUtil: 100,
+        potenciaTotalW: 1200,
+        cantidadEquipos: 2,
+        densidadPotenciaWm2: 12,
+      },
+      espacios: [
+        {
+          id: 'espacio-responsive',
+          nombre: 'Aula de espacios múltiples 101',
+          bloqueId: 'bloque-responsive',
+          piso: '1',
+          largoM: 8,
+          anchoM: 6,
+          areaCalculadaM2: 48,
+          equipos: [],
+          potenciaTotalW: 1200,
+          cantidadEquipos: 2,
+        },
+      ],
+    },
+  ],
+  totales: {
+    potenciaTotalW: 1200,
+    areaTotalM2: 100,
+    cantidadEquipos: 2,
+    densidadPromedioWm2: 12,
+  },
+}
+
 const stubs = {
   crearEdificacion: (async () => ({ ok: true })) as unknown as CrearEdificacion,
   actualizarEdificacion: (async () => ({ ok: true })) as unknown as ActualizarEdificacion,
+  actualizarDimensionesBloque: (async () => ({
+    estado: 'error',
+    mensaje: 'No disponible en este test.',
+  })) as ActualizarDimensionesBloque,
   eliminarEdificacion: (async () => ({ ok: true })) as unknown as EliminarEdificacion,
   crearBloque: (async () => ({ ok: true })) as unknown as CrearBloque,
   eliminarBloque: (async () => ({ ok: true })) as unknown as EliminarBloque,
   crearEspacio: (async () => ({ ok: true })) as unknown as CrearEspacio,
+  actualizarEspacio: (async () => ({
+    estado: 'error',
+    mensaje: 'No disponible en este test.',
+  })) as ActualizarEspacio,
   eliminarEspacio: (async () => ({ ok: true })) as unknown as EliminarEspacio,
 }
 
@@ -490,6 +551,70 @@ describe('desborde horizontal', () => {
       expect(desbordeDocumento()).toBeLessThanOrEqual(1)
     })
   })
+
+  describe.each([
+    { nombre: '320', width: 320, height: 740 },
+    { nombre: '375', width: 375, height: 812 },
+    { nombre: '768', width: 768, height: 1024 },
+    { nombre: '1024', width: 1024, height: 800 },
+    { nombre: '1280', width: 1280, height: 800 },
+    { nombre: '1920', width: 1920, height: 1080 },
+  ])('EspaciosPorPiso responsive · $nombre px', ({ width, height }) => {
+    beforeEach(async () => {
+      cleanup()
+      await ajustarViewport(width, height)
+    })
+    afterEach(() => cleanup())
+
+    it('no desborda y mantiene botones táctiles de al menos 40 px', async () => {
+      render(
+        <EspaciosPorPiso
+          edificacion={edificacionEspacialDemo}
+          pisoSeleccionado={TODOS_LOS_PISOS}
+          onPisoChange={noop}
+          onVerBloque={noop}
+        />
+      )
+      await vi.waitFor(() => {
+        expect(document.querySelector('h2')?.textContent).toBe('Espacios por piso')
+      })
+
+      expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+      const boton = document.querySelector<HTMLButtonElement>('button')
+      expect(boton).not.toBeNull()
+      expect(boton?.getBoundingClientRect().height).toBeGreaterThanOrEqual(40)
+    })
+
+  })
+})
+
+describe.each([
+  { nombre: '320', width: 320, height: 740 },
+  { nombre: '375', width: 375, height: 812 },
+  { nombre: '768', width: 768, height: 1024 },
+  { nombre: '1024', width: 1024, height: 800 },
+  { nombre: '1280', width: 1280, height: 800 },
+  { nombre: '1920', width: 1920, height: 1080 },
+])('PlanosCad responsive · $nombre px', ({ width, height }) => {
+  beforeEach(async () => {
+    cleanup()
+    await ajustarViewport(width, height)
+  })
+  afterEach(() => cleanup())
+
+  it('no desborda y mantiene utilizable el selector de bloque', async () => {
+    render(<PlanosCad edificacion={edificacionEspacialDemo} puedeImportar />)
+    await vi.waitFor(() => {
+      expect(document.querySelector('h2')?.textContent).toBe('Planos CAD')
+    })
+
+    expect(desbordeDocumento()).toBeLessThanOrEqual(1)
+    const selector = document.querySelector<HTMLSelectElement>(
+      'select[aria-label="Bloque de destino"]'
+    )
+    expect(selector).not.toBeNull()
+    expect(selector?.getBoundingClientRect().height).toBeGreaterThanOrEqual(40)
+  })
 })
 
 describe('Fase 3 — objetivos táctiles y desplegables', () => {
@@ -580,6 +705,8 @@ describe('Fase 3 — objetivos táctiles y desplegables', () => {
           ajustesAplicados={[]}
           modo="datos"
           puedeCargar={false}
+          edificaciones={edificacionesDemo}
+          bloques={bloquesDemo}
         />
       )
       const grupo = await vi.waitFor(() => {
