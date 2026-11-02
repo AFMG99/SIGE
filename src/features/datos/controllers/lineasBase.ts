@@ -548,13 +548,27 @@ export async function calcularModelosLineaBase(
         observaciones: true,
       },
     })
+    const ajusteInvalido = ajustes.find(
+      (a) =>
+        (a.direccion !== 'incremento' && a.direccion !== 'reduccion') ||
+        !Number.isFinite(a.valorAjuste) ||
+        a.valorAjuste <= 0 ||
+        a.valorAjuste > 100 ||
+        a.periodoInicio > a.periodoFin
+    )
+    if (ajusteInvalido) {
+      return {
+        ok: false,
+        error:
+          'Hay un ajuste no rutinario inválido. Revise su dirección, proporción y período antes de calcular.',
+      }
+    }
     const ajustesCli = ajustes.map((a) => {
-      const dir = a.direccion === 'incremento' ? 'incremento' : 'reduccion'
       return {
         periodo_inicio: a.periodoInicio.toISOString().slice(0, 7),
         periodo_fin: a.periodoFin.toISOString().slice(0, 7),
         proporcion: a.valorAjuste / 100,
-        direccion: dir,
+        direccion: a.direccion === 'incremento' ? 'incremento' : 'reduccion',
         descripcion: a.descripcion ?? '',
       }
     })
