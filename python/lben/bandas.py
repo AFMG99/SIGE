@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -24,14 +25,28 @@ def _aplicar_ajustes_no_rutinarios(
     ajustes: List[Dict[str, Any]],
 ) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
     """
-    Aplica ajustes no rutinarios (Anexo 4) a los consumos anómalos.
+    Aplica los ajustes no rutinarios (Anexo 4) a los meses homólogos de los
+    demás años del periodo base.
 
-    Cada ajuste define un periodo (periodo_inicio/fin como "YYYY-MM") y una
-    proporción (0-1) con dirección ('incremento' | 'reduccion'):
-    - 'reduccion': consumo bajó anómalamente → normalizar subiendo:
-        v_adj = v / (1 - prop)
-    - 'incremento': consumo subió anómalamente → normalizar bajando:
-        v_adj = v / (1 + prop)
+    Procedimiento A4.1 / A4.2 de la Resolución UPME 0016 de 2024:
+
+        Pr = (Consumo_prom_normal − Consumo_prom_anómalo) / Consumo_prom_normal
+
+    y "se ajustan los valores de los mismos meses de los años 1 y 3 con esta
+    proporción": los consumos de los meses homólogos en los demás años se
+    multiplican por (1 − Pr) para evitar la sobreestimación del ahorro
+    (docs/modelos_lben_y_formulas_ahorro-v2.md).
+
+    Cada ajuste define el periodo anómalo (periodo_inicio/fin como "YYYY-MM")
+    y una proporción (0, 1] con dirección ('incremento' | 'reduccion'):
+      - 'reduccion': el consumo bajó anómalamente (Pr = +prop) → los meses
+        homólogos de los demás años se multiplican por (1 - prop);
+      - 'incremento': el consumo subió anómalamente (Pr = −prop) → se
+        multiplican por (1 + prop).
+
+    El periodo registrado NO se modifica: es la referencia de Pr. Si no hay
+    meses homólogos fuera de ese periodo (serie de un solo año, o periodo que
+    cubre todos los años disponibles), el ajuste no aplica.
 
     Retorna (DataFrame con consumos ajustados, lista de ajustes aplicados
     con mes, año, proporcion, direccion, descripcion).
@@ -50,31 +65,54 @@ def _aplicar_ajustes_no_rutinarios(
             direccion = ajuste.get("direccion", "reduccion")
             descripcion = ajuste.get("descripcion", "")
 
-            if not inicio or not fin or prop <= 0:
+            if (
+                not isinstance(inicio, str)
+                or not isinstance(fin, str)
+                or not math.isfinite(prop)
+                or not 0 < prop <= 1
+            ):
                 logger.warning(f"Ajuste inválido omitido: {ajuste}")
+                continue
+            if direccion not in ("incremento", "reduccion"):
+                logger.warning(
+                    f"Dirección inválida omitida en ajuste {descripcion}: {direccion}"
+                )
                 continue
 
             # Parsear periodos "YYYY-MM"
             ai, mi = map(int, inicio.split("-"))
             af, mf = map(int, fin.split("-"))
+            if not 1 <= mi <= 12 or not 1 <= mf <= 12 or (ai, mi) > (af, mf):
+                logger.warning(f"Periodo inválido omitido en ajuste {descripcion}: {inicio}-{fin}")
+                continue
 
-            mask = pd.Series(False, index=df_ajustado.index)
+            en_periodo = pd.Series(False, index=df_ajustado.index)
             for _, row in df_ajustado.iterrows():
                 periodo = (int(row["ano"]), int(row["mes"]))
                 if (ai, mi) <= periodo <= (af, mf):
-                    mask.loc[row.name] = True
+                    en_periodo.loc[row.name] = True
 
-            if not mask.any():
+            if not en_periodo.any():
                 logger.info(f"Ajuste {descripcion}: ningún registro en periodo {inicio}-{fin}")
                 continue
 
-            factor = 1 - prop if direccion == "reduccion" else 1 + prop
-            if factor <= 0:
-                logger.warning(f"Factor inválido ({factor}) en ajuste {descripcion}")
+            # Meses homólogos: el mismo mes calendario en los demás años,
+            # fuera del periodo anómalo (A4.1/A4.2 paso 5: años 1 y 3).
+            meses_anomalo = {int(m) for m in df_ajustado.loc[en_periodo, "mes"]}
+            mask = (~en_periodo) & df_ajustado["mes"].isin(meses_anomalo)
+
+            if not mask.any():
+                logger.info(
+                    f"Ajuste {descripcion}: sin meses homólogos fuera de "
+                    f"{inicio}-{fin}; no se aplica"
+                )
                 continue
 
+            # ×(1 − Pr): Pr = +prop en 'reduccion', −prop en 'incremento'
+            factor = 1 - prop if direccion == "reduccion" else 1 + prop
+
             df_ajustado.loc[mask, "consumo_normalizado"] = (
-                df_ajustado.loc[mask, "consumo_normalizado"] / factor
+                df_ajustado.loc[mask, "consumo_normalizado"] * factor
             ).round(4)
 
             for _, row in df_ajustado[mask].iterrows():
@@ -87,11 +125,11 @@ def _aplicar_ajustes_no_rutinarios(
                 })
 
             logger.info(
-                f"Ajuste aplicado: {descripcion} ({inicio}-{fin}), "
+                f"Ajuste aplicado: {descripcion} (homólogos de {inicio}-{fin}), "
                 f"prop={prop:.4f}, dir={direccion}, {mask.sum()} registros"
             )
 
-        except Exception as e:  # noqa: BLE001
+        except (TypeError, ValueError) as e:
             logger.warning(f"Error aplicando ajuste {ajuste}: {e}")
 
     return df_ajustado, aplicados
