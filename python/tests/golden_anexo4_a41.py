@@ -14,10 +14,18 @@ The adjustment procedure (A4.1 steps):
 2. Promedio meses anómalos del año 2 (may-sep)
 3. Diferencia = normal - anomalo
 4. Proporción = diferencia / normal
-5. Ajustar mismos meses de años 1 y 3 con esa proporción
+5. Ajustar mismos meses de años 1 y 3 con esa proporción: ×(1 − Pr).
+   Los meses anómalos del año 2 NO se modifican: son la referencia de Pr.
+
+Fuente: Resolución UPME 0016 de 2024, A4.1 paso 5 / A4.2 paso 5
+("Se ajustan los valores de los mismos meses de los años 1 y 3 con esta
+proporción") y docs/modelos_lben_y_formulas_ahorro-v2.md:338 ("Los consumos
+de los meses homólogos en los demás años del período base se multiplican por
+(1 − Pr) para recalcular los límites y evitar la sobreestimación del ahorro").
 """
 
 import json
+import statistics
 import sys
 import os
 
@@ -126,19 +134,27 @@ def test_anexo4_a41():
     assert len(ajustado_con) == 36, len(ajustado_con)
     assert len(df_limpio_con) == 36, len(df_limpio_con)
     assert sum(b['descartados'] for b in bandas_con) == 0
-    assert len(aplicados_con) == 5, len(aplicados_con)
-    # σ reportada post-ajuste/pre-descarte (§9.2): los ajustes normalizan
-    # los anómalos y la dispersión BAJA (984.82 → 514.40).
-    assert sigma_con is not None and abs(sigma_con - 514.4039) < 0.001, sigma_con
     assert resultado_con['desvio_estandar'] == round(sigma_con, 4)
     # D1: sigue sin haber IC (3 valores por mes < 10)
     assert resultado_con['intervalo_confianza'] is None
-    # Los meses ajustados (5-9) cambian su LBEn_m
+    # Los meses 5-9 cambian su LBEn_m (se tocan los homólogos, no los anómalos)
     for m in range(5, 10):
         assert resultado_con['lben_mensual'][m - 1] != resultado_sin['lben_mensual'][m - 1], (
             f"mes {m}: LBEn_m no cambió con el ajuste"
         )
-    # El pre-descarte ajustado queda reflejado en la serie `real`
+    # ... y el resto de la serie queda idéntico al cálculo sin ajustes
+    for m in (1, 2, 3, 4, 10, 11, 12):
+        assert resultado_con['lben_mensual'][m - 1] == resultado_sin['lben_mensual'][m - 1], (
+            f"mes {m}: LBEn_m cambió sin ser mes homólogo"
+        )
+
+    # ── Golden A4.1: el ajuste va a los meses homólogos de los DEMÁS años ──
+    ANO_ANOMALO = 2
+    MESES_ANOMALOS = {5, 6, 7, 8, 9}
+    PROP = 0.25
+
+    assert len(aplicados_con) == 10, len(aplicados_con)
+
     ajustado_idx = {
         (int(r.ano), int(r.mes)): float(r.consumo_normalizado)
         for r in ajustado_con.itertuples()
@@ -147,26 +163,58 @@ def test_anexo4_a41():
         (int(r.ano), int(r.mes)): float(r.consumo_normalizado)
         for r in ajustado_sin.itertuples()
     }
-    assert ajustado_idx[(2, 6)] > sin_idx[(2, 6)], (ajustado_idx[(2, 6)], sin_idx[(2, 6)])
+    assert set(ajustado_idx) == set(sin_idx)
 
-    # Verify the adjustment was applied correctly
+    # 1. El periodo registrado es la referencia de Pr y queda intacto
+    for mes in sorted(MESES_ANOMALOS):
+        assert ajustado_idx[(ANO_ANOMALO, mes)] == sin_idx[(ANO_ANOMALO, mes)], (
+            f"año {ANO_ANOMALO} mes {mes}: los meses anómalos no se modifican "
+            f"({ajustado_idx[(ANO_ANOMALO, mes)]} != {sin_idx[(ANO_ANOMALO, mes)]})"
+        )
+
+    # 2. Los meses homólogos de los demás años se multiplican por (1 − Pr)
+    for ano in (1, 3):
+        for mes in sorted(MESES_ANOMALOS):
+            esperado = round(sin_idx[(ano, mes)] * (1 - PROP), 4)
+            assert ajustado_idx[(ano, mes)] == esperado, (
+                f"año {ano} mes {mes}: esperado {esperado} (= {sin_idx[(ano, mes)]} × 0.75), "
+                f"obtenido {ajustado_idx[(ano, mes)]}"
+            )
+
+    # 3. El resto de la serie no cambia
+    for clave, original in sin_idx.items():
+        if clave[0] == ANO_ANOMALO or clave[1] not in MESES_ANOMALOS:
+            assert ajustado_idx[clave] == original, (clave, original, ajustado_idx[clave])
+
+    # 4. `aplicados` reporta los meses homólogos ajustados (años 1 y 3)
     for a in aplicados_con:
-        assert a['ano'] == 2, f"Expected year 2, got {a['ano']}"
-        assert 5 <= a['mes'] <= 9, f"Expected mes 5-9, got {a['mes']}"
-        assert abs(a['proporcion'] - 0.25) < 0.001, f"Expected prop ~0.25, got {a['proporcion']}"
-        assert a['direccion'] == 'reduccion', f"Expected reduccion, got {a['direccion']}"
-    
-    print("\n✅ Ajustes aplicados correctamente a meses 5-9 del año 2")
-    
-    # The golden test: we verify the adjustment logic works
-    # Check that the adjusted values are higher (direccion='reduccion' means
-    # consumption dropped anomalously, so we divide by (1-prop) to normalize UP)
-    
+        assert a['ano'] in (1, 3), f"Año {a['ano']} no esperado"
+        assert a['mes'] in MESES_ANOMALOS, f"Mes {a['mes']} no esperado"
+        assert abs(a['proporcion'] - PROP) < 0.001, f"prop {a['proporcion']}"
+        assert a['direccion'] == 'reduccion', f"dir {a['direccion']}"
+
+    # 5. Oráculo independiente de la σ (§9.2, ec. 5 ÷N): la regla A4.1
+    #    escrita a mano sobre la serie SIN ajustes, sin pasar por bandas.py.
+    valores_oraculo = []
+    for r in ajustado_sin.itertuples():
+        valor = float(r.consumo_normalizado)
+        if int(r.ano) != ANO_ANOMALO and int(r.mes) in MESES_ANOMALOS:
+            valor = round(valor * (1 - PROP), 4)
+        valores_oraculo.append(valor)
+    sigma_oraculo = statistics.pstdev(valores_oraculo)
+    assert sigma_con is not None and abs(sigma_con - sigma_oraculo) < 1e-6, (
+        sigma_con,
+        sigma_oraculo,
+    )
+
+    print("\n✅ Ajuste aplicado a los meses homólogos (5-9) de los años 1 y 3")
+
     print("\n=== RESUMEN GOLDEN TEST ===")
     print(f"✅ Criterio único: banda_10_pct (sin rescate ic_2sigma)")
-    print(f"✅ Ajustes aplicados: {len(aplicados_con)} (meses 5-9 año 2)")
-    print(f"✅ Proporción: 25% (0.25)")
-    print(f"✅ Dirección: reduccion (consumo bajó anómalamente → normalizar hacia arriba)")
+    print(f"✅ Ajustes aplicados: {len(aplicados_con)} (meses 5-9 de los años 1 y 3)")
+    print(f"✅ Proporción: 25% (0.25) → meses homólogos × (1 − Pr) = ×0.75")
+    print(f"✅ Dirección: reduccion (los meses anómalos del año 2 quedan intactos)")
+    print(f"✅ σ post-ajuste/pre-descarte: {sigma_con} (oráculo {sigma_oraculo})")
     print(f"✅ Criterio de banda: banda_10_pct (sin rescate ic_2sigma)")
     
     # The exact 9.35% → 4.2% requires Anexo 1 savings formula which is not
