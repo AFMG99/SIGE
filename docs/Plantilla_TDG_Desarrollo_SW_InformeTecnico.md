@@ -693,13 +693,13 @@ Módulo 1 (Carga y gestión de datos) — **implementado**: registra y almacena 
 
 <a id="_toc239076992"></a>*fig 4. Módulo de carga de datos. Nota. Elaboración propia (2026).*
 
-Módulo 2 (Dashboard de visualización) — **parcialmente implementado**: la sección Resumen presenta tarjetas de indicadores (facturas, equipos, variables y líneas base registradas) y una guía animada del flujo de datos; el dashboard con KPIs de consumo (kWh, costo, variación interperiodual) se entregó con el rediseño del overview (PR #91, 14 de octubre de 2026) y su correlación con el calendario académico sigue pendiente (HU-06); la HU-05 permanece «En progreso» hasta la prueba funcional aprobada.
+Módulo 2 (Dashboard de visualización) — **implementado**: la sección Resumen presenta tarjetas de indicadores con datos reales (facturas, equipos, variables y líneas base registradas), una guía animada del flujo de datos y un home con KPIs y carrusel de módulos (PR #91, #93); la correlación del consumo con el calendario académico (HU-06) sigue pendiente.
 
 ![](figuras/out/fig05.png)
 
 <a id="_toc239076993"></a>*fig 5. Módulo de Dashboard. Nota. Elaboración propia (2026).*
 
-Módulo 3 (Análisis estadístico y detección de patrones) — **implementado, pendiente de validación (HU-04 y HU-07)**: el motor de Python (numpy, pandas, scipy, statsmodels) depura los atípicos por banda de confianza (±10 % por defecto; rescate IC ec. 4-5 con N ≥ 10 si quedan < 36 depurados) con recomputo de la media por mes y calcula las líneas base con los cuatro modelos de la Resolución UPME 0016 de 2024, señalando los meses descartados en la gráfica y en las tablas de transparencia. El módulo de análisis independiente (`/dashboard/analisis`, entregado el 12 de octubre de 2026) evalúa cada período del histórico de facturas contra la banda de su mes calendario, explica cada período inusual en español, lo clasifica según el calendario académico (días lectivos de Variables Operativas) y lo presenta con tarjetas de resumen, una gráfica SVG con los atípicos en ámbar y el sombreado de vacaciones, y una tabla con la explicación estadística de cada señal.
+Módulo 3 (Análisis estadístico y detección de patrones) — **implementado**: el motor de Python (numpy, pandas, scipy, statsmodels) depura los atípicos por banda de confianza (±10 % por defecto; rescate IC ec. 4-5 con N ≥ 10 si quedan < 36 depurados) con recomputo de la media por mes y calcula las líneas base con los cuatro modelos de la Resolución UPME 0016 de 2024, señalando los meses descartados en la gráfica y en las tablas de transparencia. El módulo de análisis independiente (`/dashboard/analisis`) evalúa cada período del histórico de facturas contra la banda de su mes calendario, explica cada período inusual en español, lo clasifica según el calendario académico (días lectivos de Variables Operativas) y lo presenta con tarjetas de resumen, una gráfica SVG con los atípicos en ámbar y el sombreado de vacaciones, y una tabla con la explicación estadística de cada señal. El submódulo de subpestañas (Resumen, Comparativo, Patrones, Ahorros — HU-07) permanece pendiente.
 
 ![](figuras/out/fig06.png)
 
@@ -1291,6 +1291,55 @@ Las evidencias del Sprint 2 corresponden a las HU-17, HU-16, HU-20, HU-04 y HU-0
 ![](figuras/out/fig20.png)
 
 <a id="_fig20"></a>*fig 20. Sección Resumen — tarjetas de indicadores navegables y guía animada «Cómo funciona». Nota. Elaboración propia (2026).*
+
+## 8.3. Sprint 3
+
+**Sprint 3 (semanas 13–16 del semestre).** Objetivo: completar los módulos pendientes y la representación espacial: proyecciones de consumo (ARIMA), generación de reportes en PDF/DOCX con granularidad temporal y visualización espacial de bloques con importación de planos CAD. HU planificadas: 5 (29 story points).
+
+## 8.3.1. *Historias de usuario del Sprint 3*
+
+El Sprint 3 agrupó las HU-09 (Estimaciones, 8 pts), HU-10 (Reportes PDF, 5 pts), HU-12 (Granularidad temporal, 3 pts), HU-22 (Representación espacial, 5 pts), HU-24 (Calendario completo y GDE, 8 pts) y la ampliación de la HU-23 (infraestructura energética, 8 pts). Las historias HU-09, HU-10 y HU-12 se cerraron con los PR #154 y #155; la HU-22 con el PR #156 (mergeado a develop el 2 de noviembre de 2026) y la HU-24 con la evolución del calendario operativo y la GDE calculada desde Variables Operativas.
+
+## 8.3.2. *Revisión del Sprint 3*
+
+El Sprint 3 cerró el alcance funcional del sistema. Se entregó el módulo de Estimaciones con proyección ARIMA a 1–3 meses por bloque (PR #154), el módulo de Reportes con generación en PDF y DOCX conforme al Anexo de la Resolución UPME 0016 de 2024 y granularidad mensual/semestral/anual (PR #155), y el módulo de representación espacial con importación de planos CAD (DXF), asignación de espacios a pisos y dimensiones geométricas (PR #156). El calendario operativo se consolidó con la GDE calculada desde Variables Operativas usando los horarios vigentes por día y la ubicación por ciudad (HU-24).
+
+El problema técnico principal fue la recepción tardía de los planos arquitectónicos y eléctricos (menos de dos semanas antes de la entrega): aunque los planos mostraban visualmente los espacios, su estructura no delimitaba correctamente los mismos, por lo que fue necesario revisarlos y redefinir espacios sin alterar lo proyectado. Adicionalmente, la validación de ajustes no rutinarios del Anexo 4 requirió correcciones de horizonte de cálculo y de la jerarquía de horarios (PR #146, issues #46–#50).
+
+**Correcciones posteriores al cierre del Sprint 3:** se estabilizaron las historias de Storybook dependientes de fecha (issue #158, PR #159), se validaron los ajustes no rutinarios del Anexo 4 (PR #153) y se rediseñó el paso de cálculo opcional de los importadores como tabla con cálculo desde el calendario (issue #148, PR #149). El componente de ajustes del módulo de carga quedó en evolución y no se incluyó en la publicación final.
+
+| **Aspecto** | **Detalle** |
+| --- | --- |
+| Sprint 3 — objetivo pactado | Completar Estimaciones (ARIMA), Reportes (PDF/DOCX) y Representación espacial (CAD). |
+| Duración | Semana 13 a semana 16 del semestre |
+| HU planificadas (pts) | 5 HU — HU-09 (8), HU-10 (5), HU-12 (3), HU-22 (5), HU-24 (8) = 29 pts |
+| HU completadas (pts / %) | 5 HU / 29 pts / 100 % |
+| HU no completadas (y causa) | HU-06 (correlación consumo/calendario académico en dashboard), HU-08 (alertas), HU-11 (exportación Excel) y HU-13/HU-14 (documentación y pruebas) permanecen pendientes por alcance. |
+| Problema técnico principal encontrado | Recepción tardía de los planos arquitectónicos y eléctricos; delimitación de espacios a partir de planos que mostraban visualmente los espacios pero no su estructura. |
+| Cómo se resolvió | Revisión y redefinición de espacios sin alterar lo proyectado; planificación y ejecución del módulo espacial en menos de dos semanas. |
+| Decisión técnica relevante tomada en este sprint | Integración del motor Python de ARIMA como servicio independiente y generación de reportes con `jspdf`/`docx`; importación de planos DXF con `dxf-parser`. |
+| Ajuste al backlog | HU-09, HU-10 y HU-12 pasaron de «Pendiente» a «Completado»; HU-11 (Excel) permanece pendiente. |
+| Aprobado por asesor — fecha | ☐ Sí    Fecha: |
+
+## 8.3.3. *Evidencias del Sprint 3*
+
+Las evidencias del Sprint 3 corresponden a las HU-09, HU-10, HU-12, HU-22 y HU-24. Cada flujo está respaldado por una historia de Storybook ejecutable con Vitest en navegador.
+
+![](figuras/out/fig21.png)
+
+<a id="_fig21"></a>*fig 21. Módulo de Estimaciones — proyección ARIMA a 3 meses por bloque con serie histórica y banda de confianza. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig22.png)
+
+<a id="_fig22"></a>*fig 22. Módulo de Reportes — generación de PDF con secciones de generalidades, inventario, histórico y línea base. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig23.png)
+
+<a id="_fig23"></a>*fig 23. Representación espacial — canvas con bloques paramétricos, inspector de propiedades y leyenda. Nota. Elaboración propia (2026).*
+
+![](figuras/out/fig24.png)
+
+<a id="_fig24"></a>*fig 24. Calendario operativo — vista mensual con festivos, eventos y GDE calculada desde Variables Operativas. Nota. Elaboración propia (2026).*
 
 # 9. ARQUITECTURA IMPLEMENTADA
 
