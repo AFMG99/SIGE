@@ -11,6 +11,9 @@ export const solicitudProyeccionSchema = z
     edificacionId: z.string().min(1, 'Seleccione una edificación.'),
     bloqueId: z.string().min(1).nullable().optional(),
     horizonte: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    modelo: z.enum(['AUTO', 'MA', 'SES']).default('AUTO'),
+    ventana: z.number().int().min(2).max(12).optional(),
+    alpha: z.number().min(0.05).max(0.95).optional(),
     orden: ordenSchema.optional(),
   })
   .strict()
@@ -54,7 +57,8 @@ export const proyeccionMotorSchema = z.union([
       advertencia: z.string().min(1).optional(),
       criterio_depuracion: z.literal('banda_10_pct'),
       ajustes_aplicados: z.number().int().nonnegative(),
-      modelo: z.enum(['SARIMA', 'ARIMA', 'ARIMA manual']),
+      modelo: z.enum(['SARIMA', 'ARIMA', 'ARIMA manual', 'MA', 'SES']),
+      parametros_modelo: z.object({ ventana: z.number().int().min(2).max(12).optional(), alpha: z.number().min(0.05).max(0.95).optional() }).nullable().optional(),
       orden: ordenSchema,
       orden_estacional: z
         .tuple([

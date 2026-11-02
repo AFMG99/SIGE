@@ -54,6 +54,9 @@ export function EstimacionesView({
   )
   const [bloqueId, setBloqueId] = React.useState('')
   const [horizonte, setHorizonte] = React.useState<1 | 2 | 3>(3)
+  const [modelo, setModelo] = React.useState<'AUTO' | 'MA' | 'SES'>('AUTO')
+  const [ventana, setVentana] = React.useState(3)
+  const [alpha, setAlpha] = React.useState(0.3)
   const [usarOrdenManual, setUsarOrdenManual] = React.useState(false)
   const [orden, setOrden] = React.useState<[number, number, number]>([1, 1, 1])
   const [resultado, setResultado] = React.useState<ResultadoProyeccion | null>(null)
@@ -75,7 +78,10 @@ export function EstimacionesView({
       edificacionId,
       bloqueId: bloqueId || null,
       horizonte,
-      ...(usarOrdenManual ? { orden } : {}),
+      modelo,
+      ...(modelo === 'MA' ? { ventana } : {}),
+      ...(modelo === 'SES' ? { alpha } : {}),
+      ...(modelo === 'AUTO' && usarOrdenManual ? { orden } : {}),
     }
     setCargando(true)
     setError(null)
@@ -166,8 +172,8 @@ export function EstimacionesView({
           Estimaciones energéticas
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
-          Explore la tendencia mensual con modelos ARIMA sobre el histórico normalizado y
-          depurado según UPME.
+          Compare modelos ARIMA/SARIMA, medias móviles y suavizamiento exponencial sobre el histórico
+          normalizado y depurado según UPME.
         </p>
       </header>
 
@@ -242,6 +248,26 @@ export function EstimacionesView({
               </div>
 
               <div className="ui-field">
+                <label htmlFor="forecast-modelo" className="ui-label">
+                  Modelo estadístico
+                </label>
+                <select
+                  id="forecast-modelo"
+                  className="ui-input min-h-10 focus-ring"
+                  value={modelo}
+                  onChange={(evento) => {
+                    setModelo(evento.target.value as 'AUTO' | 'MA' | 'SES')
+                    setUsarOrdenManual(false)
+                    setResultado(null)
+                  }}
+                >
+                  <option value="AUTO">Automático (SARIMA / ARIMA)</option>
+                  <option value="MA">Medias móviles (MA)</option>
+                  <option value="SES">Suavizamiento exponencial (SES)</option>
+                </select>
+              </div>
+
+              <div className="ui-field">
                 <label htmlFor="forecast-horizonte" className="ui-label">
                   Horizonte
                 </label>
@@ -263,7 +289,52 @@ export function EstimacionesView({
               </div>
             </div>
 
-            {puedeCrearOrden && (
+            {modelo === 'MA' && (
+              <div className="ui-field max-w-xs">
+                <label htmlFor="forecast-ventana" className="ui-label">
+                  Ventana de medias móviles
+                </label>
+                <select
+                  id="forecast-ventana"
+                  className="ui-input min-h-10 focus-ring"
+                  value={ventana}
+                  onChange={(evento) => {
+                    setVentana(Number(evento.target.value))
+                    setResultado(null)
+                  }}
+                >
+                  {[2, 3, 4, 6, 12].map((valor) => (
+                    <option key={valor} value={valor}>{valor} meses</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {modelo === 'SES' && (
+              <div className="ui-field max-w-xs">
+                <label htmlFor="forecast-alpha" className="ui-label">
+                  Suavizamiento (alpha): {alpha.toFixed(2)}
+                </label>
+                <input
+                  id="forecast-alpha"
+                  type="range"
+                  min={0.05}
+                  max={0.95}
+                  step={0.05}
+                  className="w-full accent-uv-forest focus-ring"
+                  value={alpha}
+                  onChange={(evento) => {
+                    setAlpha(Number(evento.target.value))
+                    setResultado(null)
+                  }}
+                />
+                <p className="ui-muted text-xs">
+                  El valor controla cuánto peso se asigna al dato más reciente.
+                </p>
+              </div>
+            )}
+
+            {modelo === 'AUTO' && puedeCrearOrden && (
               <fieldset className="rounded-xl border border-uv-mid/40 p-4 dark:border-slate-700">
                 <legend className="px-1 text-sm font-medium text-uv-ink dark:text-slate-200">
                   Opciones avanzadas
@@ -323,7 +394,7 @@ export function EstimacionesView({
                 {cargando ? 'Calculando proyección…' : 'Generar proyección'}
               </button>
               <p className="ui-muted text-xs">
-                Ejecución bajo demanda · sin guardar resultados
+                Ejecución bajo demanda · no modifica la LBEn guardada
               </p>
             </div>
           </form>
@@ -488,7 +559,11 @@ export function EstimacionesView({
                   </div>
                 </dl>
                 <p className="ui-muted mt-3 text-xs">
-                  Orden {proyeccion.orden.join(', ')}
+                  {proyeccion.modelo === 'MA' && proyeccion.parametros_modelo?.ventana
+                    ? `Ventana ${proyeccion.parametros_modelo.ventana} meses`
+                    : proyeccion.modelo === 'SES' && proyeccion.parametros_modelo?.alpha !== undefined
+                      ? `Alpha ${numeroCo.format(proyeccion.parametros_modelo.alpha)}`
+                      : `Orden ${proyeccion.orden.join(', ')}`}
                   {proyeccion.orden_estacional
                     ? ` · orden estacional ${proyeccion.orden_estacional.join(', ')}`
                     : ''}
