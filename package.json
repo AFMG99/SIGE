@@ -69,7 +69,7 @@
     "prisma": "^5.12.0",
     "storybook": "^10.6.1",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.4.0",
+    "typescript": "^7.0.2",
     "vite": "latest",
     "vitest": "^4",
     "vitest-browser-react": "^2.3.0"
