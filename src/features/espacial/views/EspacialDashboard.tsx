@@ -4,8 +4,11 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Edificacion3DScene, Bloque3DNode } from '../models/espacial.types'
+import { TODOS_LOS_PISOS } from '../models/espaciosPorPiso'
 import { EspacialInspector } from './ui/EspacialInspector'
 import { EspacialLegend } from './ui/EspacialLegend'
+import { EspaciosPorPiso } from './ui/EspaciosPorPiso'
+import { PlanosCad } from './ui/PlanosCad'
 
 const EspacialCanvas = dynamic(() => import('./EspacialCanvas'), {
   ssr: false,
@@ -23,10 +26,16 @@ const EspacialCanvas = dynamic(() => import('./EspacialCanvas'), {
 
 interface EspacialDashboardProps {
   edificaciones: Edificacion3DScene[]
+  puedeImportarCad: boolean
 }
 
-export function EspacialDashboard({ edificaciones }: EspacialDashboardProps) {
+export function EspacialDashboard({
+  edificaciones,
+  puedeImportarCad,
+}: EspacialDashboardProps) {
   const router = useRouter()
+  const [vista, setVista] = useState<'campus' | 'pisos' | 'cad'>('campus')
+  const [pisoSeleccionado, setPisoSeleccionado] = useState(TODOS_LOS_PISOS)
   const [selectedEdificacionId, setSelectedEdificacionId] = useState<string>(
     edificaciones[0]?.id || ''
   )
@@ -132,10 +141,18 @@ export function EspacialDashboard({ edificaciones }: EspacialDashboardProps) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <h1 className="ui-title text-2xl sm:text-3xl font-bold tracking-tight">
-            Representación Espacial 3D
+            {vista === 'campus'
+              ? 'Representación Espacial 3D'
+              : vista === 'pisos'
+                ? 'Espacios por piso'
+                : 'Planos CAD'}
           </h1>
           <p className="ui-muted text-sm leading-relaxed">
-            Haga clic y arrastre con el mouse directamente sobre cualquier bloque para ubicarlo en el campus.
+            {vista === 'campus'
+              ? 'Haga clic y arrastre con el mouse directamente sobre cualquier bloque para ubicarlo en el campus.'
+              : vista === 'pisos'
+                ? 'Explore los espacios registrados por piso, con sus dimensiones, áreas y equipos asociados.'
+                : 'Cargue y revise un plano localmente; confirme las medidas antes de actualizar espacios existentes.'}
           </p>
         </div>
 
@@ -178,7 +195,9 @@ export function EspacialDashboard({ edificaciones }: EspacialDashboardProps) {
               onChange={(e) => {
                 setSelectedEdificacionId(e.target.value)
                 setSelectedBloqueId(null)
+                setPisoSeleccionado(TODOS_LOS_PISOS)
               }}
+              aria-label="Seleccionar edificación"
               className="ui-input py-1.5 text-xs font-semibold"
             >
               {edificaciones.map((ed) => (
@@ -191,69 +210,116 @@ export function EspacialDashboard({ edificaciones }: EspacialDashboardProps) {
         </div>
       </div>
 
-      {/* Tarjetas KPI compactas */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-            Área Total de Bloques
-          </p>
-          <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
-            {(activeEdificacion?.totales.areaTotalM2 || 0).toLocaleString('es-CO')} m²
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-            Potencia Nominal Instalada
-          </p>
-          <p className="mt-1 text-lg font-bold text-emerald-600 dark:text-emerald-400">
-            {kwInstalados} kW
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-            Densidad Media de Carga
-          </p>
-          <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
-            {activeEdificacion?.totales.densidadPromedioWm2} W/m²
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-            Equipos Censados
-          </p>
-          <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
-            {activeEdificacion?.totales.cantidadEquipos} unidades
-          </p>
-        </div>
+      <div
+        role="group"
+        aria-label="Vista espacial"
+        className="inline-flex max-w-full flex-wrap gap-2 rounded-xl border border-gray-200 bg-white p-1.5 dark:border-slate-800 dark:bg-slate-900"
+      >
+        <button
+          type="button"
+          aria-pressed={vista === 'campus'}
+          onClick={() => setVista('campus')}
+          className={`ui-btn ${vista === 'campus' ? 'ui-btn-primary' : 'ui-btn-ghost'}`}
+        >
+          Campus 3D
+        </button>
+        <button
+          type="button"
+          aria-pressed={vista === 'pisos'}
+          onClick={() => setVista('pisos')}
+          className={`ui-btn ${vista === 'pisos' ? 'ui-btn-primary' : 'ui-btn-ghost'}`}
+        >
+          Espacios por piso
+        </button>
+        <button
+          type="button"
+          aria-pressed={vista === 'cad'}
+          onClick={() => setVista('cad')}
+          className={`ui-btn ${vista === 'cad' ? 'ui-btn-primary' : 'ui-btn-ghost'}`}
+        >
+          Planos CAD
+        </button>
       </div>
 
-      {/* Visor 3D */}
-      <div className="relative h-[620px] w-full overflow-hidden rounded-2xl border border-slate-200 shadow-inner dark:border-slate-800">
-        <EspacialCanvas
-          bloques={bloquesConPosicion}
-          selectedBloqueId={selectedBloqueId}
-          onSelectBloque={(b) => setSelectedBloqueId(b ? b.id : null)}
-          onMoveBloque={handleMoveBloque}
-          onEndDrag={handleEndDrag}
-        />
+      {vista !== 'cad' && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Área Total de Bloques
+            </p>
+            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+              {(activeEdificacion?.totales.areaTotalM2 || 0).toLocaleString('es-CO')} m²
+            </p>
+          </div>
 
-        {/* Leyenda flotante inferior izquierda */}
-        <div className="absolute bottom-4 left-4 z-10">
-          <EspacialLegend />
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Potencia Nominal Instalada
+            </p>
+            <p className="mt-1 text-lg font-bold text-emerald-600 dark:text-emerald-400">
+              {kwInstalados} kW
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Densidad Media de Carga
+            </p>
+            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+              {activeEdificacion?.totales.densidadPromedioWm2} W/m²
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Equipos Censados
+            </p>
+            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">
+              {activeEdificacion?.totales.cantidadEquipos} unidades
+            </p>
+          </div>
         </div>
+      )}
 
-        {/* Inspector lateral del bloque seleccionado */}
-        <EspacialInspector
-          bloque={selectedBloque}
-          onClose={() => setSelectedBloqueId(null)}
-          onUpdateArea={(_id, _area) => {
-            router.refresh()
+      {vista === 'campus' ? (
+        <div className="relative h-[620px] w-full overflow-hidden rounded-2xl border border-slate-200 shadow-inner dark:border-slate-800">
+          <EspacialCanvas
+            bloques={bloquesConPosicion}
+            selectedBloqueId={selectedBloqueId}
+            onSelectBloque={(b) => setSelectedBloqueId(b ? b.id : null)}
+            onMoveBloque={handleMoveBloque}
+            onEndDrag={handleEndDrag}
+          />
+
+          <div className="absolute bottom-4 left-4 z-10">
+            <EspacialLegend />
+          </div>
+
+          <EspacialInspector
+            bloque={selectedBloque}
+            onClose={() => setSelectedBloqueId(null)}
+            onUpdateArea={(_id, _area) => {
+              router.refresh()
+            }}
+          />
+        </div>
+      ) : vista === 'pisos' ? (
+        <EspaciosPorPiso
+          edificacion={activeEdificacion}
+          pisoSeleccionado={pisoSeleccionado}
+          onPisoChange={setPisoSeleccionado}
+          onVerBloque={(bloqueId) => {
+            setSelectedBloqueId(bloqueId)
+            setVista('campus')
           }}
         />
-      </div>
+      ) : (
+        <PlanosCad
+          key={activeEdificacion.id}
+          edificacion={activeEdificacion}
+          puedeImportar={puedeImportarCad}
+        />
+      )}
     </main>
   )
 }

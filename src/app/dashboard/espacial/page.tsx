@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireModuleAccess } from '@/shared/models/authz'
+import { canWithOverrides, requireModuleAccess } from '@/shared/models/authz'
 import { getDatosEspaciales } from '@/features/espacial/controllers/getDatosEspaciales'
 import { EspacialDashboard } from '@/features/espacial/views/EspacialDashboard'
 
@@ -14,7 +14,7 @@ export default async function EspacialPage() {
   }
 
   const edificaciones = await getDatosEspaciales()
+  const puedeImportarCad = await canWithOverrides(user, 'plans', 'modify')
 
-  return <EspacialDashboard edificaciones={edificaciones} />
+  return <EspacialDashboard edificaciones={edificaciones} puedeImportarCad={puedeImportarCad} />
 }
-

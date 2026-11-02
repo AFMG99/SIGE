@@ -12,6 +12,11 @@ import {
   tipoEdificacionPorCodigo,
   type ResultadoGestion,
 } from '@/features/datos/models/validations'
+import {
+  normalizarPiso,
+  validarDimensiones,
+  type DimensionesInput,
+} from '@/features/datos/models/geometria'
 
 type AuthCarga = { ok: true } | { ok: false; mensaje: string }
 
@@ -36,6 +41,12 @@ export type BloqueCreado = {
   id: string
   codigo: string
   nombre: string
+  areaUtil?: number
+  factorInfraestructura?: number
+  largoM?: number | null
+  anchoM?: number | null
+  altoM?: number | null
+  areaHuellaM2?: number | null
 }
 
 export type ResultadoCreacionEdificacion =
@@ -50,6 +61,21 @@ export type ResultadoCreacionEdificacion =
 
 export type ResultadoCreacionBloque =
   | { estado: 'ok'; bloque: BloqueCreado; mensaje: string }
+  | { estado: 'error'; mensaje: string }
+
+export type EspacioCreado = {
+  id: string
+  bloqueId: string
+  nombre: string
+  piso: string
+  largoM: number | null
+  anchoM: number | null
+  altoM: number | null
+  areaCalculadaM2: number | null
+}
+
+export type ResultadoCreacionEspacio =
+  | { estado: 'ok'; espacio: EspacioCreado; mensaje: string }
   | { estado: 'error'; mensaje: string }
 
 /**
@@ -160,7 +186,8 @@ export async function crearBloque(
   codigo: string,
   nombre: string,
   areaUtil?: number | string,
-  factorInfraestructura?: number | string
+  factorInfraestructura?: number | string,
+  dimensiones: DimensionesInput = {}
 ): Promise<ResultadoCreacionBloque> {
   try {
     const auth = await autorizarCarga()
@@ -194,6 +221,10 @@ export async function crearBloque(
     if (!Number.isFinite(factor) || factor <= 0) {
       return { estado: 'error', mensaje: 'El factor de infraestructura debe ser un número positivo.' }
     }
+    const dimensionesValidadas = validarDimensiones(dimensiones)
+    if (!dimensionesValidadas.ok) {
+      return { estado: 'error', mensaje: dimensionesValidadas.mensaje }
+    }
 
     const edificacion = await prisma.edificacion.findUnique({
       where: { id: idEdificacion },
@@ -208,10 +239,24 @@ export async function crearBloque(
         codigo: codigoLimpio,
         nombre: nombreLimpio,
         areaUtil: area,
+        largoM: dimensionesValidadas.valor.largoM,
+        anchoM: dimensionesValidadas.valor.anchoM,
+        altoM: dimensionesValidadas.valor.altoM,
+        areaHuellaM2: dimensionesValidadas.valor.areaCalculadaM2,
         factorInfraestructura: factor,
         edificacionId: idEdificacion,
       },
-      select: { id: true, codigo: true, nombre: true },
+      select: {
+        id: true,
+        codigo: true,
+        nombre: true,
+        areaUtil: true,
+        factorInfraestructura: true,
+        largoM: true,
+        anchoM: true,
+        altoM: true,
+        areaHuellaM2: true,
+      },
     })
 
     await auditarAccion({
@@ -237,6 +282,69 @@ export async function crearBloque(
     }
     console.error('Error en crearBloque:', error)
     return { estado: 'error', mensaje: 'No fue posible crear el bloque. Intente de nuevo.' }
+  }
+}
+
+export async function actualizarDimensionesBloque(
+  id: string,
+  dimensiones: DimensionesInput
+): Promise<{
+  estado: 'ok' | 'error'
+  mensaje: string
+  bloque?: BloqueCreado & { edificacionId: string }
+}> {
+  try {
+    const auth = await autorizarCarga()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    const idBloque = String(id ?? '').trim()
+    if (!idBloque) {
+      return { estado: 'error', mensaje: 'Debe indicar el bloque a actualizar.' }
+    }
+    const dimensionesValidadas = validarDimensiones(dimensiones)
+    if (!dimensionesValidadas.ok) {
+      return { estado: 'error', mensaje: dimensionesValidadas.mensaje }
+    }
+
+    const bloque = await prisma.bloque.update({
+      where: { id: idBloque },
+      data: {
+        largoM: dimensionesValidadas.valor.largoM,
+        anchoM: dimensionesValidadas.valor.anchoM,
+        altoM: dimensionesValidadas.valor.altoM,
+        areaHuellaM2: dimensionesValidadas.valor.areaCalculadaM2,
+      },
+      select: {
+        id: true,
+        codigo: true,
+        nombre: true,
+        edificacionId: true,
+        areaUtil: true,
+        factorInfraestructura: true,
+        largoM: true,
+        anchoM: true,
+        altoM: true,
+        areaHuellaM2: true,
+      },
+    })
+
+    await auditarAccion({
+      action: 'bloque.update',
+      targetId: bloque.id,
+      detail: `Dimensiones geométricas del bloque "${bloque.nombre}" actualizadas.`,
+    })
+    return { estado: 'ok', bloque, mensaje: `Dimensiones del bloque "${bloque.nombre}" actualizadas.` }
+  } catch (error) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2025'
+    ) {
+      return { estado: 'error', mensaje: 'El bloque indicado ya no existe.' }
+    }
+    console.error('Error en actualizarDimensionesBloque:', error)
+    return { estado: 'error', mensaje: 'No fue posible actualizar las dimensiones del bloque.' }
   }
 }
 
@@ -315,16 +423,11 @@ export async function actualizarEdificacion(
 // ESPACIOS (cantidad de espacios por bloque — UPME §7.3)
 // ============================================================
 
-export type EspacioCreado = { id: string; bloqueId: string; nombre: string }
-
-export type ResultadoCreacionEspacio =
-  | { estado: 'ok'; espacio: EspacioCreado; mensaje: string }
-  | { estado: 'error'; mensaje: string }
-
-/** Crea un espacio dentro de un bloque (nombre único por bloque). */
+/** Crea un espacio dentro de un bloque (nombre único por piso). */
 export async function crearEspacio(
   bloqueId: string,
-  nombre: string
+  nombre: string,
+  datos: DimensionesInput & { piso?: string } = {}
 ): Promise<ResultadoCreacionEspacio> {
   try {
     const auth = await autorizarCarga()
@@ -338,6 +441,14 @@ export async function crearEspacio(
     if (nombreLimpio.length < 2 || nombreLimpio.length > 100) {
       return { estado: 'error', mensaje: 'El nombre del espacio debe tener entre 2 y 100 caracteres.' }
     }
+    const piso = normalizarPiso(datos.piso)
+    if (!piso) {
+      return { estado: 'error', mensaje: 'El piso no puede superar los 60 caracteres.' }
+    }
+    const dimensionesValidadas = validarDimensiones(datos)
+    if (!dimensionesValidadas.ok) {
+      return { estado: 'error', mensaje: dimensionesValidadas.mensaje }
+    }
 
     const bloque = await prisma.bloque.findUnique({
       where: { id: idBloque },
@@ -348,8 +459,25 @@ export async function crearEspacio(
     }
 
     const espacio = await prisma.espacio.create({
-      data: { bloqueId: idBloque, nombre: nombreLimpio },
-      select: { id: true, bloqueId: true, nombre: true },
+      data: {
+        bloqueId: idBloque,
+        nombre: nombreLimpio,
+        piso,
+        largoM: dimensionesValidadas.valor.largoM,
+        anchoM: dimensionesValidadas.valor.anchoM,
+        altoM: dimensionesValidadas.valor.altoM,
+        areaCalculadaM2: dimensionesValidadas.valor.areaCalculadaM2,
+      },
+      select: {
+        id: true,
+        bloqueId: true,
+        nombre: true,
+        piso: true,
+        largoM: true,
+        anchoM: true,
+        altoM: true,
+        areaCalculadaM2: true,
+      },
     })
 
     await auditarAccion({
@@ -364,17 +492,87 @@ export async function crearEspacio(
       mensaje: `Espacio "${espacio.nombre}" creado.`,
     }
   } catch (error) {
-    // Colisión de nombre único por bloque (P2002)
+    // Colisión de nombre único por bloque y piso (P2002)
     if (
       typeof error === 'object' &&
       error !== null &&
       'code' in error &&
       (error as { code?: string }).code === 'P2002'
     ) {
-      return { estado: 'error', mensaje: 'Ya existe un espacio con ese nombre en este bloque.' }
+      return { estado: 'error', mensaje: 'Ya existe un espacio con ese nombre en ese piso del bloque.' }
     }
     console.error('Error en crearEspacio:', error)
     return { estado: 'error', mensaje: 'No fue posible crear el espacio. Intente de nuevo.' }
+  }
+}
+
+export async function actualizarEspacio(
+  id: string,
+  datos: DimensionesInput & { piso?: string }
+): Promise<ResultadoCreacionEspacio> {
+  try {
+    const auth = await autorizarCarga()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    const idEspacio = String(id ?? '').trim()
+    if (!idEspacio) {
+      return { estado: 'error', mensaje: 'Debe indicar el espacio a actualizar.' }
+    }
+    const piso = normalizarPiso(datos.piso)
+    if (!piso) {
+      return { estado: 'error', mensaje: 'El piso no puede superar los 60 caracteres.' }
+    }
+    const dimensionesValidadas = validarDimensiones(datos)
+    if (!dimensionesValidadas.ok) {
+      return { estado: 'error', mensaje: dimensionesValidadas.mensaje }
+    }
+
+    const espacio = await prisma.espacio.update({
+      where: { id: idEspacio },
+      data: {
+        piso,
+        largoM: dimensionesValidadas.valor.largoM,
+        anchoM: dimensionesValidadas.valor.anchoM,
+        altoM: dimensionesValidadas.valor.altoM,
+        areaCalculadaM2: dimensionesValidadas.valor.areaCalculadaM2,
+      },
+      select: {
+        id: true,
+        bloqueId: true,
+        nombre: true,
+        piso: true,
+        largoM: true,
+        anchoM: true,
+        altoM: true,
+        areaCalculadaM2: true,
+      },
+    })
+
+    await auditarAccion({
+      action: 'espacio.update',
+      targetId: espacio.id,
+      detail: `Piso y dimensiones del espacio "${espacio.nombre}" actualizados.`,
+    })
+    return { estado: 'ok', espacio, mensaje: `Datos espaciales de "${espacio.nombre}" actualizados.` }
+  } catch (error) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2002'
+    ) {
+      return { estado: 'error', mensaje: 'Ya existe un espacio con ese nombre en ese piso del bloque.' }
+    }
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2025'
+    ) {
+      return { estado: 'error', mensaje: 'El espacio indicado ya no existe.' }
+    }
+    console.error('Error en actualizarEspacio:', error)
+    return { estado: 'error', mensaje: 'No fue posible actualizar el espacio. Intente de nuevo.' }
   }
 }
 

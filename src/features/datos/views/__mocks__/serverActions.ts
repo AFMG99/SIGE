@@ -151,6 +151,21 @@ export async function vaciarFacturas(): Promise<ResultadoGestion> {
   }
 }
 
+/** Periodos con facturas (paso «Cálculos opcionales» del importador de Equipos).
+ * 2026 alineado con los rangos del calendario demo (LECTIVO desde 09/02/2026):
+ * enero queda sin días operativos para ejercitar el «sin cálculo posible». */
+export async function periodosConFactura(edificacionId: string): Promise<{
+  estado: 'ok' | 'error'
+  periodos?: string[]
+  mensaje?: string
+}> {
+  void edificacionId
+  return {
+    estado: 'ok',
+    periodos: ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05'],
+  }
+}
+
 export async function actualizarEquipo(
   id: string,
   datos: EdicionEquipo
@@ -314,14 +329,53 @@ export async function crearBloque(
   codigo: string,
   nombre: string,
   areaUtil?: number | string,
-  factorInfraestructura?: number | string
+  factorInfraestructura?: number | string,
+  dimensiones: { largoM?: number | string | null; anchoM?: number | string | null; altoM?: number | string | null } = {}
 ): Promise<ResultadoCreacionBloque> {
   void areaUtil
   void factorInfraestructura
+  const largoM = dimensiones.largoM ? Number(dimensiones.largoM) : null
+  const anchoM = dimensiones.anchoM ? Number(dimensiones.anchoM) : null
+  const altoM = dimensiones.altoM ? Number(dimensiones.altoM) : null
   return {
     estado: 'ok',
-    bloque: { id: slug(codigo, 'bk'), codigo, nombre },
+    bloque: {
+      id: slug(codigo, 'bk'),
+      codigo,
+      nombre,
+      areaUtil: Number(areaUtil) || 0,
+      factorInfraestructura: Number(factorInfraestructura) || 1,
+      largoM,
+      anchoM,
+      altoM,
+      areaHuellaM2: largoM == null || anchoM == null ? null : largoM * anchoM,
+    },
     mensaje: `Bloque "${nombre}" creado en ${edificacionId}.`,
+  }
+}
+
+export async function actualizarDimensionesBloque(
+  id: string,
+  dimensiones: { largoM?: number | string | null; anchoM?: number | string | null; altoM?: number | string | null }
+) {
+  const bloque = bloquesDemo.find((b) => b.id === id)
+  const largoM = dimensiones.largoM ? Number(dimensiones.largoM) : null
+  const anchoM = dimensiones.anchoM ? Number(dimensiones.anchoM) : null
+  return {
+    estado: 'ok' as const,
+    bloque: {
+      id,
+      codigo: bloque?.codigo ?? 'BL-01',
+      nombre: bloque?.nombre ?? 'Bloque demo',
+      edificacionId: bloque?.edificacionId ?? '',
+      areaUtil: bloque?.areaUtil ?? 0,
+      factorInfraestructura: bloque?.factorInfraestructura ?? 1,
+      largoM,
+      anchoM,
+      altoM: dimensiones.altoM ? Number(dimensiones.altoM) : null,
+      areaHuellaM2: largoM == null || anchoM == null ? null : largoM * anchoM,
+    },
+    mensaje: 'Dimensiones del bloque actualizadas.',
   }
 }
 
@@ -353,12 +407,47 @@ export async function eliminarBloque(id: string): Promise<ResultadoGestion> {
 
 export async function crearEspacio(
   bloqueId: string,
-  nombre: string
+  nombre: string,
+  datos: { piso?: string; largoM?: number | string | null; anchoM?: number | string | null; altoM?: number | string | null } = {}
 ): Promise<ResultadoCreacionEspacio> {
+  const largoM = datos.largoM ? Number(datos.largoM) : null
+  const anchoM = datos.anchoM ? Number(datos.anchoM) : null
   return {
     estado: 'ok',
-    espacio: { id: slug(nombre, 'esp'), bloqueId, nombre },
+    espacio: {
+      id: slug(nombre, 'esp'),
+      bloqueId,
+      nombre,
+      piso: datos.piso?.trim() || 'Sin asignar',
+      largoM,
+      anchoM,
+      altoM: datos.altoM ? Number(datos.altoM) : null,
+      areaCalculadaM2: largoM == null || anchoM == null ? null : largoM * anchoM,
+    },
     mensaje: `Espacio "${nombre}" creado.`,
+  }
+}
+
+export async function actualizarEspacio(
+  id: string,
+  datos: { piso?: string; largoM?: number | string | null; anchoM?: number | string | null; altoM?: number | string | null }
+) {
+  const espacio = espaciosDemo.find((s) => s.id === id)
+  const largoM = datos.largoM ? Number(datos.largoM) : null
+  const anchoM = datos.anchoM ? Number(datos.anchoM) : null
+  return {
+    estado: 'ok' as const,
+    espacio: {
+      id,
+      bloqueId: espacio?.bloqueId ?? '',
+      nombre: espacio?.nombre ?? 'Espacio demo',
+      piso: datos.piso?.trim() || 'Sin asignar',
+      largoM,
+      anchoM,
+      altoM: datos.altoM ? Number(datos.altoM) : null,
+      areaCalculadaM2: largoM == null || anchoM == null ? null : largoM * anchoM,
+    },
+    mensaje: 'Datos espaciales del espacio actualizados.',
   }
 }
 
@@ -970,7 +1059,8 @@ export async function autorizarCalculoUso(): Promise<
 export async function prepararCalculoMasivo(
   edificacionId: string,
   desde: PeriodoRef,
-  hasta: PeriodoRef
+  hasta: PeriodoRef,
+  modo: 'solo-vacios' | 'reemplazar' = 'solo-vacios'
 ): Promise<Exito<{ vistaPrevia: VistaPrevia }>> {
   if (edificacionId === EDIFICACION_SIN_CONEXION) {
     return { estado: 'error', mensaje: 'No fue posible generar la vista previa. Intente de nuevo.' }
@@ -978,7 +1068,12 @@ export async function prepararCalculoMasivo(
   // Una nueva vista previa reconstruye el mundo del doble (la real relee la
   // BD): así cada story/test empieza con los mismos pendientes.
   ejecucionDemo.delete(edificacionId)
-  return { estado: 'ok', vistaPrevia: vistaPreviaDemo(edificacionId, desde, hasta) }
+  const vista = vistaPreviaDemo(edificacionId, desde, hasta)
+  // Filtrar seEscribiran según modo
+  const seEscribiran = modo === 'reemplazar'
+    ? vista.periodos.map((p) => p.clave)
+    : vista.periodos.filter((p) => p.clasificacion !== 'existente-intacto').map((p) => p.clave)
+  return { estado: 'ok', vistaPrevia: { ...vista, seEscribiran } }
 }
 
 export async function calcularUsoIndividual(
@@ -1054,13 +1149,14 @@ export async function ejecutarCalculoMasivo(entrada: {
   desde: PeriodoRef
   hasta: PeriodoRef
   loteId?: string
+  modo?: 'solo-vacios' | 'reemplazar'
 }): Promise<Exito<{ ejecucion: EjecucionLote }>> {
   await new Promise((resolve) => setTimeout(resolve, TARDA_MS))
   if (!entrada?.edificacionId) {
     return { estado: 'error', mensaje: 'La edificación indicada no existe.' }
   }
 
-  const { edificacionId, desde, hasta } = entrada
+  const { edificacionId, desde, hasta, modo } = entrada
   const lote = entrada.loteId ?? 'lote-demo'
   const vista = vistaPreviaDemo(edificacionId, desde, hasta)
   const estado = estadoDe(edificacionId)
@@ -1069,15 +1165,25 @@ export async function ejecutarCalculoMasivo(entrada: {
     estado.intentados.get(lote) ?? new Map<string, ProcesadoLote['resultado']>()
   estado.intentados.set(lote, intentosEsteLote)
 
-  // Pendientes reales de esta corrida: la vista previa menos lo ya intentado
-  // por ESTE lote (los intactos jamás entran: `seEscribiran` los excluye).
-  const pendientes = vista.seEscribiran.filter((clave) => !intentosEsteLote.has(clave))
+  // Pendientes según modo: en 'reemplazar' también se incluyen los intactos
+  const seEscribiran = modo === 'reemplazar'
+    ? vista.periodos.map((p) => p.clave)
+    : vista.periodos.filter((p) => p.clasificacion !== 'existente-intacto').map((p) => p.clave)
+  const pendientes = seEscribiran.filter((clave) => !intentosEsteLote.has(clave))
   const tomados = pendientes.slice(0, MAX_PERIODOS_POR_LLAMADA)
 
-  // Intactos: reenviados en CADA llamada (espejo de la action real).
-  const procesados: ProcesadoLote[] = vista.periodos
-    .filter((p) => p.clasificacion === 'existente-intacto')
-    .map((p) => ({ clave: p.clave, resultado: 'conservado' as const }))
+  // Intactos: en modo 'solo-vacios' se reportan como conservados
+  // En modo 'reemplazar' se recalculan en el bucle de abajo
+  const procesados: ProcesadoLote[] = []
+  if (modo === 'solo-vacios') {
+    for (const f of vista.periodos) {
+      if (f.clasificacion !== 'existente-intacto') continue
+      procesados.push({
+        clave: f.clave,
+        resultado: 'conservado' as const,
+      })
+    }
+  }
 
   for (const clave of tomados) {
     const original = vista.periodos.find((p) => p.clave === clave)?.clasificacion ?? 'nuevo'
@@ -1139,5 +1245,62 @@ export async function recalcularPeriodos(entrada: {
     estado: 'ok',
     recalculados,
     mensaje: `Se recalcularon ${recalculados.length} periodo(s).`,
+  }
+}
+
+// ── Cálculo masivo de Variables Operativas (dobles para Storybook) ────────
+
+export async function prepararCalculoVariablesMasivo(input: {
+  edificacionId: string
+  desde: { mes: number; ano: number }
+  hasta: { mes: number; ano: number }
+  queCalcular: { diasLaborales: boolean; gde: boolean }
+  opciones: { modoDias: 'solo-vacios' | 'reemplazar'; modoGde: 'solo-vacios' | 'reemplazar' }
+}): Promise<
+  | { estado: 'ok'; vistaPrevia: { intervalo: { desde: { mes: number; ano: number }; hasta: { mes: number; ano: number }; cantidadMeses: number }; periodos: Array<{ clave: string; bloqueId: string; bloqueCodigo: string; mes: number; ano: number; tieneVariable: boolean; diasLaborales: { actual: number | null; calculado: number | null; seEscribe: boolean }; gde: { actual: number | null; calculado: number | null; seEscribe: boolean }; advertencias: string[] }>; conteos: { totalPeriodos: number; seEscribenDias: number; seEscribenGde: number; sinVariable: number } } }
+  | { estado: 'error'; mensaje: string }
+> {
+  void input
+  const periodos = [
+    { clave: 'bloque-1|2024-01', bloqueId: 'bloque-1', bloqueCodigo: 'BLOQUE-A-001', mes: 1, ano: 2024, tieneVariable: true, diasLaborales: { actual: 22, calculado: 22, seEscribe: false }, gde: { actual: 18.4, calculado: 19.2, seEscribe: true }, advertencias: [] },
+    { clave: 'bloque-1|2024-02', bloqueId: 'bloque-1', bloqueCodigo: 'BLOQUE-A-001', mes: 2, ano: 2024, tieneVariable: true, diasLaborales: { actual: null, calculado: 20, seEscribe: true }, gde: { actual: null, calculado: 18.8, seEscribe: true }, advertencias: [] },
+    { clave: 'bloque-2|2024-01', bloqueId: 'bloque-2', bloqueCodigo: 'BLOQUE-A-002', mes: 1, ano: 2024, tieneVariable: false, diasLaborales: { actual: null, calculado: 22, seEscribe: true }, gde: { actual: null, calculado: 19.2, seEscribe: true }, advertencias: ['Sin variable operativa'] },
+  ]
+  return {
+    estado: 'ok',
+    vistaPrevia: {
+      intervalo: { desde: input.desde, hasta: input.hasta, cantidadMeses: 2 },
+      periodos,
+      conteos: { totalPeriodos: periodos.length, seEscribenDias: 2, seEscribenGde: 3, sinVariable: 1 },
+    },
+  }
+}
+
+export async function ejecutarCalculoVariablesMasivo(input: {
+  edificacionId: string
+  desde: { mes: number; ano: number }
+  hasta: { mes: number; ano: number }
+  queCalcular: { diasLaborales: boolean; gde: boolean }
+  opciones: { modoDias: 'solo-vacios' | 'reemplazar'; modoGde: 'solo-vacios' | 'reemplazar' }
+  loteId?: string
+}): Promise<
+  | { estado: 'ok'; ejecucion: { loteId: string; procesados: Array<{ clave: string; diasLaborales?: 'calculado' | 'conservado' | 'fallido'; gde?: 'calculado' | 'conservado' | 'fallido'; mensaje?: string }>; restantes: number; continuar: boolean; resumenParcial: { calculadosDias: number; conservadosDias: number; fallidosDias: number; calculadosGde: number; conservadosGde: number; fallidosGde: number } } }
+  | { estado: 'error'; mensaje: string }
+> {
+  void input
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  return {
+    estado: 'ok',
+    ejecucion: {
+      loteId: input.loteId ?? 'lote-demo-variables',
+      procesados: [
+        { clave: 'bloque-1|2024-01', gde: 'calculado' },
+        { clave: 'bloque-1|2024-02', diasLaborales: 'calculado', gde: 'calculado' },
+        { clave: 'bloque-2|2024-01', diasLaborales: 'calculado', gde: 'calculado' },
+      ],
+      restantes: 0,
+      continuar: false,
+      resumenParcial: { calculadosDias: 2, conservadosDias: 0, fallidosDias: 0, calculadosGde: 3, conservadosGde: 0, fallidosGde: 0 },
+    },
   }
 }
