@@ -26,11 +26,15 @@ const ALERTAS_MOCK = path.resolve(
   '../src/features/alertas/views/__mocks__/serverActions.ts'
 );
 
+const REPORTES_MOCK = path.resolve(
+  dirname,
+  '../src/features/reportes/views/__mocks__/serverActions.ts'
+);
+
 const ESTIMACIONES_MOCK = path.resolve(
   dirname,
   '../src/features/estimaciones/views/__mocks__/serverActions.ts'
 );
-
 const ESPACIAL_MOCK = path.resolve(
   dirname,
   '../src/features/espacial/views/__mocks__/serverActions.ts'
@@ -71,6 +75,7 @@ const config: StorybookConfig = {
       { find: '@/features/analisis/controllers/analisis', replacement: ANALISIS_MOCK },
       { find: '@/features/analisis/controllers/xm', replacement: ANALISIS_MOCK },
       { find: '@/features/alertas/controllers/alertas', replacement: ALERTAS_MOCK },
+      { find: '@/features/reportes/controllers/reportesController', replacement: REPORTES_MOCK },
       { find: '@/features/estimaciones/controllers/forecast', replacement: ESTIMACIONES_MOCK },
       { find: '@/features/espacial/controllers/confirmarImportacionCad', replacement: ESPACIAL_MOCK },
       { find: '@', replacement: path.resolve(dirname, '../src') },
