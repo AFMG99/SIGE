@@ -33,7 +33,7 @@
     "jose": "^5.2.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
-    "next": "14.2.0",
+    "next": "16.4.3",
     "otplib": "^13.5.0",
     "papaparse": "^5.7.0",
     "qrcode": "^1.5.4",
