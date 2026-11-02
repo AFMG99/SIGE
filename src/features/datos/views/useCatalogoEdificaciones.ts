@@ -18,10 +18,13 @@ import {
   crearEdificacion as crearEdificacionAction,
   crearEspacio as crearEspacioAction,
   actualizarEdificacion as actualizarEdificacionAction,
+  actualizarDimensionesBloque as actualizarDimensionesBloqueAction,
+  actualizarEspacio as actualizarEspacioAction,
   eliminarBloque as eliminarBloqueAction,
   eliminarEdificacion as eliminarEdificacionAction,
   eliminarEspacio as eliminarEspacioAction,
 } from '@/features/datos/controllers/edificaciones'
+import type { DimensionesInput } from '@/features/datos/models/geometria'
 import type {
   ResultadoActualizacionEdificacion,
   ResultadoCreacionBloque,
@@ -91,12 +94,23 @@ export interface BloqueInfo {
   codigo: string
   nombre: string
   edificacionId: string
+  areaUtil?: number
+  factorInfraestructura?: number
+  largoM?: number | null
+  anchoM?: number | null
+  altoM?: number | null
+  areaHuellaM2?: number | null
 }
 
 export interface EspacioInfo {
   id: string
   bloqueId: string
   nombre: string
+  piso?: string
+  largoM?: number | null
+  anchoM?: number | null
+  altoM?: number | null
+  areaCalculadaM2?: number | null
 }
 
 /** Crea la edificación (y su bloque único automático si el tipo lo requiere). */
@@ -121,14 +135,29 @@ export type CrearBloque = (
   codigo: string,
   nombre: string,
   area?: string,
-  factor?: string
+  factor?: string,
+  dimensiones?: DimensionesInput
 ) => Promise<ResultadoCreacionBloque>
+
+export type ActualizarDimensionesBloque = (
+  id: string,
+  dimensiones: DimensionesInput
+) => Promise<{ estado: 'ok' | 'error'; mensaje: string; bloque?: BloqueInfo }>
 
 /** Elimina un bloque vacío; se rechaza si tiene datos guardados. */
 export type EliminarBloque = (id: string) => Promise<ResultadoGestion>
 
 /** Crea un espacio dentro de un bloque (cantidad de espacios — UPME §7.3). */
-export type CrearEspacio = (bloqueId: string, nombre: string) => Promise<ResultadoCreacionEspacio>
+export type CrearEspacio = (
+  bloqueId: string,
+  nombre: string,
+  datos?: DimensionesInput & { piso?: string }
+) => Promise<ResultadoCreacionEspacio>
+
+export type ActualizarEspacio = (
+  id: string,
+  datos: DimensionesInput & { piso?: string }
+) => Promise<ResultadoCreacionEspacio>
 
 /** Elimina un espacio sin equipos; se rechaza si tiene equipos registrados. */
 export type EliminarEspacio = (id: string) => Promise<ResultadoGestion>
@@ -188,10 +217,22 @@ export function useCatalogoEdificaciones(
   )
 
   const crearBloque: CrearBloque = useCallback(
-    async (edificacionId, codigo, nombre, area, factor) => {
-      const res = await crearBloqueAction(edificacionId, codigo, nombre, area, factor)
+    async (edificacionId, codigo, nombre, area, factor, dimensiones) => {
+      const res = await crearBloqueAction(edificacionId, codigo, nombre, area, factor, dimensiones)
       if (res.estado === 'ok') {
         setBloques((prev) => [...prev, { ...res.bloque, edificacionId }])
+        router.refresh()
+      }
+      return res
+    },
+    [router]
+  )
+
+  const actualizarDimensionesBloque: ActualizarDimensionesBloque = useCallback(
+    async (id, dimensiones) => {
+      const res = await actualizarDimensionesBloqueAction(id, dimensiones)
+      if (res.estado === 'ok' && res.bloque) {
+        setBloques((prev) => prev.map((b) => (b.id === id ? { ...b, ...res.bloque } : b)))
         router.refresh()
       }
       return res
@@ -212,10 +253,22 @@ export function useCatalogoEdificaciones(
   )
 
   const crearEspacio: CrearEspacio = useCallback(
-    async (bloqueId, nombre) => {
-      const res = await crearEspacioAction(bloqueId, nombre)
+    async (bloqueId, nombre, datos) => {
+      const res = await crearEspacioAction(bloqueId, nombre, datos)
       if (res.estado === 'ok') {
         setEspacios((prev) => [...prev, res.espacio])
+        router.refresh()
+      }
+      return res
+    },
+    [router]
+  )
+
+  const actualizarEspacio: ActualizarEspacio = useCallback(
+    async (id, datos) => {
+      const res = await actualizarEspacioAction(id, datos)
+      if (res.estado === 'ok') {
+        setEspacios((prev) => prev.map((e) => (e.id === id ? res.espacio : e)))
         router.refresh()
       }
       return res
@@ -243,8 +296,10 @@ export function useCatalogoEdificaciones(
     actualizarEdificacion,
     eliminarEdificacion,
     crearBloque,
+    actualizarDimensionesBloque,
     eliminarBloque,
     crearEspacio,
+    actualizarEspacio,
     eliminarEspacio,
   }
 }

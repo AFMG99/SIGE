@@ -80,6 +80,8 @@ export default defineConfig({
             'bcryptjs',
             'jose',
             'next/headers',
+            'dxf-parser',
+            'loglevel',
           ],
         },
         // tsconfig usa `jsx: "preserve"` (requerido por Next), así que Vite

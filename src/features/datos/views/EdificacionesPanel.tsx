@@ -21,6 +21,8 @@ import { BloqueDrawer } from './BloqueDrawer'
 import type { BloqueFormData } from './BloqueDrawer'
 import type {
   ActualizarEdificacion,
+  ActualizarDimensionesBloque,
+  ActualizarEspacio,
   BloqueInfo,
   CrearBloque,
   CrearEdificacion,
@@ -31,6 +33,7 @@ import type {
   EliminarEspacio,
   EspacioInfo,
 } from './useCatalogoEdificaciones'
+import { PISO_SIN_ASIGNAR } from '@/features/datos/models/geometria'
 
 type ObjetivoBorrado = 'edificacion' | 'bloque' | 'espacio' | null
 
@@ -38,6 +41,19 @@ const formatearArea = (area?: number | null): string =>
   area == null
     ? 'Sin área registrada'
     : `${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(area)} m²`
+
+const leerGeometria = (form: HTMLFormElement) => {
+  const leer = (nombre: string): string => {
+    const campo = form.elements.namedItem(nombre)
+    return campo instanceof HTMLInputElement ? campo.value.trim() : ''
+  }
+  return {
+    piso: leer('piso'),
+    largoM: leer('largoM'),
+    anchoM: leer('anchoM'),
+    altoM: leer('altoM'),
+  }
+}
 
 export function EdificacionesPanel({
   edificaciones,
@@ -48,7 +64,9 @@ export function EdificacionesPanel({
   eliminarEdificacion,
   crearBloque,
   eliminarBloque,
+  actualizarDimensionesBloque,
   crearEspacio,
+  actualizarEspacio,
   eliminarEspacio,
 }: {
   edificaciones: EdificacionInfo[]
@@ -59,7 +77,9 @@ export function EdificacionesPanel({
   eliminarEdificacion: EliminarEdificacion
   crearBloque: CrearBloque
   eliminarBloque: EliminarBloque
+  actualizarDimensionesBloque: ActualizarDimensionesBloque
   crearEspacio: CrearEspacio
+  actualizarEspacio: ActualizarEspacio
   eliminarEspacio: EliminarEspacio
 }) {
   const { showToast } = useToast()
@@ -70,6 +90,9 @@ export function EdificacionesPanel({
   const [guardandoEdificacion, setGuardandoEdificacion] = useState(false)
   const [bloqueDrawerOpen, setBloqueDrawerOpen] = useState(false)
   const [guardandoBloque, setGuardandoBloque] = useState(false)
+  const [bloqueConfigurando, setBloqueConfigurando] = useState<string | null>(null)
+  const [espacioConfigurando, setEspacioConfigurando] = useState<string | null>(null)
+  const [guardandoGeometria, setGuardandoGeometria] = useState(false)
   /** Edificación destino del BloqueDrawer. */
   const [edificacionNueva, setEdificacionNueva] = useState<EdificacionInfo | null>(null)
 
@@ -125,7 +148,8 @@ export function EdificacionesPanel({
         datos.codigo,
         datos.nombre,
         datos.area || undefined,
-        datos.factor || undefined
+        datos.factor || undefined,
+        { largoM: datos.largoM, anchoM: datos.anchoM, altoM: datos.altoM }
       )
       if (res.estado === 'error') {
         throw new Error(res.mensaje)
@@ -145,14 +169,60 @@ export function EdificacionesPanel({
     const campo = form.elements.namedItem('nombre-espacio') as HTMLInputElement | null
     const nombre = campo?.value.trim() ?? ''
     if (!campo || !nombre) return
-    const res = await crearEspacio(bloqueId, nombre)
-    if (res.estado === 'error') {
-      setAviso(res.mensaje)
-      return
+    try {
+      const res = await crearEspacio(bloqueId, nombre, leerGeometria(form))
+      if (res.estado === 'error') {
+        setAviso(res.mensaje)
+        return
+      }
+      setAviso(null)
+      form.reset()
+      showToast(res.mensaje, 'success')
+    } catch (error) {
+      setAviso(error instanceof Error ? error.message : 'No fue posible crear el espacio.')
     }
-    setAviso(null)
-    campo.value = ''
-    showToast(res.mensaje, 'success')
+  }
+
+  const guardarGeometriaBloque = async (bloqueId: string, e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (guardandoGeometria) return
+    setGuardandoGeometria(true)
+    const form = e.currentTarget
+    try {
+      const res = await actualizarDimensionesBloque(bloqueId, leerGeometria(form))
+      if (res.estado === 'error') {
+        setAviso(res.mensaje)
+        return
+      }
+      setAviso(null)
+      setBloqueConfigurando(null)
+      showToast(res.mensaje, 'success')
+    } catch (error) {
+      setAviso(error instanceof Error ? error.message : 'No fue posible actualizar las dimensiones.')
+    } finally {
+      setGuardandoGeometria(false)
+    }
+  }
+
+  const guardarGeometriaEspacio = async (espacioId: string, e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (guardandoGeometria) return
+    setGuardandoGeometria(true)
+    const form = e.currentTarget
+    try {
+      const res = await actualizarEspacio(espacioId, leerGeometria(form))
+      if (res.estado === 'error') {
+        setAviso(res.mensaje)
+        return
+      }
+      setAviso(null)
+      setEspacioConfigurando(null)
+      showToast(res.mensaje, 'success')
+    } catch (error) {
+      setAviso(error instanceof Error ? error.message : 'No fue posible actualizar el espacio.')
+    } finally {
+      setGuardandoGeometria(false)
+    }
   }
 
   // ------------------------------------------
@@ -361,7 +431,23 @@ export function EdificacionesPanel({
                                 ? '1 espacio'
                                 : `${espaciosDe.length} espacios`}
                           </p>
+                          <p className="ui-muted text-[11px]">
+                            {b.largoM == null || b.anchoM == null
+                              ? 'Sin dimensiones geométricas'
+                              : `Huella ${formatearArea(b.areaHuellaM2)} · ${b.largoM} × ${b.anchoM}${b.altoM == null ? '' : ` × ${b.altoM}`} m`}
+                          </p>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setBloqueConfigurando(bloqueConfigurando === b.id ? null : b.id)
+                          }
+                          disabled={borrando || guardandoGeometria}
+                          aria-label={`Configurar dimensiones del bloque ${b.codigo}`}
+                          className="ui-btn ui-btn-secondary shrink-0"
+                        >
+                          Dimensiones
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -376,26 +462,157 @@ export function EdificacionesPanel({
                         </button>
                       </div>
 
+                      {bloqueConfigurando === b.id && (
+                        <form
+                          onSubmit={(e2) => void guardarGeometriaBloque(b.id, e2)}
+                          className="mt-3 rounded-lg border border-gray-200 p-3 dark:border-slate-700"
+                        >
+                          <p className="ui-label">Opciones avanzadas · dimensiones en metros</p>
+                          <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                            {([
+                              ['largoM', 'Largo'],
+                              ['anchoM', 'Ancho'],
+                              ['altoM', 'Altura'],
+                            ] as const).map(([field, label]) => (
+                              <label key={field} className="ui-field">
+                                <span className="ui-label">{label}</span>
+                                <input
+                                  type="number"
+                                  name={field}
+                                  min="0.01"
+                                  max="10000"
+                                  step="0.01"
+                                  defaultValue={b[field] ?? ''}
+                                  disabled={guardandoGeometria}
+                                  className="ui-input"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                          <p className="ui-muted mt-2 text-xs">
+                            Al ingresar largo y ancho se calcula el área de huella sin modificar el área útil energética.
+                          </p>
+                          <div className="mt-3 flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setBloqueConfigurando(null)}
+                              disabled={guardandoGeometria}
+                              className="ui-btn ui-btn-secondary"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={guardandoGeometria}
+                              className="ui-btn ui-btn-primary"
+                            >
+                              {guardandoGeometria ? 'Guardando…' : 'Guardar dimensiones'}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
                       {/* Espacios del bloque: consulta + alta rápida + baja */}
                       <div className="mt-2 space-y-2">
                         {espaciosDe.map((s) => (
-                          <div
-                            key={s.id}
-                            className="flex items-center justify-between gap-3 rounded-md bg-gray-50 px-2.5 py-1.5 dark:bg-slate-800/60"
-                          >
-                            <p className="min-w-0 truncate text-xs">{s.nombre}</p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEspacioObjetivo(s)
-                                setDialogoBorrado('espacio')
-                              }}
-                              disabled={borrando}
-                              aria-label={`Eliminar espacio ${s.nombre}`}
-                              className="focus-ring shrink-0 rounded text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                            >
-                              Eliminar
-                            </button>
+                          <div key={s.id} className="rounded-md bg-gray-50 px-2.5 py-2 dark:bg-slate-800/60">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-medium">{s.nombre}</p>
+                                <p className="ui-muted mt-0.5 text-[11px]">
+                                  Piso: {s.piso || PISO_SIN_ASIGNAR}
+                                  {s.areaCalculadaM2 != null
+                                    ? ` · ${formatearArea(s.areaCalculadaM2)}`
+                                    : ''}
+                                  {s.largoM == null || s.anchoM == null
+                                    ? ''
+                                    : ` · ${s.largoM} × ${s.anchoM}${s.altoM == null ? '' : ` × ${s.altoM}`} m`}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEspacioConfigurando(espacioConfigurando === s.id ? null : s.id)
+                                  }
+                                  disabled={borrando || guardandoGeometria}
+                                  aria-label={`Configurar piso y dimensiones del espacio ${s.nombre}, piso ${s.piso || PISO_SIN_ASIGNAR}, bloque ${b.codigo}`}
+                                  className="ui-btn ui-btn-secondary shrink-0"
+                                >
+                                  Configurar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEspacioObjetivo(s)
+                                    setDialogoBorrado('espacio')
+                                  }}
+                                  disabled={borrando}
+                                  aria-label={`Eliminar espacio ${s.nombre}, piso ${s.piso || PISO_SIN_ASIGNAR}, bloque ${b.codigo}`}
+                                  className="focus-ring rounded text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </div>
+                            {espacioConfigurando === s.id && (
+                              <form
+                                onSubmit={(e2) => void guardarGeometriaEspacio(s.id, e2)}
+                                className="mt-3 border-t border-gray-200 pt-3 dark:border-slate-700"
+                              >
+                                <p className="ui-label">Opciones avanzadas · ubicación y dimensiones</p>
+                                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                                  <label className="ui-field sm:col-span-2">
+                                    <span className="ui-label">Piso o nivel</span>
+                                    <input
+                                      type="text"
+                                      name="piso"
+                                      maxLength={60}
+                                      defaultValue={s.piso === PISO_SIN_ASIGNAR ? '' : s.piso}
+                                      placeholder="Ej. 1, 2, Sótano"
+                                      disabled={guardandoGeometria}
+                                      className="ui-input"
+                                    />
+                                  </label>
+                                  {([
+                                    ['largoM', 'Largo (m)'],
+                                    ['anchoM', 'Ancho (m)'],
+                                    ['altoM', 'Altura (m)'],
+                                  ] as const).map(([field, label]) => (
+                                    <label key={field} className="ui-field">
+                                      <span className="ui-label">{label}</span>
+                                      <input
+                                        type="number"
+                                        name={field}
+                                        min="0.01"
+                                        max="10000"
+                                        step="0.01"
+                                        defaultValue={s[field] ?? ''}
+                                        disabled={guardandoGeometria}
+                                        className="ui-input"
+                                      />
+                                    </label>
+                                  ))}
+                                </div>
+                                <div className="mt-3 flex justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEspacioConfigurando(null)}
+                                    disabled={guardandoGeometria}
+                                    className="ui-btn ui-btn-secondary"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    type="submit"
+                                    disabled={guardandoGeometria}
+                                    className="ui-btn ui-btn-primary"
+                                  >
+                                    {guardandoGeometria ? 'Guardando…' : 'Guardar'}
+                                  </button>
+                                </div>
+                              </form>
+                            )}
                           </div>
                         ))}
                         <form
@@ -410,6 +627,45 @@ export function EdificacionesPanel({
                             aria-label={`Nuevo espacio en el bloque ${b.codigo}`}
                             className="ui-input min-h-10 flex-1 py-1.5 text-xs"
                           />
+                          <details className="relative">
+                            <summary className="focus-ring flex min-h-10 cursor-pointer items-center rounded-lg border border-gray-200 px-2 text-xs font-medium dark:border-slate-700">
+                              Avanzado
+                            </summary>
+                            <div className="absolute right-0 z-10 mt-1 w-[min(20rem,85vw)] space-y-3 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                              <label className="ui-field">
+                                <span className="ui-label">Piso o nivel</span>
+                                <input
+                                  type="text"
+                                  name="piso"
+                                  maxLength={60}
+                                  placeholder="Ej. 1, 2, Sótano"
+                                  className="ui-input"
+                                />
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                {([
+                                  ['largoM', 'Largo (m)'],
+                                  ['anchoM', 'Ancho (m)'],
+                                  ['altoM', 'Altura (m)'],
+                                ] as const).map(([field, label]) => (
+                                  <label key={field} className="ui-field">
+                                    <span className="ui-label">{label}</span>
+                                    <input
+                                      type="number"
+                                      name={field}
+                                      min="0.01"
+                                      max="10000"
+                                      step="0.01"
+                                      className="ui-input"
+                                    />
+                                  </label>
+                                ))}
+                              </div>
+                              <p className="ui-muted text-xs">
+                                El área se calcula automáticamente con largo × ancho. Si se omite el piso, quedará «Sin asignar».
+                              </p>
+                            </div>
+                          </details>
                           <button
                             type="submit"
                             disabled={borrando}
