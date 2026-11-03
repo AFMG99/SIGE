@@ -45,8 +45,8 @@ def _validar_entrada(entrada: Any) -> tuple[list[dict[str, Any]], int, str, tupl
         raise ValueError("Debe enviar al menos un registro mensual.")
 
     horizonte = entrada.get("horizonte")
-    if isinstance(horizonte, bool) or not isinstance(horizonte, int) or horizonte not in (1, 2, 3):
-        raise ValueError("El horizonte debe ser de 1, 2 o 3 meses.")
+    if isinstance(horizonte, bool) or not isinstance(horizonte, int) or not 1 <= horizonte <= 24:
+        raise ValueError("El horizonte debe estar entre 1 y 24 meses.")
 
     modelo = entrada.get("modelo", "AUTO")
     if modelo not in ("AUTO", "MA", "SES"):
@@ -204,10 +204,11 @@ def _pronosticar_media_movil(valores: pd.Series, horizonte: int, ventana: int):
         raise ValueError(f"Medias móviles requiere al menos {ventana + 1} meses depurados.")
     predicciones = valores.shift(1).rolling(window=ventana, min_periods=ventana).mean()
     validos = predicciones.notna()
-    residuos = (valores[validos] - predicciones[validos]).to_numpy(dtype=float)
+    observados = valores[validos].to_numpy(dtype=float)
+    residuos = observados - predicciones[validos].to_numpy(dtype=float)
     estimacion = float(valores.iloc[-ventana:].mean())
     medias = np.repeat(estimacion, horizonte)
-    return medias, residuos, {"ventana": ventana}
+    return medias, residuos, {"ventana": ventana}, observados
 
 
 def _pronosticar_ses(valores: pd.Series, horizonte: int, alpha: float | None):
@@ -221,9 +222,13 @@ def _pronosticar_ses(valores: pd.Series, horizonte: int, alpha: float | None):
             optimized=alpha is None,
         )
     medias = np.asarray(ajustado.forecast(horizonte), dtype=float)
-    residuos = np.asarray(valores - ajustado.fittedvalues, dtype=float)
+    residuos_originales = np.asarray(valores - ajustado.fittedvalues, dtype=float)
+    observados_originales = np.asarray(valores, dtype=float)
+    validos = np.isfinite(residuos_originales)
+    residuos = residuos_originales[validos]
+    observados = observados_originales[validos]
     parametros = {"alpha": float(ajustado.params["smoothing_level"])}
-    return medias, residuos, parametros
+    return medias, residuos, parametros, observados
 
 
 def _intervalos_baseline(valores: pd.Series, residuos: np.ndarray, medias: np.ndarray):
@@ -241,29 +246,31 @@ def _intervalos_baseline(valores: pd.Series, residuos: np.ndarray, medias: np.nd
     return np.column_stack((inferiores, superiores)), residuos
 
 
-def _diagnosticos_baseline(valores: pd.Series, residuos: np.ndarray):
-    residuos = residuos[np.isfinite(residuos)]
+def _diagnosticos_baseline(observados: np.ndarray, residuos: np.ndarray):
+    validos = np.isfinite(observados) & np.isfinite(residuos)
+    observados = observados[validos]
+    residuos = residuos[validos]
     if len(residuos) == 0:
         return None
-    ajustados = np.asarray(valores[-len(residuos):], dtype=float) - residuos
-    observados = np.asarray(valores[-len(residuos):], dtype=float)
-    mape = float(
-        np.mean(np.abs((observados - ajustados) / np.maximum(np.abs(observados), 1e-9))) * 100
-    )
+    mape = float(np.mean(np.abs(residuos / np.maximum(np.abs(observados), 1e-9))) * 100)
     sse = float(np.sum(np.square(residuos)))
-    aic = len(residuos) * math.log(max(sse / len(residuos), 1e-12)) + 2
+    aic_aproximado = len(residuos) * math.log(max(sse / len(residuos), 1e-12)) + 2
     lag = min(12, max(1, len(residuos) // 5))
     p_value = None
     if len(residuos) > lag:
-        tabla = acorr_ljungbox(residuos, lags=[lag], return_df=True)
-        candidato = float(tabla["lb_pvalue"].iloc[-1])
-        p_value = round(candidato, 6) if math.isfinite(candidato) else None
+        try:
+            tabla = acorr_ljungbox(residuos, lags=[lag], return_df=True)
+            candidato = float(tabla["lb_pvalue"].iloc[-1])
+            p_value = round(candidato, 6) if math.isfinite(candidato) else None
+        except (ValueError, ZeroDivisionError):
+            p_value = None
     return {
-        "aic": round(aic, 4),
+        "aic": round(aic_aproximado, 4),
         "mape_entrenamiento": round(mape, 4) if math.isfinite(mape) else None,
         "media_residuos": round(float(residuos.mean()), 4),
         "ljung_box_p_value": p_value,
     }
+
 
 def proyectar_desde_payload(entrada: Any) -> dict[str, Any]:
     """Calcula una proyección bajo demanda; no escribe datos ni modelos."""
@@ -316,14 +323,14 @@ def proyectar_desde_payload(entrada: Any) -> dict[str, Any]:
         parametros_modelo = None
         resultado = None
         if modelo_solicitado == "MA":
-            medias, residuos, parametros_modelo = _pronosticar_media_movil(
+            medias, residuos, parametros_modelo, observados_diagnostico = _pronosticar_media_movil(
                 valores, horizonte, ventana
             )
             tipo_modelo = "MA"
             orden, estacional = (0, 0, 0), None
             intervalos, residuos = _intervalos_baseline(valores, residuos, medias)
         elif modelo_solicitado == "SES":
-            medias, residuos, parametros_modelo = _pronosticar_ses(
+            medias, residuos, parametros_modelo, observados_diagnostico = _pronosticar_ses(
                 valores, horizonte, alpha
             )
             tipo_modelo = "SES"
@@ -377,11 +384,24 @@ def proyectar_desde_payload(entrada: Any) -> dict[str, Any]:
             "pronostico": pronostico,
             "serie": serie,
         }
+        advertencias = []
         if depurados < MIN_MESES_BASE:
-            salida["advertencia"] = (
-                f"Se requieren al menos {MIN_MESES_BASE} meses depurados; solo hay {depurados}. "
-                "Se continúa con la estimación, pero su confiabilidad puede ser menor."
+            advertencias.append(
+                f"Se recomiendan al menos {MIN_MESES_BASE} meses depurados; solo hay {depurados}. "
+                "La confiabilidad puede ser menor."
             )
+        if horizonte > 12:
+            advertencias.append(
+                "El horizonte supera 12 meses: interprete el resultado como escenario exploratorio; "
+                "la incertidumbre aumenta con la distancia temporal."
+            )
+        if modelo_solicitado in ("MA", "SES"):
+            advertencias.append(
+                "Los intervalos de MA/SES son bandas aproximadas basadas en residuos, no intervalos "
+                "probabilísticos exactos."
+            )
+        if advertencias:
+            salida["advertencia"] = " ".join(advertencias)
         if incluir_diagnosticos:
             if resultado is not None:
                 residuos_arima = np.asarray(resultado.resid, dtype=float)
@@ -407,7 +427,7 @@ def proyectar_desde_payload(entrada: Any) -> dict[str, Any]:
                     "ljung_box_p_value": p_value,
                 }
             else:
-                diagnosticos = _diagnosticos_baseline(valores, residuos)
+                diagnosticos = _diagnosticos_baseline(observados_diagnostico, residuos)
                 if diagnosticos is not None:
                     salida["diagnosticos"] = diagnosticos
         return salida

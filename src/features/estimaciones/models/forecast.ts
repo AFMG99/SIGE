@@ -10,7 +10,7 @@ export const solicitudProyeccionSchema = z
   .object({
     edificacionId: z.string().min(1, 'Seleccione una edificación.'),
     bloqueId: z.string().min(1).nullable().optional(),
-    horizonte: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    horizonte: z.number().int().min(1).max(24),
     modelo: z.enum(['AUTO', 'MA', 'SES']).default('AUTO'),
     ventana: z.number().int().min(2).max(12).optional(),
     alpha: z.number().min(0.05).max(0.95).optional(),
@@ -68,7 +68,7 @@ export const proyeccionMotorSchema = z.union([
           z.literal(12),
         ])
         .nullable(),
-      pronostico: z.array(puntoPronosticoSchema).min(1).max(3),
+      pronostico: z.array(puntoPronosticoSchema).min(1).max(24),
         serie: z.array(puntoSerieSchema).min(1),
       diagnosticos: diagnosticosSchema.optional(),
     })
@@ -79,13 +79,6 @@ export const proyeccionMotorSchema = z.union([
             code: z.ZodIssueCode.custom,
             path: ['advertencia'],
             message: 'Debe advertirse cuando el histórico depurado sea menor al mínimo recomendado.',
-          })
-        }
-        if (resultado.depurados >= resultado.min_meses && resultado.advertencia) {
-          contexto.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['advertencia'],
-            message: 'La advertencia solo aplica a históricos menores al mínimo recomendado.',
           })
         }
     }),

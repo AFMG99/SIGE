@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { ejecutarProyeccion } from '@/features/estimaciones/controllers/forecast'
+import { ejecutarProyeccion, guardarEstimacion, listarHistorialEstimaciones, obtenerEstimacionGuardada, type EstimacionHistorialItem } from '@/features/estimaciones/controllers/forecast'
 import { SeriesChart } from '@/shared/views/charts'
 import {
   type ResultadoProyeccion,
@@ -57,11 +57,64 @@ export function EstimacionesView({
   const [modelo, setModelo] = React.useState<'AUTO' | 'MA' | 'SES'>('AUTO')
   const [ventana, setVentana] = React.useState(3)
   const [alpha, setAlpha] = React.useState(0.3)
+  const [historial, setHistorial] = React.useState<EstimacionHistorialItem[]>([])
+  const [cargandoHistorial, setCargandoHistorial] = React.useState(false)
+  const [guardando, setGuardando] = React.useState(false)
+  const [mensajeGuardado, setMensajeGuardado] = React.useState<string | null>(null)
+  const [errorHistorial, setErrorHistorial] = React.useState<string | null>(null)
   const [usarOrdenManual, setUsarOrdenManual] = React.useState(false)
   const [orden, setOrden] = React.useState<[number, number, number]>([1, 1, 1])
   const [resultado, setResultado] = React.useState<ResultadoProyeccion | null>(null)
   const [cargando, setCargando] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+
+  React.useEffect(() => {
+    let vigente = true
+    if (!edificacionId) {
+      setHistorial([])
+      return () => { vigente = false }
+    }
+    setCargandoHistorial(true)
+    setErrorHistorial(null)
+    listarHistorialEstimaciones(edificacionId)
+      .then((r) => {
+        if (!vigente) return
+        if (r.ok) setHistorial(r.items)
+        else setErrorHistorial(r.error)
+      })
+      .catch(() => { if (vigente) setErrorHistorial('No fue posible cargar el historial.') })
+      .finally(() => { if (vigente) setCargandoHistorial(false) })
+    return () => { vigente = false }
+  }, [edificacionId])
+
+  const guardarResultado = async () => {
+    if (!resultado || !edificacionId || !puedeCrearOrden || guardando) return
+    setGuardando(true)
+    setMensajeGuardado(null)
+    setError(null)
+    try {
+      const r = await guardarEstimacion({ edificacionId, bloqueId: bloqueId || null, resultado })
+      if (r.ok) {
+        setMensajeGuardado('Estimación guardada correctamente en el historial.')
+        const actual = await listarHistorialEstimaciones(edificacionId)
+        if (actual.ok) setHistorial(actual.items)
+      } else setError(r.error)
+    } catch {
+      setError('No se pudo guardar la estimación. Intente nuevamente.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  const abrirEstimacion = async (id: string) => {
+    const r = await obtenerEstimacionGuardada(id)
+    if (r.ok) {
+      setResultado(r.resultado)
+      setMensajeGuardado('Se cargó una estimación guardada del historial.')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else setErrorHistorial(r.error)
+  }
 
   const bloquesEdificacion = bloques.filter(
     (bloque) => bloque.edificacionId === edificacionId
@@ -276,16 +329,13 @@ export function EstimacionesView({
                   className="ui-input min-h-10 focus-ring"
                   value={horizonte}
                   onChange={(evento) => {
-                    if (evento.target.value === '1') setHorizonte(1)
-                    else if (evento.target.value === '2') setHorizonte(2)
-                    else setHorizonte(3)
+                    setHorizonte(Number(evento.target.value))
                     setResultado(null)
                   }}
                 >
-                  <option value={1}>1 mes</option>
-                  <option value={2}>2 meses</option>
-                  <option value={3}>3 meses</option>
+                  {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} {n === 1 ? 'mes' : 'meses'}</option>)}
                 </select>
+                {horizonte > 12 && <p className="ui-muted text-xs">Horizontes superiores a 12 meses son escenarios exploratorios con mayor incertidumbre.</p>}
               </div>
             </div>
 
@@ -520,6 +570,15 @@ export function EstimacionesView({
               </table>
             </div>
 
+            {puedeCrearOrden && (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button type="button" className="ui-btn ui-btn-primary focus-ring" onClick={guardarResultado} disabled={guardando}>
+                  {guardando ? 'Guardando…' : 'Guardar estimación'}
+                </button>
+                {mensajeGuardado && <p role="status" className="ui-callout ui-callout-success text-sm">{mensajeGuardado}</p>}
+              </div>
+            )}
+
             {proyeccion.diagnosticos && (
               <section
                 className="rounded-xl bg-slate-50 p-4 dark:bg-slate-900"
@@ -530,7 +589,7 @@ export function EstimacionesView({
                 </h3>
                 <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
                   <div>
-                    <dt className="ui-muted">AIC</dt>
+                    <dt className="ui-muted">{proyeccion.modelo === 'MA' || proyeccion.modelo === 'SES' ? 'AIC aproximado' : 'AIC'}</dt>
                     <dd className="mt-1 font-medium">{numeroCo.format(proyeccion.diagnosticos.aic)}</dd>
                   </div>
                   <div>
@@ -580,6 +639,37 @@ export function EstimacionesView({
           </p>
         </div>
       )}
+
+      <section className="ui-panel space-y-4" aria-labelledby="historial-estimaciones-titulo">
+        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+          <div>
+            <h2 id="historial-estimaciones-titulo" className="ui-title text-lg">Historial de estimaciones</h2>
+            <p className="ui-muted mt-1 text-sm">Últimas 50 estimaciones guardadas para la edificación seleccionada.</p>
+          </div>
+          {cargandoHistorial && <span className="ui-muted text-xs">Actualizando historial…</span>}
+        </div>
+        {errorHistorial && <div className="ui-callout ui-callout-danger" role="alert">{errorHistorial}</div>}
+        {!edificacionId ? (
+          <p className="ui-muted text-sm">Seleccione una edificación para consultar su historial.</p>
+        ) : historial.length === 0 && !cargandoHistorial ? (
+          <p className="ui-muted text-sm">Todavía no hay estimaciones guardadas para esta edificación.</p>
+        ) : (
+          <div className="ui-table-shell">
+            <table className="ui-table">
+              <thead><tr><th>Fecha</th><th>Alcance</th><th>Modelo</th><th>Horizonte</th><th>Período base</th><th>Histórico depurado</th><th>Acción</th></tr></thead>
+              <tbody>{historial.map((item) => (
+                <tr key={item.id}>
+                  <td>{new Date(item.createdAt).toLocaleString('es-CO')}</td>
+                  <td>{item.bloqueNombre ?? item.edificacionNombre}</td>
+                  <td>{item.modelo}</td><td>{item.horizonte} meses</td><td>{item.periodoBase}</td>
+                  <td>{item.mesesDepurados}/{item.mesesHistorico}</td>
+                  <td><button type="button" className="ui-btn ui-btn-secondary focus-ring" onClick={() => abrirEstimacion(item.id)}>Ver</button></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </main>
   )
 }
