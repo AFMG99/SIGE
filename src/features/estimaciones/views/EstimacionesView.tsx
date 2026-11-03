@@ -53,7 +53,7 @@ export function EstimacionesView({
     edificaciones.length === 1 ? edificaciones[0].id : ''
   )
   const [bloqueId, setBloqueId] = React.useState('')
-  const [horizonte, setHorizonte] = React.useState<1 | 2 | 3>(3)
+  const [horizonte, setHorizonte] = React.useState<number>(3)
   const [modelo, setModelo] = React.useState<'AUTO' | 'MA' | 'SES'>('AUTO')
   const [ventana, setVentana] = React.useState(3)
   const [alpha, setAlpha] = React.useState(0.3)
