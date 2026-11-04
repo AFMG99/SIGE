@@ -15,7 +15,7 @@ Se distinguen tres escenarios:
 2. **Producción en Vercel:** la aplicación y el motor Python se despliegan como dos servicios Vercel enlazados mediante el binding `LBEN_URL`; PostgreSQL se aloja en Neon.
 3. **Ejecución de producción local (prueba):** Next.js se compila y se inicia con `npm run build` y `npm run start`. Este modo no reemplaza el despliegue productivo en Vercel.
 
-> Este procedimiento no requiere instalar Python para navegar por la interfaz o trabajar con los módulos que no invoquen el motor estadístico. Python sí se necesita en desarrollo local para ejecutar los cálculos que usan el motor CLI. En producción, el servicio `engine` se despliega por separado en Vercel.
+> Este procedimiento no requiere instalar Python para navegar por la interfaz o trabajar con los módulos que no invoquen el motor estadístico. Python sí se necesita en desarrollo local para ejecutar los cálculos que usan el motor CLI. En producción, el servicio `engine` se despliega por separado en Vercel y proporciona LBEn, análisis y proyecciones.
 
 ## 2. Requisitos de hardware y software
 
