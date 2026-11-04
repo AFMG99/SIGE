@@ -1528,18 +1528,20 @@ Las 95 pruebas de las 18 historias de Storybook se ejecutaron con Vitest en nave
 
 | **Componente** | **Requisito mínimo** | **Versión recomendada** | **Notas** |
 | --- | --- | --- | --- |
-| Sistema operativo | Windows 10/11, Linux o macOS | Windows 11 o Ubuntu 22.04 | Sin requisitos de hardware especiales; 4 GB de RAM recomendados |
-| Lenguaje / Runtime | Node.js 18.17+ y npm 9+ | Node.js 20 LTS | Next.js 14.2 fija este mínimo; se usa `npm run dev` / `npm run build && npm run start` |
-| Base de datos | PostgreSQL 14+ | PostgreSQL 16 | Variable de entorno `DATABASE_URL`; se carga el esquema con `npx prisma db push` |
-| Motor de análisis | Python 3.10+ con pandas ≥ 1.5, numpy ≥ 1.24, scipy ≥ 1.10 y statsmodels ≥ 0.14 | Python 3.12 | En desarrollo local se invoca como CLI y es requerido solo para el cálculo de líneas base (sin él, el sistema funciona pero ese cálculo falla con un mensaje que indica cómo instalarlo, ADR-08); en producción corre como servicio FastAPI independiente enlazado por `LBEN_URL` |
-| Variables de entorno | `DATABASE_URL`, `JWT_SECRET` | `JWT_EXPIRES_IN` (opcional, por defecto `7d`), `TOTP_ENCRYPTION_KEY` (2FA), `LBEN_URL` y `LBEN_SECRET` (motor en producción) | `JWT_SECRET` con mínimo 32 caracteres y `TOTP_ENCRYPTION_KEY` con 32 bytes en base64: ambos obligatorios en producción. `LBEN_URL`/`LBEN_SECRET` solo en el despliegue serverless (binding del servicio engine) |
-| Navegador (cliente) | Navegadores con soporte de ES2020 | Chrome/Edge recientes | La gráfica de línea base usa SVG y API de teclado/ARIA |
+| Sistema operativo y hardware | Windows 10/11 de 64 bits, Linux o macOS compatible; CPU de 2 núcleos, 4 GB RAM y 5 GB libres | Windows 11 o Ubuntu 22.04 LTS; CPU de 4 núcleos, 8 GB RAM y 10 GB libres | Valores orientativos para desarrollo local; Vercel y Neon administran su propia infraestructura. |
+| Lenguaje / Runtime | Node.js 20.x y npm 10.x | Node.js 22 LTS y npm compatible | Next.js 14.2.0. Se utiliza `npm ci`, `npm run dev` y `npm run build && npm run start`. Node 20 se recomienda para compatibilidad con las herramientas actuales del lockfile. |
+| Base de datos | PostgreSQL 14+ | PostgreSQL 16 | También se admite Neon PostgreSQL. Variable `DATABASE_URL`; sincronización mediante `npm run db:push`. |
+| ORM | Prisma 5.x | Versión resuelta por `package-lock.json` | Cliente generado mediante `npm run db:generate`. |
+| Motor de análisis | Python 3.12; pandas ≥ 1.5, NumPy ≥ 1.24, SciPy ≥ 1.10 y statsmodels ≥ 0.14 | Python 3.12.x | Requerido para cálculos locales que invocan el CLI. En producción, FastAPI `engine` atiende líneas base, análisis y proyecciones; incluye FastAPI ≥ 0.110 y Uvicorn ≥ 0.27. La versión Python del runtime Vercel no está fijada en `vercel.json`. |
+| Variables de entorno | `DATABASE_URL`, `JWT_SECRET` | `JWT_EXPIRES_IN` (opcional, por defecto `7d`), `TOTP_ENCRYPTION_KEY`, `NEXT_PUBLIC_APP_URL`, `LBEN_URL` y `LBEN_SECRET` | `JWT_SECRET` requiere mínimo 32 caracteres. `TOTP_ENCRYPTION_KEY` representa 32 bytes en Base64 y es requerida para producción/2FA. `LBEN_URL` se inyecta mediante el binding Vercel Services; `LBEN_SECRET` debe coincidir en app y engine. |
+| Control de versiones | Git 2.x | Versión estable vigente | Necesario para clonar el repositorio y administrar ramas. |
+| Navegador (cliente) | Navegador con soporte ES2020 | Chrome o Edge actualizados | JavaScript y cookies habilitados. Los gráficos usan SVG y controles de teclado/ARIA. |
 
 *Nota. Elaboración propia (2026).*
 
 ## 11.3. Manual de usuario
 
-El manual de usuario completo se presenta en el **Anexo A**. A continuación se ofrece un resumen de las funcionalidades principales para orientar al lector.
+El manual de usuario completo se presenta en el **Anexo A** y se mantiene también como archivo independiente en `docs/manual_usuario_sige.md`. Incluye procedimientos de acceso, roles, gestión de datos, calendario, líneas base, análisis, alertas, estimaciones, reportes, representación espacial y solución de problemas. La guía solicita capturas numeradas A.1–A.13; deben incorporarse capturas reales en `docs/screenshots/` antes de marcar el anexo como completo.
 
 El sistema SIGE se organiza en seis módulos accesibles desde el menú lateral, tras autenticarse con usuario y contraseña (y verificación en dos factores para los roles administrativos):
 
@@ -1556,7 +1558,7 @@ Cada funcionalidad se ilustra con capturas de pantalla numeradas en el Anexo A. 
 
 ## 11.4. Manual de instalación
 
-El manual de instalación completo, con comandos exactos y variables de entorno, se presenta en el **Anexo B**. En resumen, el despliegue requiere Node.js 20 LTS, PostgreSQL 14+ y (opcionalmente) Python 3.12 para el motor de análisis; el esquema se sincroniza con `npx prisma db push` y la aplicación se ejecuta con `npm run dev` (desarrollo) o `npm run build && npm run start` (producción). En producción corre sobre Vercel con dos servicios (aplicación Next.js y motor Python) enlazados por binding `LBEN_URL`.
+El manual de instalación completo se presenta en el **Anexo B** y en `docs/manual_instalacion_sige.md`. Describe instalación local, PostgreSQL/Neon, variables de entorno, Prisma, instalación opcional del motor Python para desarrollo, carga inicial, ejecución local y despliegue en Vercel con los servicios `app` y `engine` enlazados mediante `LBEN_URL`. Los requisitos de este apartado se mantienen alineados con dicho manual.
 
 ## 11.5. Resumen técnico del software
 
