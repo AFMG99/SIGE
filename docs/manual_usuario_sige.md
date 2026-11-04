@@ -610,4 +610,36 @@ Se recomienda realizar una validación guiada con al menos un usuario de cada ro
 - [Diagrama de despliegue](./diagrama_despliegue_sige.md)
 
 ---
+
+
+## 20. Registro de capturas de pantalla para la entrega académica
+
+La guía académica solicita capturas numeradas. El texto de este manual no sustituye esas evidencias. En la revisión del repositorio no se encontraron los archivos `figA1.png` a `figA13.png` en `docs/screenshots/`; por tanto, no se insertan imágenes simuladas ni se afirma que las capturas estén adjuntas.
+
+Para completar el Anexo A, tomar las capturas directamente de la versión desplegada y agregarlas al repositorio en `docs/screenshots/` con estos nombres y contenidos:
+
+| Figura | Archivo | Pantalla que debe capturarse |
+|---|---|---|
+| A.1 | `figA1.png` | Inicio de sesión y segundo factor, ocultando datos sensibles. |
+| A.2 | `figA2.png` | Dashboard y tarjetas de resumen. |
+| A.3 | `figA3.png` | Catálogo de edificaciones, bloques y espacios. |
+| A.4 | `figA4.png` | Importador de facturas: selección, mapeo y vista previa. |
+| A.5 | `figA5.png` | Importador de equipos y cálculos opcionales. |
+| A.6 | `figA6.png` | Variables operativas y asistente de importación. |
+| A.7 | `figA7.png` | Calendario operativo, festivos y horarios. |
+| A.8 | `figA8.png` | Líneas base: modelos, cálculo y resultados. |
+| A.9 | `figA9.png` | Análisis estadístico y resultados disponibles. |
+| A.10 | `figA10.png` | Bandeja de alertas y configuración, si está habilitada en producción. |
+| A.11 | `figA11.png` | Estimaciones y proyección ARIMA. |
+| A.12 | `figA12.png` | Reportes y formatos de exportación realmente disponibles. |
+| A.13 | `figA13.png` | Representación espacial 2D/3D. |
+
+Cada imagen debe tener pie de figura con número, título y nota: *Nota. Captura de pantalla de SIGE-TdeA. Elaboración propia (2026).* Ocultar correos personales, nombres de usuarios reales, identificadores, datos institucionales reservados, tokens y cualquier secreto. No utilizar datos sintéticos como si fueran registros reales.
+
+**Estado:** pendiente de incorporar las capturas reales. La carpeta y los nombres anteriores son una convención de entrega, no evidencia de que los archivos ya existan.
+
+## 21. Control de correspondencia con la implementación
+
+Este manual describe flujos funcionales identificados en el repositorio. Antes de entregar una versión institucional, validar en la instancia desplegada los módulos Alertas y Reportes, los permisos efectivos, los nombres exactos de botones y la disponibilidad de cada formato. La documentación técnica del proyecto registra trabajo pendiente en algunas de estas áreas; por ello, no deben presentarse como funcionalidades terminadas sin una prueba de aceptación en producción.
+
 **Fin del manual de usuario.**
