@@ -1660,7 +1660,7 @@ El camino no fue lineal: la mayor parte del trabajo se realizó sobre estimacion
 El presente manual describe el uso del Sistema de Información para la Gestión Energética (SIGE) del Tecnológico de Antioquia. Está dirigido a gestores energéticos, coordinadores de infraestructura, administradores TI y comunidad universitaria. El sistema se accede desde el navegador en la URL de despliegue; requiere usuario y contraseña, y verificación en dos factores para los roles administrativos.
 
 ### A.2. Funcionalidades principales (con capturas de pantalla)
-Las capturas de pantalla numeradas se incluyen a continuación. Cada figura corresponde a una funcionalidad del sistema.
+El manual de usuario completo está disponible en el archivo independiente `docs/manual_usuario_sige.md`. La guía exige 13 capturas numeradas (A.1–A.13). En la revisión actual no se encontraron los archivos de imagen `figA1.png`–`figA13.png` en `docs/screenshots/`; por tanto, las evidencias visuales deben capturarse desde la instancia desplegada e incorporarse antes de entregar la versión final.
 
 - **Figura A.1 — Inicio de sesión.** Pantalla de login con autenticación de dos factores para roles administrativos.
 - **Figura A.2 — Dashboard (Resumen).** Tarjetas de indicadores (consumo, costo, equipos, líneas base) y carrusel de módulos.
@@ -1685,34 +1685,11 @@ Las capturas de pantalla numeradas se incluyen a continuación. Cada figura corr
 
 ## Anexo B — Manual de instalación
 
-### B.1. Requisitos previos
-- Node.js 20 LTS y npm 9+.
-- PostgreSQL 14+ (local o Neon).
-- Python 3.12 con pandas ≥ 1.5, numpy ≥ 1.24, scipy ≥ 1.10 y statsmodels ≥ 0.14 (solo para el cálculo de líneas base).
-- Git.
+El manual de instalación completo se adjunta como archivo independiente en el repositorio: [`docs/manual_instalacion_sige.md`](manual_instalacion_sige.md).
 
-### B.2. Instalación paso a paso
-1. Clonar el repositorio: `git clone https://github.com/AFMG99/SIGE.git && cd SIGE`.
-2. Instalar dependencias: `npm install`.
-3. Crear el archivo `.env` con `DATABASE_URL`, `JWT_SECRET` (mín. 32 caracteres), `TOTP_ENCRYPTION_KEY` (32 bytes en base64) y, en producción, `LBEN_URL`/`LBEN_SECRET`.
-4. Sincronizar el esquema con la base de datos: `npm run db:push` (o `npx prisma db push`).
-5. Regenerar el cliente Prisma: `npm run db:generate`.
-6. (Opcional) Cargar datos semilla: `npx prisma db seed` si aplica.
-7. Ejecutar en desarrollo: `npm run dev` (http://localhost:3000).
-8. Para producción: `npm run build && npm run start`. En Vercel, configurar los dos servicios (app + engine) con el binding `LBEN_URL`.
+El documento contiene los requisitos de hardware y software, versiones, comandos de instalación, configuración de PostgreSQL/Neon, variables de entorno, generación del cliente Prisma, sincronización del esquema, instalación opcional del motor Python local, carga inicial de datos, ejecución local, despliegue de los servicios `app` y `engine` en Vercel y procedimientos de verificación y solución de problemas.
 
-### B.3. Variables de entorno
-| Variable | Obligatoria | Descripción |
-|---|---|---|
-| `DATABASE_URL` | Sí | Cadena de conexión PostgreSQL |
-| `JWT_SECRET` | Sí | Clave para firmar JWT (mín. 32 caracteres) |
-| `TOTP_ENCRYPTION_KEY` | Sí (prod) | 32 bytes en base64 para 2FA |
-| `JWT_EXPIRES_IN` | No | Duración del token (por defecto `7d`) |
-| `LBEN_URL` | Sí (prod) | URL del servicio Python de líneas base |
-| `LBEN_SECRET` | Sí (prod) | Secreto compartido con el servicio engine |
-
-### B.4. Verificación
-Ejecutar `npm run validate` (lint + typecheck + test + build + build-storybook). Todas las etapas deben pasar en verde. Para las pruebas de Python: `python -m pytest python/tests/`.
+La Tabla 25 de la sección 11.2 resume los mismos requisitos y versiones del manual. Los valores de hardware se identifican como recomendaciones para desarrollo local, no como cuotas de Vercel/Neon.
 
 ## Anexo C — \[Nombre del anexo adicional]
 
