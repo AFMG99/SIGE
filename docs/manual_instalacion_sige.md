@@ -30,7 +30,7 @@ Los valores de hardware son recomendaciones operativas para un entorno de desarr
 | Aplicación web | Next.js 14.2.0, React 18.3.x | Versiones fijadas por `package-lock.json` | No actualizar Next/React de forma aislada sin ejecutar la validación. |
 | Base de datos | PostgreSQL 14 o superior | PostgreSQL 16 | También puede usarse Neon PostgreSQL. La conexión se configura mediante `DATABASE_URL`. |
 | ORM | Prisma 5.x | Versión resuelta en `package-lock.json` (declaración `^5.12.0`) | `npm run db:generate` y `npm run db:push`. |
-| Motor estadístico local | Python 3.12; NumPy ≥1.24, pandas ≥1.5, SciPy ≥1.10, statsmodels ≥0.14 | Python 3.12.x y versiones compatibles instaladas desde `python/requirements.txt` | Solo para cálculos que invocan el motor Python en local. FastAPI ≥0.110 y Uvicorn ≥0.27 se incluyen para el servicio. |
+| Motor estadístico local | Python 3.10+; NumPy ≥1.24, pandas ≥1.5, SciPy ≥1.10, statsmodels ≥0.14 | Python 3.12.x (recomendada) y versiones compatibles instaladas desde `python/requirements.txt` | Solo para cálculos que invocan el motor Python en local. FastAPI ≥0.110 y Uvicorn ≥0.27 se incluyen para el servicio. |
 | Git | Git 2.x | Versión estable vigente | Para clonar el repositorio y gestionar ramas. |
 | Navegador | Navegador con soporte ES2020 | Chrome o Edge actualizado | También puede utilizarse Firefox actualizado. Se requiere JavaScript y cookies habilitados. |
 | Conectividad | Acceso al repositorio, base de datos y proveedores externos requeridos | Conexión estable | La aplicación consulta Neon y, en funciones operativas, Open-Meteo. |
@@ -216,7 +216,7 @@ Prisma Studio abre una interfaz de administración local. Úsela con precaución
 
 Este paso es necesario si se ejecutarán localmente las operaciones que llaman al motor estadístico. En producción Vercel despliega el servicio `engine` por separado.
 
-Compruebe que Python 3.12 está instalado:
+Compruebe que Python 3.12 (versión recomendada) está instalado:
 
 ```bash
 python --version
