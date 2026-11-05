@@ -436,18 +436,20 @@ export function ModeloArquitectonicoPreview({ edificacionId, puedeImportar }: Mo
                 <p className="mt-1 text-xs text-slate-500">Caja envolvente (X × Y × Z)</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{selected.dimensiones.map((value) => value.toFixed(2)).join(' × ')}</p>
                 {selectedModelId && (
-                  <AsociacionEspacioModelo
-                    key={`${selectedModelId}:${selected.nodeKey}`}
-                    modeloId={selectedModelId}
-                    node={selected}
-                    puedeEditar={puedeImportar}
-                  />
-                  <EnergiaEspacioModelo
-                    key={`energia:${selectedModelId}:${selected.nodeKey}`}
-                    modeloId={selectedModelId}
-                    nodeKey={selected.nodeKey}
-                    onEnergyChange={handleEnergyChange}
-                  />
+                  <>
+                    <AsociacionEspacioModelo
+                      key={`${selectedModelId}:${selected.nodeKey}`}
+                      modeloId={selectedModelId}
+                      node={selected}
+                      puedeEditar={puedeImportar}
+                    />
+                    <EnergiaEspacioModelo
+                      key={`energia:${selectedModelId}:${selected.nodeKey}`}
+                      modeloId={selectedModelId}
+                      nodeKey={selected.nodeKey}
+                      onEnergyChange={handleEnergyChange}
+                    />
+                  </>
                 )}
               </div>
             )}
