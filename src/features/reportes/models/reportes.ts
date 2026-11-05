@@ -137,7 +137,8 @@ export interface ItemAjusteUPME {
   tipo: string
   descripcion: string
   periodo: string
-  valorAjusteKwh: number
+  /** Proporción (Pr) del ajuste, expresada en porcentaje (0–100). */
+  valorAjustePct: number
   observaciones: string | null
 }
 

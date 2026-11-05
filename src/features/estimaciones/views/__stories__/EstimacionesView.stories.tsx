@@ -9,6 +9,7 @@ import {
 import {
   bloquesDemo,
   edificacionesDemo,
+  resultadoProyeccionDemo,
 } from '../__fixtures__/forecast'
 
 const meta = {
@@ -68,7 +69,7 @@ export const ConProyeccion: Story = {
       name: /serie histórica y proyección mensual de Campus Robledo/i,
     })
     await canvas.findByText('Histórico depurado')
-    await canvas.findByText('Proyección ARIMA')
+    await canvas.findByText(`Proyección ${resultadoProyeccionDemo.proyeccion.modelo}`)
     await canvas.findByText('LBEn guardada · bloque')
     await canvas.findByText('Atípicos imputados')
     await canvas.findByText('Diagnóstico del modelo')

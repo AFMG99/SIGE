@@ -34,6 +34,7 @@ model User {
   permissionOverrides     UserPermissionOverride[]
   sessions                Session[]
   twoFactorBackupCodes    TwoFactorBackupCode[]
+  estimacionesCreadas     EstimacionConsumo[]
 
   @@map("users")
 }
@@ -113,6 +114,7 @@ model Edificacion {
   horarios           HorarioEquipo[]
   lineasBase         LineaBaseEnergia[]
   usoPeriodos        UsoPeriodo[]
+  estimaciones       EstimacionConsumo[]
 
   @@map("edificaciones")
 }
@@ -214,6 +216,7 @@ model Bloque {
   horarios              HorarioEquipo[]
   lineasBase            LineaBaseEnergia[]
   variables             VariableOperativa[]
+  estimaciones          EstimacionConsumo[]
 
   @@index([edificacionId])
   @@map("bloques")
@@ -389,6 +392,32 @@ model EvaluacionAlerta {
   @@map("evaluaciones_alerta")
 }
 
+model EstimacionConsumo {
+  id                String      @id @default(cuid())
+  edificacionId     String
+  bloqueId          String?
+  createdById       String?
+  edificacionNombre String
+  bloqueNombre      String?
+  modelo            String
+  parametros        Json
+  horizonte         Int
+  periodoBase       String
+  mesesHistorico    Int
+  mesesDepurados    Int
+  resultados        Json
+  diagnosticos      Json?
+  advertencias      String?
+  createdAt         DateTime    @default(now())
+  edificacion       Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  bloque            Bloque?     @relation(fields: [bloqueId], references: [id], onDelete: SetNull)
+  createdBy         User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([edificacionId, createdAt])
+  @@index([bloqueId, createdAt])
+  @@index([createdById])
+  @@map("estimaciones_consumo")
+}
 model UsoPeriodo {
   id                String           @id @default(cuid())
   edificacionId     String

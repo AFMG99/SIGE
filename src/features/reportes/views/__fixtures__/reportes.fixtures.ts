@@ -216,7 +216,7 @@ export const DATOS_REPORTE_FIXTURE: DatosReporteUPME = {
         tipo: 'No rutinario',
         descripcion: 'Remodelación integral de laboratorio de informática y reemplazo de 40 estaciones',
         periodo: '2024-06 a 2024-07',
-        valorAjusteKwh: -420,
+        valorAjustePct: 25,
         observaciones: 'Reducción de potencia nominal por adquisición de equipos Energy Star.',
       },
     ],

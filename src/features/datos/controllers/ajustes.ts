@@ -8,6 +8,7 @@
 import { prisma } from '@/shared/models/prisma'
 import { canWithOverrides, getCurrentUser } from '@/shared/models/authz'
 import { auditarAccion } from '@/features/datos/controllers/auditoria'
+import { resolverModeloLben } from '@/features/datos/models/ajustes'
 import type { ResultadoGestion } from '@/features/datos/models/validations'
 
 type AuthCarga = { ok: true } | { ok: false; mensaje: string }
@@ -92,10 +93,44 @@ export async function crearAjuste(datos: DatosNuevoAjuste): Promise<ResultadoGes
     const direccion = datos?.direccion === 'incremento' ? 'incremento' : 'reduccion'
     const observaciones = String(datos?.observaciones ?? '').trim() || null
 
+    // Validación de traslape: no puede existir otro ajuste para el mismo bloque
+    // cuyo periodo se solape con [inicio, fin].
+    const inicioDate = primerDiaDelMes(inicio)
+    const finDate = ultimoDiaDelMes(fin)
+    const solapados = await prisma.ajusteEnergetico.findMany({
+      where: {
+        bloqueId,
+        AND: [
+          { periodoInicio: { lte: finDate } },
+          { periodoFin: { gte: inicioDate } },
+        ],
+      },
+      select: { periodoInicio: true, periodoFin: true },
+    })
+    if (solapados.length > 0) {
+      const s = solapados[0]
+      return {
+        estado: 'error',
+        mensaje: `Ya existe un ajuste para este bloque en un periodo solapado (${s.periodoInicio
+          .toISOString()
+          .slice(0, 7)} a ${s.periodoFin.toISOString().slice(0, 7)}).`,
+      }
+    }
+
+    // §7.6.2 (UPME 0016 de 2024): `modelo` documenta el modelo de LBEn sobre
+    // el que se aplica el ajuste; se registra el de mayor prioridad entre las
+    // líneas base guardadas del bloque (null si el bloque aún no tiene).
+    const lineasBloque = await prisma.lineaBaseEnergia.findMany({
+      where: { bloqueId },
+      select: { tipo: true },
+    })
+    const modelo = resolverModeloLben(lineasBloque.map((l) => l.tipo))
+
     await prisma.ajusteEnergetico.create({
       data: {
         bloqueId,
         tipo,
+        modelo,
         descripcion,
         periodoInicio: primerDiaDelMes(inicio),
         periodoFin: ultimoDiaDelMes(fin),
@@ -201,5 +236,121 @@ export async function vaciarAjustes(): Promise<ResultadoGestion> {
       estado: 'error',
       mensaje: 'No fue posible vaciar los ajustes energéticos. Intente de nuevo.',
     }
+  }
+}
+
+/**
+ * Edita un ajuste energético existente. Mismas validaciones que `crearAjuste`
+ * (periodos, proporción, bloque, traslape — excluyendo el propio registro).
+ */
+export async function editarAjuste(
+  id: string,
+  datos: DatosNuevoAjuste
+): Promise<ResultadoGestion> {
+  try {
+    const auth = await autorizarCarga()
+    if (!auth.ok) return { estado: 'error', mensaje: auth.mensaje }
+
+    const idAjuste = String(id ?? '').trim()
+    if (!idAjuste) return { estado: 'error', mensaje: 'Debe indicar el ajuste a editar.' }
+
+    const existente = await prisma.ajusteEnergetico.findUnique({
+      where: { id: idAjuste },
+      select: { id: true, bloqueId: true },
+    })
+    if (!existente) return { estado: 'error', mensaje: 'El ajuste indicado ya no existe.' }
+
+    const inicio = String(datos?.periodoInicio ?? '').trim()
+    const fin = String(datos?.periodoFin ?? '').trim()
+    if (!PERIODO_RE.test(inicio) || !PERIODO_RE.test(fin)) {
+      return { estado: 'error', mensaje: 'Periodos inválidos: use el formato YYYY-MM.' }
+    }
+    if (inicio > fin) {
+      return { estado: 'error', mensaje: 'El periodo de inicio no puede ser posterior al de fin.' }
+    }
+
+    const valor = Number(datos?.valorAjuste)
+    if (!Number.isFinite(valor) || valor <= 0 || valor > 100) {
+      return { estado: 'error', mensaje: 'La proporción debe estar entre 0 y 100.' }
+    }
+
+    const descripcion = String(datos?.descripcion ?? '').trim()
+    if (!descripcion) {
+      return { estado: 'error', mensaje: 'Describa la causa del ajuste.' }
+    }
+
+    const bloqueId = String(datos?.bloqueId ?? existente.bloqueId).trim()
+    if (!bloqueId) {
+      return { estado: 'error', mensaje: 'Indique el bloque al que aplica el ajuste.' }
+    }
+    const bloque = await prisma.bloque.findUnique({
+      where: { id: bloqueId },
+      select: { codigo: true, nombre: true },
+    })
+    if (!bloque) {
+      return { estado: 'error', mensaje: 'El bloque indicado no existe.' }
+    }
+
+    const tipo = datos?.tipo === 'RUTINARIO' ? 'RUTINARIO' : 'NO_RUTINARIO'
+    const direccion = datos?.direccion === 'incremento' ? 'incremento' : 'reduccion'
+    const observaciones = String(datos?.observaciones ?? '').trim() || null
+
+    const inicioDate = primerDiaDelMes(inicio)
+    const finDate = ultimoDiaDelMes(fin)
+    const solapados = await prisma.ajusteEnergetico.findMany({
+      where: {
+        bloqueId,
+        id: { not: idAjuste },
+        AND: [
+          { periodoInicio: { lte: finDate } },
+          { periodoFin: { gte: inicioDate } },
+        ],
+      },
+      select: { periodoInicio: true, periodoFin: true },
+    })
+    if (solapados.length > 0) {
+      const s = solapados[0]
+      return {
+        estado: 'error',
+        mensaje: `Ya existe un ajuste para este bloque en un periodo solapado (${s.periodoInicio.toISOString().slice(0, 7)} a ${s.periodoFin.toISOString().slice(0, 7)}).`,
+      }
+    }
+
+    const lineasBloque = await prisma.lineaBaseEnergia.findMany({
+      where: { bloqueId },
+      select: { tipo: true },
+    })
+    const modelo = resolverModeloLben(lineasBloque.map((l) => l.tipo))
+
+    await prisma.ajusteEnergetico.update({
+      where: { id: idAjuste },
+      data: {
+        bloqueId,
+        tipo,
+        modelo,
+        descripcion,
+        periodoInicio: inicioDate,
+        periodoFin: finDate,
+        valorAjuste: valor,
+        direccion,
+        observaciones,
+      },
+    })
+
+    await auditarAccion({
+      action: 'ajuste.update',
+      targetId: idAjuste,
+      detail: `Ajuste ${tipo} ${inicio} a ${fin} (${valor}% ${direccion}) actualizado en el bloque "${bloque.codigo} — ${bloque.nombre}".`,
+    })
+
+    return {
+      estado: 'completado',
+      eliminadas: 0,
+      lineasBaseEliminadas: 0,
+      mensaje: `Ajuste ${tipo} actualizado: ${inicio} a ${fin}, ${valor}% (${direccion}).`,
+    }
+  } catch (error) {
+    console.error('Error en editarAjuste:', error)
+    return { estado: 'error', mensaje: 'No fue posible editar el ajuste. Intente de nuevo.' }
   }
 }

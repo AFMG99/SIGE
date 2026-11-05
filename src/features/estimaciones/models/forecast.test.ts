@@ -21,6 +21,12 @@ describe('contrato de proyección ARIMA', () => {
         edificacionId: 'edificacion-1',
         horizonte: 4,
       }).success
+    ).toBe(true)
+    expect(
+      solicitudProyeccionSchema.safeParse({
+        edificacionId: 'edificacion-1',
+        horizonte: 25,
+      }).success
     ).toBe(false)
     expect(
       solicitudProyeccionSchema.safeParse({
@@ -48,11 +54,14 @@ describe('contrato de proyección ARIMA', () => {
         advertencia: undefined,
       }).success
     ).toBe(false)
+    // La advertencia ya no está restringida a históricos cortos: el motor la
+    // emite también con 48 meses cuando el horizonte supera 12 o el modelo es
+    // MA/SES, así que una proyección completa con advertencia es válida.
     expect(
       proyeccionMotorSchema.safeParse({
         ...proyeccionDemo,
         advertencia: 'No aplica',
       }).success
-    ).toBe(false)
+    ).toBe(true)
   })
 })

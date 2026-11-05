@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { expect, fireEvent, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test'
 
 import { EventosCalendario } from '../EventosCalendario'
+import type { EventoInfo } from '../../models/eventos'
 import {
   bloquesDemo,
   edificacionesDemo,
@@ -227,5 +228,31 @@ export const SoloLecturaSinGestion: Story = {
     await expect(await canvas.findByText('Semana de la infraestructura')).toBeVisible()
     expect(canvas.queryByRole('button', { name: 'Nuevo evento' })).toBeNull()
     expect(canvas.queryByRole('button', { name: /eliminar evento/i })).toBeNull()
+  },
+}
+
+/** Doble del callback de `DatosContent`: recibe el evento elegido. */
+const onCrearAjusteDemo = fn()
+
+export const CrearAjusteDesdeEvento: Story = {
+  name: '«Crear ajuste» por evento: notifica el evento hacia el pre-fill',
+  args: {
+    onCrearAjusteDesdeEvento: onCrearAjusteDemo,
+  },
+  play: async ({ canvas, userEvent }) => {
+    await seleccionarCampus(canvas, userEvent)
+
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Crear ajuste desde Sustentación de tesis' })
+    )
+
+    await waitFor(() => expect(onCrearAjusteDemo).toHaveBeenCalled())
+    expect(onCrearAjusteDemo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'ev-campus-aca-tesis',
+        fechaInicio: '2026-11-27',
+        bloqueId: 'bk-campus-a101-001',
+      })
+    )
   },
 }

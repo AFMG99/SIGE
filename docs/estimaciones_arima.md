@@ -1,6 +1,6 @@
-# Proyecciones de consumo con ARIMA
+# Proyecciones de consumo con modelos estadísticos
 
-El módulo `/dashboard/estimaciones` genera proyecciones exploratorias mensuales para una edificación o uno de sus bloques. Cada ejecución solicita entre uno y tres meses, no persiste el resultado y no modifica las líneas base guardadas.
+El módulo `/dashboard/estimaciones` genera proyecciones exploratorias mensuales para una edificación o uno de sus bloques. Cada ejecución solicita entre uno y tres meses, no persiste el resultado y no modifica las líneas base guardadas. Además de la selección automática SARIMA/ARIMA, permite comparar medias móviles (MA) y suavizamiento exponencial simple (SES).
 
 ## Preparación de la serie
 
@@ -12,7 +12,7 @@ El módulo `/dashboard/estimaciones` genera proyecciones exploratorias mensuales
 
 ## Ajuste y salida
 
-El motor prueba una cuadrícula acotada de órdenes SARIMA con período estacional 12 y selecciona por AIC. Si ningún candidato SARIMA converge, prueba una cuadrícula ARIMA no estacional. Los perfiles con permiso `estimates:create` pueden especificar un orden ARIMA manual `[p, d, q]`, con cada componente entre 0 y 2.
+El modo automático prueba una cuadrícula acotada de órdenes SARIMA con período estacional 12 y selecciona por AIC; si ninguno converge, prueba ARIMA no estacional. MA utiliza una ventana móvil configurable de 2 a 12 meses (por defecto 3) y SES ajusta el nivel exponencial, con alpha configurable entre 0.05 y 0.95. Para MA y SES los intervalos del 95 % se estiman a partir de los residuos y se amplían con el horizonte; deben interpretarse como bandas aproximadas, no como intervalos exactos de modelos probabilísticos. Los perfiles con permiso `estimates:create` pueden especificar un orden ARIMA manual `[p, d, q]`, con cada componente entre 0 y 2.
 
 La respuesta contiene la serie usada, los consumos proyectados y sus intervalos al 95 %. Los perfiles autorizados para diagnóstico reciben además AIC, MAPE dentro de muestra, media de residuos y p-value de Ljung–Box. El MAPE de entrenamiento es descriptivo y no constituye una validación independiente del pronóstico.
 
