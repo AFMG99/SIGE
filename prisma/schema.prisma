@@ -468,8 +468,10 @@ model ModeloArquitectonico {
   edificacionId String
   bloqueId      String?
   nombre        String
-  archivoUrl    String
+  archivoUrl    String?
+  storageProvider String
   storageKey    String
+  contentType   String   @default("model/gltf-binary")
   version       Int      @default(1)
   unidad        String   @default("METERS")
   escala        Float    @default(1)
