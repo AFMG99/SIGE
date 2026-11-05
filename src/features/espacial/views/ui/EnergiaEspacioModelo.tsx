@@ -28,7 +28,7 @@ interface ElementoEnergia {
   consumoKwh: number | null
   fuente: string
 }
-interface Props { modeloId: string; nodeKey: string }
+interface Props { modeloId: string; nodeKey: string; onEnergyChange?: (values: Record<string, number | null>) => void }
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const COPIA_FUENTE: Record<string,string> = {
@@ -37,7 +37,7 @@ const COPIA_FUENTE: Record<string,string> = {
   SIN_RESULTADO: 'Periodo pendiente o en revisión',
 }
 
-export function EnergiaEspacioModelo({ modeloId, nodeKey }: Props) {
+export function EnergiaEspacioModelo({ modeloId, nodeKey, onEnergyChange }: Props) {
   const ahora = new Date()
   const [mes, setMes] = useState(String(ahora.getMonth() + 1))
   const [ano, setAno] = useState(String(ahora.getFullYear()))
@@ -59,7 +59,9 @@ export function EnergiaEspacioModelo({ modeloId, nodeKey }: Props) {
         })
         const data = await response.json()
         if (!response.ok) throw new Error(data.message || 'No fue posible consultar el consumo del espacio.')
-        setElementos(data.elementos as ElementoEnergia[])
+        const nextElementos = data.elementos as ElementoEnergia[]
+        setElementos(nextElementos)
+        onEnergyChange?.(Object.fromEntries(nextElementos.map((item) => [item.nodeKey, item.consumoKwh])))
         setEstadoPeriodo(data.periodo.estado as string)
       } catch (cause) {
         if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Error consultando energía.')
@@ -69,7 +71,7 @@ export function EnergiaEspacioModelo({ modeloId, nodeKey }: Props) {
     }
     void consultar()
     return () => controller.abort()
-  }, [modeloId, mes, ano])
+  }, [modeloId, mes, ano, onEnergyChange])
 
   const elemento = useMemo(() => elementos.find((item) => item.nodeKey === nodeKey), [elementos, nodeKey])
   const total = elemento?.consumoKwh
