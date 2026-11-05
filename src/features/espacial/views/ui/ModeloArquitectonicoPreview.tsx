@@ -6,7 +6,7 @@ import { Html, OrbitControls, useGLTF } from '@react-three/drei'
 import { Box3, Object3D, Vector3 } from 'three'
 
 interface NodoModelo {
-  uuid: string
+  nodeKey: string
   nombre: string
   tipo: string
   dimensiones: [number, number, number]
@@ -36,19 +36,29 @@ function ModeloGLB({ url, onNodes }: { url: string; onNodes: (nodes: NodoModelo[
     const size = bounds.getSize(new Vector3())
     const center = bounds.getCenter(new Vector3())
     const nodes: NodoModelo[] = []
-
-    model.traverse((node: Object3D) => {
-      if (!node.name || node === model) return
-      const nodeBounds = new Box3().setFromObject(node)
-      if (nodeBounds.isEmpty()) return
-      const nodeSize = nodeBounds.getSize(new Vector3())
-      nodes.push({
-        uuid: node.uuid,
-        nombre: node.name,
-        tipo: node.type,
-        dimensiones: [nodeSize.x, nodeSize.y, nodeSize.z],
+    const visit = (node: Object3D, path: string) => {
+      if (node !== model) {
+        const nodeBounds = new Box3().setFromObject(node)
+        if (!nodeBounds.isEmpty()) {
+          const nodeSize = nodeBounds.getSize(new Vector3())
+          nodes.push({
+            nodeKey: path,
+            nombre: node.name || node.type,
+            tipo: node.type,
+            dimensiones: [nodeSize.x, nodeSize.y, nodeSize.z],
+          })
+        }
+      }
+      node.children.forEach((child, index) => {
+        const label = (child.name || child.type).replaceAll('/', '_')
+        visit(child, `${path}/${label}[${index}]`)
       })
+    }
+    model.children.forEach((child, index) => {
+      const label = (child.name || child.type).replaceAll('/', '_')
+      visit(child, `${label}[${index}]`)
     })
+    nodes.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true }))
 
     return {
       center: [center.x, center.y, center.z] as [number, number, number],
@@ -90,13 +100,14 @@ export function ModeloArquitectonicoPreview() {
     () => (nextNodes: NodoModelo[], size: [number, number, number]) => {
       setNodes(nextNodes)
       setModelSize(size)
-      setSelectedNode((current) => current && nextNodes.some((node) => node.uuid === current) ? current : null)
+      setSelectedNode((current) => current && nextNodes.some((node) => node.nodeKey === current) ? current : null)
     },
     []
   )
 
   const handleFile = (nextFile?: File) => {
     setError('')
+    setFile(null)
     setNodes([])
     setModelSize(null)
     setSelectedNode(null)
@@ -113,7 +124,7 @@ export function ModeloArquitectonicoPreview() {
     setFile(nextFile)
   }
 
-  const selected = nodes.find((node) => node.uuid === selectedNode)
+  const selected = nodes.find((node) => node.nodeKey === selectedNode)
 
   return (
     <section className="space-y-4">
@@ -152,7 +163,7 @@ export function ModeloArquitectonicoPreview() {
       {url ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="h-[560px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 dark:border-slate-800">
-            <ModeloErrorBoundary>
+            <ModeloErrorBoundary key={url}>
             <Canvas camera={{ position: [12, 10, 12], fov: 45 }} dpr={[1, 1.5]}>
               <color attach="background" args={['#0f172a']} />
               <ambientLight intensity={1.2} />
