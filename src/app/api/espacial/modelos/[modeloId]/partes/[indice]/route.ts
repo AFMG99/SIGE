@@ -26,10 +26,14 @@ export async function PUT(request: NextRequest, { params }: Context) {
   if (!modelo || modelo.estado !== 'CARGANDO') return NextResponse.json({ message: 'Carga no disponible' }, { status: 404 })
   if (indice >= modelo.cantidadPartes) return NextResponse.json({ message: 'Índice fuera de rango' }, { status: 400 })
 
-  const bytes = new Uint8Array(await request.arrayBuffer())
   const expected = indice === modelo.cantidadPartes - 1
     ? modelo.tamanoBytes - indice * CHUNK_BYTES
     : CHUNK_BYTES
+  const contentLength = Number(request.headers.get('content-length'))
+  if (!Number.isFinite(contentLength) || contentLength !== expected || contentLength > CHUNK_BYTES) {
+    return NextResponse.json({ message: 'El tamaño de la solicitud no corresponde al fragmento esperado' }, { status: 413 })
+  }
+  const bytes = new Uint8Array(await request.arrayBuffer())
   if (bytes.byteLength !== expected) {
     return NextResponse.json({ message: 'Tamaño de fragmento incorrecto' }, { status: 400 })
   }
@@ -57,7 +61,7 @@ export async function GET(_request: NextRequest, { params }: Context) {
   })
   if (!parte) return NextResponse.json({ message: 'Fragmento no encontrado' }, { status: 404 })
 
-  return new NextResponse(parte.contenido, {
+  return new NextResponse(Buffer.from(parte.contenido) as unknown as BodyInit, {
     headers: {
       'Content-Type': 'application/octet-stream',
       'Content-Length': String(parte.tamanoBytes),
