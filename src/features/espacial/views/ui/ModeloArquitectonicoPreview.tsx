@@ -4,6 +4,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { Canvas } from '@react-three/fiber'
 import { Html, OrbitControls, useGLTF } from '@react-three/drei'
 import { Box3, Object3D, Vector3 } from 'three'
+import { AsociacionEspacioModelo } from './AsociacionEspacioModelo'
 
 interface NodoModelo {
   nodeKey: string
@@ -376,6 +377,14 @@ export function ModeloArquitectonicoPreview({ edificacionId, puedeImportar }: Mo
                 <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{selected.nombre}</p>
                 <p className="mt-1 text-xs text-slate-500">Caja envolvente (X × Y × Z)</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">{selected.dimensiones.map((value) => value.toFixed(2)).join(' × ')}</p>
+                {selectedModelId && (
+                  <AsociacionEspacioModelo
+                    key={`${selectedModelId}:${selected.nodeKey}`}
+                    modeloId={selectedModelId}
+                    node={selected}
+                    puedeEditar={puedeImportar}
+                  />
+                )}
               </div>
             )}
           </aside>
