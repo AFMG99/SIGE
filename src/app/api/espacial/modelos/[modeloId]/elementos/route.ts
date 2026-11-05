@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/shared/models/prisma'
+import { Prisma } from '@prisma/client'
 import { getCurrentUser, canWithOverrides } from '@/shared/models/authz'
 
 export const runtime = 'nodejs'
@@ -10,7 +11,7 @@ type Context = { params: { modeloId: string } }
 async function autorizar(modeloId: string, modificar = false) {
   const user = await getCurrentUser()
   if (!user) return { error: NextResponse.json({ message: 'No autenticado' }, { status: 401 }) }
-  if (!(await canWithOverrides(user, 'plans', ...(modificar ? ['modify'] : [])))) {
+  if (!(await canWithOverrides(user, 'plans', modificar ? 'modify' : undefined))) {
     return { error: NextResponse.json({ message: 'No tiene permiso para consultar o modificar asociaciones' }, { status: 403 }) }
   }
   const modelo = await prisma.modeloArquitectonico.findFirst({
@@ -60,10 +61,13 @@ export async function PUT(request: NextRequest, { params }: Context) {
     dimensiones?: unknown
   } | null
 
+  const dimensionesValidas = Array.isArray(body?.dimensiones) && body.dimensiones.length === 3 &&
+    body.dimensiones.every((value) => typeof value === 'number' && Number.isFinite(value) && value >= 0)
   if (!body || typeof body.nodeKey !== 'string' || !body.nodeKey.trim() ||
       body.nodeKey.length > 1500 || typeof body.nodeName !== 'string' ||
       !body.nodeName.trim() || body.nodeName.length > 300 ||
-      (body.espacioId !== null && typeof body.espacioId !== 'string')) {
+      (body.espacioId !== null && typeof body.espacioId !== 'string') ||
+      (body.dimensiones !== undefined && !dimensionesValidas)) {
     return NextResponse.json({ message: 'Datos de asociación inválidos' }, { status: 400 })
   }
 
@@ -92,7 +96,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
       nodePath: typeof body.nodePath === 'string' ? body.nodePath.slice(0, 1500) : null,
       espacioId: body.espacioId ?? null,
       ...(body.dimensiones && typeof body.dimensiones === 'object'
-        ? { dimensiones: body.dimensiones as object }
+        ? { dimensiones: body.dimensiones as Prisma.InputJsonValue }
         : {}),
     },
     update: {
