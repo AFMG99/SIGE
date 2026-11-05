@@ -245,6 +245,20 @@ export async function crearAjuste(datos: DatosNuevoAjuste): Promise<ResultadoGes
   }
 }
 
+export async function editarAjuste(
+  id: string,
+  datos: DatosNuevoAjuste
+): Promise<ResultadoGestion> {
+  void id
+  void datos
+  return {
+    estado: 'completado',
+    eliminadas: 0,
+    lineasBaseEliminadas: 0,
+    mensaje: 'Ajuste actualizado: 2024-05 a 2024-09, 25% (reduccion).',
+  }
+}
+
 export async function eliminarAjuste(id: string): Promise<ResultadoGestion> {
   void id
   return {

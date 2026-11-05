@@ -312,7 +312,7 @@ export async function obtenerDatosReporte(input: unknown): Promise<RespuestaDato
       periodo: `${aj.periodoInicio.toISOString().slice(0, 7)} a ${aj.periodoFin
         .toISOString()
         .slice(0, 7)}`,
-      valorAjusteKwh: aj.valorAjuste,
+      valorAjustePct: aj.valorAjuste,
       observaciones: aj.observaciones,
     }))
 

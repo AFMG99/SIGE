@@ -1,16 +1,20 @@
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/nextjs-vite'
-import { expect, within } from 'storybook/test'
+import { expect, waitFor, within } from 'storybook/test'
 
 import { CalendarioFestivos } from '../CalendarioFestivos'
+import { AjustesSection } from '../AjustesSection'
+import type { EventoInfo } from '../../models/eventos'
 import {
   bloquesDemo,
   calendariosDemo,
+  edificacionesDemo,
   espaciosDemo,
   eventosDemo,
   horariosEquipoDemo,
   rangosCalendarioDemo,
 } from '../__fixtures__/catalogo'
-import { equiposExistentesDemo } from '../__fixtures__/existencias'
+import { ajustesExistentesDemo, equiposExistentesDemo } from '../__fixtures__/existencias'
 
 const meta = {
   component: CalendarioFestivos,
@@ -355,5 +359,101 @@ export const DetalleDiaConEventos: Story = {
     await expect(within(panel).getByText('Semana de la infraestructura')).toBeVisible()
     await expect(within(panel).getByText('Lectivo')).toBeVisible()
     await expect(within(panel).getByText('16 h')).toBeVisible()
+  },
+}
+
+/**
+ * Evento de historia que CRUZA de noviembre a diciembre (2026-11-30 →
+ * 2026-12-04): ejerce el pre-fill de periodos en meses distintos.
+ */
+const EVENTO_CRUCE_MES: EventoInfo = {
+  id: 'ev-story-corte-meses',
+  edificacionId: 'ed-campus-00000001',
+  tipo: 'MANTENIMIENTO',
+  nombre: 'Corte mayor de energía',
+  descripcion: 'Mantenimiento del tablero principal.',
+  fechaInicio: '2026-11-30',
+  fechaFin: '2026-12-04',
+  bloqueId: 'bk-campus-a102-001',
+  espacioId: null,
+  equipoId: null,
+}
+
+type ArgsCalendario = NonNullable<Parameters<typeof CalendarioFestivos>[0]>
+
+/**
+ * Harness mínimo que replica el cableado de `DatosContent`: el calendario
+ * notifica el evento elegido («Crear ajuste») y `AjustesSection` abre su
+ * modal de creación con el pre-fill derivado del evento.
+ */
+function ConAjusteDesdeEvento(props: ArgsCalendario) {
+  const [evento, setEvento] = useState<EventoInfo | null>(null)
+  return (
+    <>
+      <CalendarioFestivos {...props} onCrearAjusteDesdeEvento={setEvento} />
+      <AjustesSection
+        ajustes={ajustesExistentesDemo}
+        ajustesAplicados={null}
+        modo="carga"
+        puedeCargar={true}
+        edificaciones={edificacionesDemo}
+        bloques={bloquesDemo}
+        eventoPrellenado={evento}
+        onPrellenadoConsumido={() => setEvento(null)}
+      />
+    </>
+  )
+}
+
+export const CrearAjusteDesdeEvento: Story = {
+  name: 'Crear ajuste desde un evento → modal de ajustes precargado',
+  render: (args) => <ConAjusteDesdeEvento {...args} />,
+  args: {
+    mesInicial: 11,
+    anoInicial: 2026,
+    edificacionId: 'ed-campus-00000001',
+    eventos: [...eventosDemo, EVENTO_CRUCE_MES],
+  },
+  play: async ({ canvas, userEvent }) => {
+    // Detalle del 30 nov (el evento cruza de noviembre a diciembre).
+    await userEvent.click(canvas.getByLabelText(/30 de noviembre/))
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Crear ajuste desde Corte mayor de energía' })
+    )
+
+    // El modal de creación de AjustesSection queda abierto y precargado.
+    // OJO: el `motion.div` entra con `initial opacity 0` → `toBeVisible`
+    // (jest-dom mira el `opacity` computado) solo pasa tras la animación.
+    const dialogo = await canvas.findByRole('dialog')
+    const inicio = within(dialogo).getByLabelText('Periodo inicio (YYYY-MM)') as HTMLInputElement
+    await waitFor(() => expect(inicio).toBeVisible(), { timeout: 3000 })
+
+    const fin = within(dialogo).getByLabelText('Periodo fin (YYYY-MM)') as HTMLInputElement
+    expect(inicio.value).toBe('2026-11')
+    expect(fin.value).toBe('2026-12')
+
+    // Descripción = nombre — descripción del evento.
+    const descripcion = within(dialogo).getByLabelText(
+      'Descripción / Causa'
+    ) as HTMLTextAreaElement
+    expect(descripcion.value).toBe(
+      'Corte mayor de energía — Mantenimiento del tablero principal.'
+    )
+
+    // Tipo por defecto del pre-fill (Anexo 4).
+    const tipo = within(dialogo).getByLabelText('Tipo') as HTMLSelectElement
+    expect(tipo.value).toBe('NO_RUTINARIO')
+
+    // Cascada precargada: edificación derivada del bloque del evento.
+    expect(within(dialogo).getByLabelText('Edificación').getAttribute('data-value')).toBe(
+      'ed-campus-00000001'
+    )
+    expect(within(dialogo).getByLabelText('Bloque').getAttribute('data-value')).toBe(
+      'bk-campus-a102-001'
+    )
+
+    // No se envía solo: la proporción (obligatoria) queda para el usuario.
+    const valor = within(dialogo).getByLabelText('Proporción (%)') as HTMLInputElement
+    expect(valor.value).toBe('')
   },
 }

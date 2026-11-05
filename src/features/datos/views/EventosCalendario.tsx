@@ -49,6 +49,13 @@ type EventosCalendarioProps = {
   edificacionId: string
   /** Cambia la edificación seleccionada (estado en el wrapper del calendario). */
   onEdificacionChange: (id: string) => void
+  /**
+   * «Crear ajuste desde este evento» (opcional): por cada fila de la lista se
+   * ofrece la acción, que notifica el `EventoInfo` al padre (`DatosContent`
+   * salta a la sección Ajustes y abre su modal precargado). Sin callback no
+   * se renderiza (p. ej. roles sin permiso de carga).
+   */
+  onCrearAjusteDesdeEvento?: (evento: EventoInfo) => void
 }
 
 const NIVEL_ETIQUETA: Record<CodigoAmbito, string> = {
@@ -86,6 +93,7 @@ export function EventosCalendario({
   puedeCargar,
   edificacionId,
   onEdificacionChange,
+  onCrearAjusteDesdeEvento,
 }: EventosCalendarioProps) {
   const router = useRouter()
   const { showToast } = useToast()
@@ -496,17 +504,29 @@ export function EventosCalendario({
                       )}
                     </div>
                     {puedeCargar && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setError('')
-                          setEliminando(ev)
-                        }}
-                        aria-label={`Eliminar evento ${ev.nombre}`}
-                        className="focus-ring shrink-0 rounded text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                      >
-                        Eliminar
-                      </button>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {onCrearAjusteDesdeEvento && (
+                          <button
+                            type="button"
+                            onClick={() => onCrearAjusteDesdeEvento(ev)}
+                            aria-label={`Crear ajuste desde ${ev.nombre}`}
+                            className="focus-ring min-h-10 rounded px-1 text-xs font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 lg:min-h-0"
+                          >
+                            Crear ajuste
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError('')
+                            setEliminando(ev)
+                          }}
+                          aria-label={`Eliminar evento ${ev.nombre}`}
+                          className="focus-ring min-h-10 rounded px-1 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 lg:min-h-0"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     )}
                   </li>
                 )

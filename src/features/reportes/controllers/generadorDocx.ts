@@ -419,7 +419,7 @@ export async function generarDocumentoDocxBuffer(datos: DatosReporteUPME): Promi
                       celda('Tipo', true),
                       celda('Descripción', true),
                       celda('Período Afectado', true),
-                      celda('Impacto (kWh)', true, true, AlignmentType.RIGHT),
+                      celda('Proporción (Pr)', true, true, AlignmentType.RIGHT),
                       celda('Observaciones', true),
                     ],
                   }),
@@ -430,7 +430,7 @@ export async function generarDocumentoDocxBuffer(datos: DatosReporteUPME): Promi
                           celda(aj.tipo, false, true),
                           celda(aj.descripcion),
                           celda(aj.periodo),
-                          celda(aj.valorAjusteKwh.toLocaleString('es-CO'), false, false, AlignmentType.RIGHT),
+                          celda(`${aj.valorAjustePct.toLocaleString('es-CO')} %`, false, false, AlignmentType.RIGHT),
                           celda(aj.observaciones ?? 'Sin observaciones'),
                         ],
                       })

@@ -40,9 +40,11 @@ const BOTON_FILA =
 
 type GestionAjustesProps = {
   ajustes: AjustesExistentes
+  /** Abre el formulario de edición precargado con el ajuste indicado. */
+  onEditar?: (ajuste: AjusteExistente) => void
 }
 
-export function GestionAjustes({ ajustes }: GestionAjustesProps) {
+export function GestionAjustes({ ajustes, onEditar }: GestionAjustesProps) {
   const router = useRouter()
   const { showToast } = useToast()
 
@@ -241,7 +243,17 @@ export function GestionAjustes({ ajustes }: GestionAjustesProps) {
                     </span>
                   </td>
                   <td>
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2">
+                      {onEditar && (
+                        <button
+                          type="button"
+                          aria-label={`Editar ajuste ${etiquetaTipo(ajuste.tipo)} del bloque ${ajuste.bloqueCodigo}`}
+                          onClick={() => onEditar(ajuste)}
+                          className={`${BOTON_FILA} border border-uv-purple/40 text-uv-purple hover:bg-uv-purple/10 dark:border-uv-purple/50 dark:text-uv-purple`}
+                        >
+                          Editar
+                        </button>
+                      )}
                       <button
                         type="button"
                         aria-label={`Eliminar ajuste ${etiquetaTipo(ajuste.tipo)} del bloque ${ajuste.bloqueCodigo}`}

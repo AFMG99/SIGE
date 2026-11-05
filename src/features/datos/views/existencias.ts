@@ -101,6 +101,16 @@ export type AjusteExistente = {
   /** Variación en porcentaje (p. ej. 8.5 = 8,5 %). */
   valorAjuste: number
   observaciones: string | null
+  /** `bloqueId` real (para precargar la cascada al editar). */
+  bloqueId?: string
+  /** Fecha inicio cruda (`YYYY-MM-DD`) para precargar el mes de inicio. */
+  fechaInicio?: string
+  /** Fecha fin cruda (`YYYY-MM-DD`) para precargar el mes de fin. */
+  fechaFin?: string
+  /** `AjusteEnergetico.direccion`: `reduccion` | `incremento`. */
+  direccion?: string | null
+  /** Causa/descripción del ajuste (para precargar al editar). */
+  descripcion?: string | null
 }
 
 export type AjustesExistentes = {

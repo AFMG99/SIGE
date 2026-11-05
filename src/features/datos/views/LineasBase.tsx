@@ -482,6 +482,15 @@ export type LineasBaseProps = {
   puedeCalcular?: boolean
   /** Permiso `upload` — habilita el botón Guardar. */
   puedeGuardar?: boolean
+  /**
+   * Notifica el cálculo vigente a `DatosContent` para que la pestaña
+   * «Aplicados» de Ajustes muestre los ajustes que el motor aplicó.
+   * Se envía `null` cuando todavía no hay cálculo (o se invalidó al cambiar
+   * de alcance/edificación o al fallar el cálculo). Debe ser una función de
+   * identidad estable (p. ej. un setter de `useState`) para que el prop no
+   * cambie en cada render.
+   */
+  onCalculoChange?: (calc: CalculoLineaBase | null) => void
 }
 
 /**
@@ -502,6 +511,7 @@ export function LineasBase({
   espacios = [],
   puedeCalcular = false,
   puedeGuardar = false,
+  onCalculoChange,
 }: LineasBaseProps) {
   const router = useRouter()
   const [modelo, setModelo] = React.useState<ModeloId>('valor_absoluto')
@@ -522,6 +532,14 @@ export function LineasBase({
   >({})
   const [guardando, setGuardando] = React.useState<ModeloLbenId | null>(null)
   const [errorGuardado, setErrorGuardado] = React.useState<string | null>(null)
+
+  // Único punto que muta `calc`: además de recalcular la vista local, avisa a
+  // `DatosContent` para que la pestaña «Aplicados» de Ajustes refleje este
+  // mismo cálculo (prop `onCalculoChange`, estable).
+  function reflejarCalculo(siguiente: CalculoLineaBase | null) {
+    setCalc(siguiente)
+    onCalculoChange?.(siguiente)
+  }
 
   const M = MODELOS[modelo]
   const estado: CalculoLineaBase['resultados'][ModeloId] | undefined =
@@ -552,10 +570,10 @@ export function LineasBase({
     )
     setCargando(false)
     if (res.ok) {
-      setCalc(res.calculo)
+      reflejarCalculo(res.calculo)
       setGuardados({})
     } else {
-      setCalc(null)
+      reflejarCalculo(null)
       setErrorCalculo(res.error)
     }
   }
@@ -591,7 +609,7 @@ export function LineasBase({
 
   function cambiarAlcance(clave: string) {
     setAlcanceClave(clave)
-    setCalc(null)
+    reflejarCalculo(null)
     setErrorCalculo(null)
     setErrorGuardado(null)
     setGuardados({})
@@ -603,7 +621,7 @@ export function LineasBase({
     // se vuelve al primer bloque visible (o al total).
     const bloquesNuevos = id ? bloques.filter((b) => b.edificacionId === id) : bloques
     setAlcanceClave(bloquesNuevos.length > 0 ? `b:${bloquesNuevos[0].id}` : 'global')
-    setCalc(null)
+    reflejarCalculo(null)
     setErrorCalculo(null)
     setErrorGuardado(null)
     setGuardados({})
