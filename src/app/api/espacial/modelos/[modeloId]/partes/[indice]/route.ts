@@ -45,7 +45,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
 export async function GET(_request: NextRequest, { params }: Context) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ message: 'No autenticado' }, { status: 401 })
-  if (!(await canWithOverrides(user, 'plans', 'read'))) {
+  if (!(await canWithOverrides(user, 'plans'))) {
     return NextResponse.json({ message: 'No tiene permiso para consultar modelos' }, { status: 403 })
   }
 
