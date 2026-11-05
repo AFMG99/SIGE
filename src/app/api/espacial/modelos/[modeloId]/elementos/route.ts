@@ -104,7 +104,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
       nodePath: typeof body.nodePath === 'string' ? body.nodePath.slice(0, 1500) : null,
       espacioId: body.espacioId ?? null,
       ...(body.dimensiones && typeof body.dimensiones === 'object'
-        ? { dimensiones: body.dimensiones as object }
+        ? { dimensiones: body.dimensiones as Prisma.InputJsonValue }
         : {}),
     },
     select: { id: true, nodeKey: true, nodeName: true, espacioId: true },
