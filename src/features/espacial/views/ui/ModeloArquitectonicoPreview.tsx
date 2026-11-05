@@ -383,8 +383,18 @@ export function ModeloArquitectonicoPreview({ edificacionId, puedeImportar }: Mo
 
       {url ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-          <div className="h-[560px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 dark:border-slate-800">
-            <ModeloErrorBoundary key={url}>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+              <span className="font-semibold">Consumo estimado:</span>
+              <span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-green-500" /> Bajo</span>
+              <span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-yellow-500" /> Medio-bajo</span>
+              <span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-orange-500" /> Medio-alto</span>
+              <span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-red-500" /> Alto</span>
+              <span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-slate-500" /> Sin dato</span>
+              <span className="ml-auto text-slate-500">Escala relativa al máximo del modelo en el periodo</span>
+            </div>
+            <div className="h-[526px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 dark:border-slate-800">
+              <ModeloErrorBoundary key={url}>
               <Canvas camera={{ position: [12, 10, 12], fov: 45 }} dpr={[1, 1.5]}>
                 <color attach="background" args={['#0f172a']} />
                 <ambientLight intensity={1.2} />
@@ -395,7 +405,8 @@ export function ModeloArquitectonicoPreview({ edificacionId, puedeImportar }: Mo
                 </Suspense>
                 <OrbitControls makeDefault enableDamping />
               </Canvas>
-            </ModeloErrorBoundary>
+              </ModeloErrorBoundary>
+            </div>
           </div>
           <aside className="max-h-[560px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             <h3 className="font-semibold text-slate-900 dark:text-white">Estructura del modelo</h3>
