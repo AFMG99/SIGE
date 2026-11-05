@@ -22,18 +22,24 @@ export async function POST(_request: Request, { params }: Context) {
     return NextResponse.json({ message: 'Modelo no disponible para finalizar' }, { status: 404 })
   }
 
-  const partes = await prisma.parteArchivoModelo.findMany({
-    where: { modeloId: modelo.id },
-    orderBy: { indice: 'asc' },
-    select: { indice: true, tamanoBytes: true, contenido: true },
-  })
-  if (partes.length !== modelo.cantidadPartes ||
-      partes.some((parte, index) => parte.indice !== index) ||
-      partes.reduce((sum, parte) => sum + parte.tamanoBytes, 0) !== modelo.tamanoBytes) {
+  const [cantidad, total, primeraParte] = await Promise.all([
+    prisma.parteArchivoModelo.count({ where: { modeloId: modelo.id } }),
+    prisma.parteArchivoModelo.aggregate({
+      where: { modeloId: modelo.id },
+      _sum: { tamanoBytes: true },
+    }),
+    prisma.parteArchivoModelo.findUnique({
+      where: { modeloId_indice: { modeloId: modelo.id, indice: 0 } },
+      select: { contenido: true },
+    }),
+  ])
+  if (cantidad !== modelo.cantidadPartes ||
+      (total._sum.tamanoBytes ?? 0) !== modelo.tamanoBytes ||
+      !primeraParte) {
     return NextResponse.json({ message: 'La carga está incompleta. Vuelva a intentar los fragmentos faltantes.' }, { status: 409 })
   }
 
-  const magic = Buffer.from(partes[0].contenido).subarray(0, 4).toString('ascii')
+  const magic = Buffer.from(primeraParte.contenido).subarray(0, 4).toString('ascii')
   if (magic !== 'glTF') {
     await prisma.modeloArquitectonico.update({ where: { id: modelo.id }, data: { estado: 'FALLIDO' } })
     return NextResponse.json({ message: 'El archivo no tiene una cabecera GLB válida.' }, { status: 400 })
