@@ -30,7 +30,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
     ? modelo.tamanoBytes - indice * CHUNK_BYTES
     : CHUNK_BYTES
   const contentLength = Number(request.headers.get('content-length'))
-  if (!Number.isFinite(contentLength) || contentLength !== expected || contentLength > CHUNK_BYTES) {
+  if ((Number.isFinite(contentLength) && contentLength !== expected) || contentLength > CHUNK_BYTES) {
     return NextResponse.json({ message: 'El tamaño de la solicitud no corresponde al fragmento esperado' }, { status: 413 })
   }
   const bytes = new Uint8Array(await request.arrayBuffer())
