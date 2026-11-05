@@ -462,31 +462,48 @@ model UsoEquipoPeriodo {
   @@map("uso_equipo_periodo")
 }
 
-/// Metadatos del archivo arquitectónico alojado en almacenamiento de objetos.
+/// Metadatos del modelo. El binario se guarda en partes BYTEA separadas.
 model ModeloArquitectonico {
-  id            String   @id @default(cuid())
-  edificacionId String
-  bloqueId      String?
-  nombre        String
-  archivoUrl    String?
-  storageProvider String
-  storageKey    String
-  contentType   String   @default("model/gltf-binary")
-  version       Int      @default(1)
-  unidad        String   @default("METERS")
-  escala        Float    @default(1)
-  tamanoBytes   Int
-  activo        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  edificacion   Edificacion @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
-  bloque        Bloque?  @relation(fields: [bloqueId], references: [id], onDelete: SetNull)
-  elementos     ElementoModelo3D[]
+  id              String                       @id @default(cuid())
+  edificacionId   String
+  bloqueId        String?
+  nombre          String
+  contentType     String                       @default("model/gltf-binary")
+  version         Int                          @default(1)
+  unidad          String                       @default("METERS")
+  escala          Float                        @default(1)
+  tamanoBytes     Int
+  cantidadPartes  Int
+  estado          EstadoModeloArquitectonico   @default(CARGANDO)
+  activo          Boolean                      @default(false)
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  edificacion     Edificacion                  @relation(fields: [edificacionId], references: [id], onDelete: Cascade)
+  bloque          Bloque?                      @relation(fields: [bloqueId], references: [id], onDelete: SetNull)
+  elementos       ElementoModelo3D[]
+  partes          ParteArchivoModelo[]
 
   @@unique([edificacionId, version])
   @@index([edificacionId, activo])
   @@index([bloqueId])
+  @@index([estado])
   @@map("modelos_arquitectonicos")
+}
+
+/// Cada parte se almacena como BYTEA. Permite subir/descargar archivos
+/// mayores al límite de payload de Vercel sin enviar el GLB completo a una función.
+model ParteArchivoModelo {
+  id          String                @id @default(cuid())
+  modeloId    String
+  indice      Int
+  contenido   Bytes
+  tamanoBytes Int
+  createdAt   DateTime              @default(now())
+  modelo      ModeloArquitectonico  @relation(fields: [modeloId], references: [id], onDelete: Cascade)
+
+  @@unique([modeloId, indice])
+  @@index([modeloId])
+  @@map("partes_archivo_modelo")
 }
 
 /// Relación explícita entre un nodo del GLB y un espacio existente de SIGE.
@@ -507,6 +524,12 @@ model ElementoModelo3D {
   @@unique([modeloId, nodeKey])
   @@index([espacioId])
   @@map("elementos_modelo_3d")
+}
+
+enum EstadoModeloArquitectonico {
+  CARGANDO
+  LISTO
+  FALLIDO
 }
 
 enum UserStatus {
