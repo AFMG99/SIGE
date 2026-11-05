@@ -9,7 +9,7 @@ import { EspacialInspector } from './ui/EspacialInspector'
 import { EspacialLegend } from './ui/EspacialLegend'
 import { EspaciosPorPiso } from './ui/EspaciosPorPiso'
 import { PlanosCad } from './ui/PlanosCad'
-import { ModeloArquitectonicoPreview } from './ui/ModeloArquitectonicoPreview'
+const ModeloArquitectonicoPreview = dynamic(() => import('./ui/ModeloArquitectonicoPreview').then((mod) => mod.ModeloArquitectonicoPreview), { ssr: false })
 
 const EspacialCanvas = dynamic(() => import('./EspacialCanvas'), {
   ssr: false,
@@ -28,11 +28,13 @@ const EspacialCanvas = dynamic(() => import('./EspacialCanvas'), {
 interface EspacialDashboardProps {
   edificaciones: Edificacion3DScene[]
   puedeImportarCad: boolean
+  puedeImportarModelo: boolean
 }
 
 export function EspacialDashboard({
   edificaciones,
   puedeImportarCad,
+  puedeImportarModelo,
 }: EspacialDashboardProps) {
   const router = useRouter()
   const [vista, setVista] = useState<'campus' | 'pisos' | 'cad' | 'modelo'>('campus')
@@ -329,7 +331,7 @@ export function EspacialDashboard({
           puedeImportar={puedeImportarCad}
         />
       ) : (
-        <ModeloArquitectonicoPreview />
+        <ModeloArquitectonicoPreview edificacionId={activeEdificacion.id} puedeImportar={puedeImportarModelo} />
       )}
     </main>
   )
