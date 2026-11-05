@@ -47,7 +47,7 @@ class ModeloErrorBoundary extends React.Component<{ children: React.ReactNode },
   }
 }
 
-function ModeloGLB({ url, onNodes }: { url: string; onNodes: (nodes: NodoModelo[], size: [number, number, number]) => void }) {
+function ModeloGLB({ url, onNodes, energyByNode }: { url: string; onNodes: (nodes: NodoModelo[], size: [number, number, number]) => void; energyByNode: Record<string, number | null> }) {
   const { scene } = useGLTF(url)
   const model = useMemo(() => scene.clone(true), [scene])
 
@@ -94,6 +94,50 @@ function ModeloGLB({ url, onNodes }: { url: string; onNodes: (nodes: NodoModelo[
   }, [model])
 
   useEffect(() => {
+    const values = Object.values(energyByNode).filter((value): value is number => value !== null && Number.isFinite(value) && value > 0)
+    const max = Math.max(0, ...values)
+    const colorFor = (value: number | null) => {
+      if (value === null || max === 0) return '#64748b'
+      const ratio = value / max
+      if (ratio <= 0.25) return '#22c55e'
+      if (ratio <= 0.5) return '#eab308'
+      if (ratio <= 0.75) return '#f97316'
+      return '#ef4444'
+    }
+    const visit = (node: Object3D, path: string) => {
+      const value = energyByNode[path]
+      if (value !== undefined) {
+        const color = colorFor(value)
+        node.traverse((child) => {
+          const mesh = child as Object3D & { isMesh?: boolean; material?: any }
+          if (!mesh.isMesh || !mesh.material) return
+          if (Array.isArray(mesh.material)) {
+            mesh.material = mesh.material.map((material: any) => {
+              const copy = material.userData?.sigeEnergyMaterial ? material : material.clone()
+              copy.userData = { ...copy.userData, sigeEnergyMaterial: true }
+              if (copy.color) copy.color.set(color)
+              return copy
+            })
+          } else {
+            const copy = mesh.material.userData?.sigeEnergyMaterial ? mesh.material : mesh.material.clone()
+            copy.userData = { ...copy.userData, sigeEnergyMaterial: true }
+            if (copy.color) copy.color.set(color)
+            mesh.material = copy
+          }
+        })
+      }
+      node.children.forEach((child, index) => {
+        const label = (child.name || child.type).replaceAll('/', '_')
+        visit(child, `${path}/${label}[${index}]`)
+      })
+    }
+    model.children.forEach((child, index) => {
+      const label = (child.name || child.type).replaceAll('/', '_')
+      visit(child, `${label}[${index}]`)
+    })
+  }, [model, energyByNode])
+
+  useEffect(() => {
     onNodes(info.nodes, info.size)
   }, [info, onNodes])
 
@@ -119,6 +163,8 @@ export function ModeloArquitectonicoPreview({ edificacionId, puedeImportar }: Mo
   const [status, setStatus] = useState('')
   const [progress, setProgress] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [energyByNode, setEnergyByNode] = useState<Record<string, number | null>>({})
+  const handleEnergyChange = useCallback((values: Record<string, number | null>) => setEnergyByNode(values), [])
 
   useEffect(() => {
     if (!file) {
@@ -345,7 +391,7 @@ export function ModeloArquitectonicoPreview({ edificacionId, puedeImportar }: Mo
                 <directionalLight position={[10, 15, 10]} intensity={2} />
                 <gridHelper args={[12, 24, '#64748b', '#334155']} />
                 <Suspense fallback={<Html center><span className="rounded bg-slate-900 px-3 py-2 text-sm text-white">Cargando modelo…</span></Html>}>
-                  <ModeloGLB url={url} onNodes={handleNodes} />
+                  <ModeloGLB url={url} onNodes={handleNodes} energyByNode={energyByNode} />
                 </Suspense>
                 <OrbitControls makeDefault enableDamping />
               </Canvas>
@@ -389,6 +435,7 @@ export function ModeloArquitectonicoPreview({ edificacionId, puedeImportar }: Mo
                     key={`energia:${selectedModelId}:${selected.nodeKey}`}
                     modeloId={selectedModelId}
                     nodeKey={selected.nodeKey}
+                    onEnergyChange={handleEnergyChange}
                   />
                 )}
               </div>
