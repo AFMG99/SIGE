@@ -12,6 +12,21 @@ interface NodoModelo {
   dimensiones: [number, number, number]
 }
 
+class ModeloErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <div className="flex h-full items-center justify-center p-6 text-center text-sm text-rose-300">No fue posible interpretar el archivo GLB. Verifique que sea válido y vuelva a intentarlo.</div>
+    }
+    return this.props.children
+  }
+}
+
 function ModeloGLB({ url, onNodes }: { url: string; onNodes: (nodes: NodoModelo[], size: [number, number, number]) => void }) {
   const { scene } = useGLTF(url)
   const model = useMemo(() => scene.clone(true), [scene])
@@ -86,9 +101,9 @@ export function ModeloArquitectonicoPreview() {
     setModelSize(null)
     setSelectedNode(null)
     if (!nextFile) return
-    const validExtension = /\.(glb|gltf)$/i.test(nextFile.name)
+    const validExtension = /\.glb$/i.test(nextFile.name)
     if (!validExtension) {
-      setError('Seleccione un archivo .glb o .gltf.')
+      setError('Seleccione un archivo .glb.')
       return
     }
     if (nextFile.size > 100 * 1024 * 1024) {
@@ -114,9 +129,9 @@ export function ModeloArquitectonicoPreview() {
             Seleccionar archivo
             <input
               type="file"
-              accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+              accept=".glb,model/gltf-binary"
               className="sr-only"
-              onChange={(event) => handleFile(event.target.files?.[0])}
+              onChange={(event) => { handleFile(event.target.files?.[0]); event.currentTarget.value = "" }}
             />
           </label>
         </div>
@@ -137,6 +152,7 @@ export function ModeloArquitectonicoPreview() {
       {url ? (
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="h-[560px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 dark:border-slate-800">
+            <ModeloErrorBoundary>
             <Canvas camera={{ position: [12, 10, 12], fov: 45 }} dpr={[1, 1.5]}>
               <color attach="background" args={['#0f172a']} />
               <ambientLight intensity={1.2} />
@@ -147,6 +163,7 @@ export function ModeloArquitectonicoPreview() {
               </Suspense>
               <OrbitControls makeDefault enableDamping />
             </Canvas>
+          </ModeloErrorBoundary>
           </div>
           <aside className="max-h-[560px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             <h3 className="font-semibold text-slate-900 dark:text-white">Estructura del modelo</h3>
@@ -188,7 +205,7 @@ export function ModeloArquitectonicoPreview() {
         <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-center dark:border-slate-700 dark:bg-slate-900/40">
           <div>
             <p className="font-medium text-slate-700 dark:text-slate-200">Aún no hay un modelo cargado</p>
-            <p className="mt-1 text-sm text-slate-500">Seleccione un archivo GLB o glTF para comenzar la inspección.</p>
+            <p className="mt-1 text-sm text-slate-500">Seleccione un archivo GLB para comenzar la inspección.</p>
           </div>
         </div>
       )}
