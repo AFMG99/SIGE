@@ -11,7 +11,7 @@ const CHUNK_BYTES = 3 * 1024 * 1024
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ message: 'No autenticado' }, { status: 401 })
-  if (!(await canWithOverrides(user, 'plans', 'read'))) {
+  if (!(await canWithOverrides(user, 'plans'))) {
     return NextResponse.json({ message: 'No tiene permiso para consultar modelos' }, { status: 403 })
   }
 
