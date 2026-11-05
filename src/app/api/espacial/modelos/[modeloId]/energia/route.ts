@@ -76,8 +76,10 @@ export async function GET(request: NextRequest, { params }: Context) {
     const equipos = espacio.equipos.map((equipo) => {
       const uso = equipo.usoPeriodos[0]
       const usarConfiguracion = !periodo
-      const horasUsoDia = periodoCalculado ? (uso?.horasUsoDia ?? 0) : usarConfiguracion ? equipo.horasUsoDia : null
-      const diasUsoMes = periodoCalculado ? (uso?.diasUsoMes ?? 0) : usarConfiguracion ? equipo.diasUsoMes : null
+      // Un equipo sin fila de uso en un periodo calculado/revisado no equivale a cero:
+      // el motor puede haberlo dejado sin horario o días operativos.
+      const horasUsoDia = periodoCalculado ? (uso?.horasUsoDia ?? null) : usarConfiguracion ? equipo.horasUsoDia : null
+      const diasUsoMes = periodoCalculado ? (uso?.diasUsoMes ?? null) : usarConfiguracion ? equipo.diasUsoMes : null
       const kwh = horasUsoDia === null || diasUsoMes === null
         ? null
         : (equipo.cantidad * equipo.potenciaNominal * horasUsoDia * diasUsoMes) / 1000
@@ -110,7 +112,7 @@ export async function GET(request: NextRequest, { params }: Context) {
       },
       equipos,
       cantidadEquipos: equipos.length,
-      consumoKwh: sinResultado && !periodoCalculado ? null : Number(consumoKwh.toFixed(3)),
+      consumoKwh: sinResultado ? null : Number(consumoKwh.toFixed(3)),
       fuente: periodoCalculado ? 'USO_PERIODO' : periodo ? 'SIN_RESULTADO' : 'CONFIGURACION_BASE',
     }]
   })
