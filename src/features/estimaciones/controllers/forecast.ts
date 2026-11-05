@@ -1,6 +1,7 @@
 'use server'
 
 import { spawn } from 'node:child_process'
+import type { Prisma } from '@prisma/client'
 import path from 'node:path'
 import { prisma } from '@/shared/models/prisma'
 import { canWithOverrides, getCurrentUser } from '@/shared/models/authz'
@@ -11,6 +12,7 @@ import {
   type ProyeccionExitosa,
   type RespuestaProyeccion,
   type SolicitudProyeccion,
+  type ResultadoProyeccion,
 } from '../models/forecast'
 
 const TIMEOUT_CLI_MS = 45000
@@ -26,7 +28,10 @@ type RegistroMotor = {
 
 type PayloadMotor = {
   registros: RegistroMotor[]
-  horizonte: 1 | 2 | 3
+  horizonte: number
+  modelo: 'AUTO' | 'MA' | 'SES'
+  ventana?: number
+  alpha?: number
   ajustes: {
     periodo_inicio: string
     periodo_fin: string
@@ -300,6 +305,9 @@ export async function ejecutarProyeccion(
         dias_facturados: 30,
       })),
       horizonte: entrada.horizonte,
+      modelo: entrada.modelo,
+      ...(entrada.modelo === 'MA' ? { ventana: entrada.ventana ?? 3 } : {}),
+      ...(entrada.modelo === 'SES' ? { alpha: entrada.alpha ?? 0.3 } : {}),
       ajustes: ajustes.map((ajuste) => ({
         periodo_inicio: ajuste.periodoInicio.toISOString().slice(0, 7),
         periodo_fin: ajuste.periodoFin.toISOString().slice(0, 7),
@@ -358,5 +366,161 @@ export async function ejecutarProyeccion(
       ok: false,
       error: 'No fue posible ejecutar la proyección. Intente nuevamente.',
     }
+  }
+}
+
+
+const ACCIONES_HISTORIAL = ['create', 'evaluate', 'read', 'view_impact'] as const
+
+async function puedeConsultarHistorial(user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>) {
+  const permisos = await Promise.all(
+    ACCIONES_HISTORIAL.map((accion) => canWithOverrides(user, 'estimates', accion))
+  )
+  return permisos.some(Boolean)
+}
+
+export interface EstimacionHistorialItem {
+  id: string
+  edificacionId: string
+  edificacionNombre: string
+  bloqueNombre: string | null
+  modelo: string
+  horizonte: number
+  periodoBase: string
+  mesesHistorico: number
+  mesesDepurados: number
+  advertencias: string | null
+  createdAt: string
+}
+
+export async function guardarEstimacion(input: {
+  edificacionId: string
+  bloqueId: string | null
+  resultado: ResultadoProyeccion
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  try {
+    const user = await getCurrentUser()
+    if (!user || !(await canWithOverrides(user, 'estimates', 'create'))) {
+      return { ok: false, error: 'No tiene permisos para guardar estimaciones.' }
+    }
+    if (!input || typeof input.edificacionId !== 'string' || !input.edificacionId) {
+      return { ok: false, error: 'La edificación de la estimación no es válida.' }
+    }
+    const parsed = proyeccionMotorSchema.safeParse(input.resultado?.proyeccion)
+    if (!parsed.success || !parsed.data.ok) {
+      return { ok: false, error: 'Los resultados no cumplen el contrato de proyección.' }
+    }
+    const proyeccion = parsed.data
+    const lb = input.resultado.lineaBase
+    if (
+      !lb ||
+      ![null, 'bloque', 'edificacion'].includes(lb.origen) ||
+      (lb.lbenMensual !== null &&
+        (!Array.isArray(lb.lbenMensual) || lb.lbenMensual.length !== 12 ||
+          lb.lbenMensual.some((v) => v !== null && (typeof v !== 'number' || !Number.isFinite(v) || v <= 0))))
+    ) {
+      return { ok: false, error: 'La información de LBEn asociada a la estimación no es válida.' }
+    }
+    const periodoBase = proyeccion.serie.at(-1)?.periodo
+    if (!periodoBase) return { ok: false, error: 'La proyección no contiene un período base.' }
+
+    const edificacion = await prisma.edificacion.findUnique({
+      where: { id: input.edificacionId }, select: { id: true, nombre: true },
+    })
+    if (!edificacion) return { ok: false, error: 'La edificación ya no existe.' }
+
+    let bloqueNombre: string | null = null
+    if (input.bloqueId) {
+      const bloque = await prisma.bloque.findFirst({
+        where: { id: input.bloqueId, edificacionId: edificacion.id },
+        select: { id: true, nombre: true },
+      })
+      if (!bloque) return { ok: false, error: 'El bloque no pertenece a la edificación seleccionada.' }
+      bloqueNombre = bloque.nombre
+    }
+
+    const snapshot = {
+      proyeccion,
+      lineaBase: lb,
+      edificacionNombre: edificacion.nombre,
+      bloqueNombre,
+    }
+    const guardada = await prisma.estimacionConsumo.create({
+      data: {
+        edificacionId: edificacion.id,
+        bloqueId: input.bloqueId,
+        createdById: user.id,
+        edificacionNombre: edificacion.nombre,
+        bloqueNombre,
+        modelo: proyeccion.modelo,
+        parametros: {
+          modelo: proyeccion.modelo,
+          parametrosModelo: proyeccion.parametros_modelo ?? null,
+          orden: proyeccion.orden,
+          ordenEstacional: proyeccion.orden_estacional,
+          criterioDepuracion: proyeccion.criterio_depuracion,
+          ajustesAplicados: proyeccion.ajustes_aplicados,
+        } as Prisma.InputJsonValue,
+        horizonte: proyeccion.pronostico.length,
+        periodoBase,
+        mesesHistorico: proyeccion.originales,
+        mesesDepurados: proyeccion.depurados,
+        resultados: JSON.parse(JSON.stringify(snapshot)) as Prisma.InputJsonValue,
+        ...(proyeccion.diagnosticos
+          ? { diagnosticos: proyeccion.diagnosticos as unknown as Prisma.InputJsonValue }
+          : {}),
+        advertencias: proyeccion.advertencia ?? null,
+      },
+      select: { id: true },
+    })
+    return { ok: true, id: guardada.id }
+  } catch (error) {
+    console.error('Error guardando estimación:', error)
+    return { ok: false, error: 'No fue posible guardar la estimación. Verifique la base de datos y vuelva a intentar.' }
+  }
+}
+
+export async function listarHistorialEstimaciones(
+  edificacionId?: string
+): Promise<{ ok: true; items: EstimacionHistorialItem[] } | { ok: false; error: string }> {
+  try {
+    const user = await getCurrentUser()
+    if (!user || !(await puedeConsultarHistorial(user))) {
+      return { ok: false, error: 'No tiene permisos para consultar el historial de estimaciones.' }
+    }
+    const items = await prisma.estimacionConsumo.findMany({
+      where: edificacionId ? { edificacionId } : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true, edificacionId: true, edificacionNombre: true, bloqueNombre: true,
+        modelo: true, horizonte: true, periodoBase: true, mesesHistorico: true,
+        mesesDepurados: true, advertencias: true, createdAt: true,
+      },
+    })
+    return { ok: true, items: items.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() })) }
+  } catch (error) {
+    console.error('Error consultando historial:', error)
+    return { ok: false, error: 'No fue posible consultar el historial de estimaciones.' }
+  }
+}
+
+export async function obtenerEstimacionGuardada(
+  id: string
+): Promise<{ ok: true; resultado: ResultadoProyeccion } | { ok: false; error: string }> {
+  try {
+    const user = await getCurrentUser()
+    if (!user || !(await puedeConsultarHistorial(user))) {
+      return { ok: false, error: 'No tiene permisos para consultar estimaciones guardadas.' }
+    }
+    if (typeof id !== 'string' || !id) return { ok: false, error: 'Identificador inválido.' }
+    const estimacion = await prisma.estimacionConsumo.findUnique({
+      where: { id }, select: { resultados: true },
+    })
+    if (!estimacion) return { ok: false, error: 'La estimación solicitada no existe.' }
+    return { ok: true, resultado: estimacion.resultados as unknown as ResultadoProyeccion }
+  } catch (error) {
+    console.error('Error recuperando estimación:', error)
+    return { ok: false, error: 'No fue posible recuperar la estimación guardada.' }
   }
 }

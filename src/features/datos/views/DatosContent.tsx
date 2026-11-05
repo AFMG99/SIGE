@@ -48,6 +48,7 @@ import type {
   VariablesExistentes,
 } from './existencias'
 import type { EventoInfo } from '../models/eventos'
+import type { CalculoLineaBase } from '../models/lineasBase'
 import {
   construirPanelAjustes,
   construirPanelEquipos,
@@ -153,6 +154,19 @@ export function DatosContent({
    */
   const [edificacionCalendario, setEdificacionCalendario] = React.useState('')
   const [vista, setVista] = React.useState<Modo>(puedeCargar ? 'carga' : 'datos')
+
+  /**
+   * Evento del calendario pendiente de convertir en ajuste («Crear ajuste
+   * desde este evento»): vive aquí porque navega entre secciones (eventos →
+   * Ajustes). `AjustesSection` lo consume al abrir su modal precargado y lo
+   * limpia vía `onPrellenadoConsumido` para que un remontaje no reabra nada.
+   */
+  const [eventoParaAjuste, setEventoParaAjuste] = React.useState<EventoInfo | null>(null)
+
+  // Última línea base calculada en esta sesión (lo notifica `LineasBase`):
+  // `null` = aún no se calculó; alimenta la pestaña «Aplicados» de Ajustes.
+  const [calcLineasBase, setCalcLineasBase] =
+    React.useState<CalculoLineaBase | null>(null)
   const modo: Modo = puedeCargar ? vista : 'datos'
 
   // Catálogo compartido: edificaciones, bloques y espacios viven aquí (fuente
@@ -199,6 +213,18 @@ export function DatosContent({
   /** Del importador (o su CTA vacío) a la sección de primer nivel Edificaciones. */
   const irAlCatalogo = () => {
     setActiveId('edificaciones')
+  }
+
+  /**
+   * «Crear ajuste desde este evento» (lista de eventos / detalle del día del
+   * calendario): deja el evento pendiente, sitúa la sección Ajustes en modo
+   * «Carga» y salta a ella; `AjustesSection` abre su modal de creación
+   * precargado y notifica el consumo. Solo se cablea con permiso de carga.
+   */
+  const crearAjusteDesdeEvento = (evento: EventoInfo) => {
+    setEventoParaAjuste(evento)
+    setVista('carga')
+    setActiveId('ajustes')
   }
 
   const headerOnTop = pos === 'center'
@@ -512,6 +538,9 @@ export function DatosContent({
                     puedeCargar={puedeCargar}
                     edificacionId={edificacionCalendario}
                     onEdificacionChange={setEdificacionCalendario}
+                    onCrearAjusteDesdeEvento={
+                      puedeCargar ? crearAjusteDesdeEvento : undefined
+                    }
                   />
                   <CalendarioFestivos
                     edificacionId={edificacionCalendario}
@@ -522,6 +551,9 @@ export function DatosContent({
                     bloques={bloquesCat}
                     espacios={espaciosCat}
                     equipos={equiposExistentes.filas}
+                    onCrearAjusteDesdeEvento={
+                      puedeCargar ? crearAjusteDesdeEvento : undefined
+                    }
                   />
                   {/* 6d2/6d3: rangos + plantilla TdeA y horarios (ex-drawer) con
                       la MISMA selección de edificación que el calendario. */}
@@ -681,6 +713,7 @@ export function DatosContent({
                 espacios={espacios}
                 puedeCalcular={puedeCalcular}
                 puedeGuardar={puedeCargar}
+                onCalculoChange={setCalcLineasBase}
               />
             </React.Suspense>
           )}
@@ -690,10 +723,14 @@ export function DatosContent({
             <React.Suspense fallback={<SectionSkeleton />}>
               <AjustesSection
                 ajustes={ajustesExistentes}
-                ajustesAplicados={[]}
+                ajustesAplicados={calcLineasBase ? calcLineasBase.ajustesAplicados : null}
                 modo={modoAjustes}
                 puedeCargar={puedeCargar}
                 onModoChange={setVista}
+                edificaciones={edificacionesCat}
+                bloques={bloquesCat}
+                eventoPrellenado={eventoParaAjuste}
+                onPrellenadoConsumido={() => setEventoParaAjuste(null)}
               />
             </React.Suspense>
           )}

@@ -170,3 +170,81 @@ def test_cli_json_por_stdin_stdout():
     salida = json.loads(proceso.stdout)
     assert salida["ok"] is True, salida
     assert len(salida["pronostico"]) == 1
+
+
+def test_proyeccion_medias_moviles_con_parametro_ventana():
+    salida = proyectar_desde_payload(
+        {
+            "registros": serie_36_meses(),
+            "horizonte": 3,
+            "modelo": "MA",
+            "ventana": 4,
+        }
+    )
+
+    assert salida["ok"] is True, salida
+    assert salida["modelo"] == "MA"
+    assert salida["parametros_modelo"] == {"ventana": 4}
+    assert len(salida["pronostico"]) == 3
+    assert all(p["limite_inferior"] <= p["consumo_kwh"] <= p["limite_superior"] for p in salida["pronostico"])
+
+
+def test_proyeccion_suavizamiento_exponencial():
+    salida = proyectar_desde_payload(
+        {
+            "registros": serie_36_meses(),
+            "horizonte": 2,
+            "modelo": "SES",
+            "alpha": 0.35,
+        }
+    )
+
+    assert salida["ok"] is True, salida
+    assert salida["modelo"] == "SES"
+    assert salida["parametros_modelo"]["alpha"] == 0.35
+    assert len(salida["pronostico"]) == 2
+    assert all(math.isfinite(p["consumo_kwh"]) for p in salida["pronostico"])
+
+
+def test_rechaza_ventana_ma_fuera_de_rango():
+    salida = proyectar_desde_payload(
+        {
+            "registros": serie_36_meses(),
+            "horizonte": 1,
+            "modelo": "MA",
+            "ventana": 20,
+        }
+    )
+
+    assert salida["ok"] is False
+    assert "ventana" in salida["error"]
+
+
+def test_horizonte_24_meses_modelo_automatico():
+    salida = proyectar_desde_payload({"registros": serie_36_meses(), "horizonte": 24})
+    assert salida["ok"] is True, salida
+    assert len(salida["pronostico"]) == 24
+    assert salida["pronostico"][0]["periodo"] == "2027-01"
+    assert salida["pronostico"][-1]["periodo"] == "2028-12"
+    assert "supera 12 meses" in salida["advertencia"]
+
+
+def test_horizonte_24_meses_medias_moviles():
+    salida = proyectar_desde_payload({"registros": serie_36_meses(), "horizonte": 24, "modelo": "MA", "ventana": 6})
+    assert salida["ok"] is True, salida
+    assert len(salida["pronostico"]) == 24
+    assert salida["pronostico"][-1]["periodo"] == "2028-12"
+
+
+def test_horizonte_24_meses_ses():
+    salida = proyectar_desde_payload({"registros": serie_36_meses(), "horizonte": 24, "modelo": "SES", "alpha": 0.35})
+    assert salida["ok"] is True, salida
+    assert len(salida["pronostico"]) == 24
+    assert salida["parametros_modelo"]["alpha"] == 0.35
+    assert "bandas aproximadas" in salida["advertencia"]
+
+
+def test_rechaza_horizonte_mayor_a_24():
+    salida = proyectar_desde_payload({"registros": serie_36_meses(), "horizonte": 25})
+    assert salida["ok"] is False
+    assert "1 y 24" in salida["error"]

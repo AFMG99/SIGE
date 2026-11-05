@@ -220,6 +220,9 @@ export default async function DatosPage() {
         periodoFin: true,
         valorAjuste: true,
         observaciones: true,
+        direccion: true,
+        descripcion: true,
+        bloqueId: true,
         bloque: {
           select: {
             codigo: true,
@@ -315,6 +318,11 @@ export default async function DatosPage() {
       periodo: `${fechaCorta(a.periodoInicio)} → ${fechaCorta(a.periodoFin)}`,
       valorAjuste: a.valorAjuste,
       observaciones: a.observaciones,
+      bloqueId: a.bloqueId,
+      fechaInicio: fechaCorta(a.periodoInicio),
+      fechaFin: fechaCorta(a.periodoFin),
+      direccion: a.direccion,
+      descripcion: a.descripcion,
     })),
   }
 

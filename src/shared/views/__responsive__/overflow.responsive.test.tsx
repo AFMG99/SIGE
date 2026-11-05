@@ -700,14 +700,16 @@ describe('Fase 3 — objetivos táctiles y desplegables', () => {
 
     it('AjustesSection: el selector de modo y las pestañas caben en pantalla', async () => {
       render(
-        <AjustesSection
-          ajustes={ajustesVacios}
-          ajustesAplicados={[]}
-          modo="datos"
-          puedeCargar={false}
-          edificaciones={edificacionesDemo}
-          bloques={bloquesDemo}
-        />
+        <ToastProvider>
+          <AjustesSection
+            ajustes={ajustesVacios}
+            ajustesAplicados={[]}
+            modo="datos"
+            puedeCargar={false}
+            edificaciones={edificacionesDemo}
+            bloques={bloquesDemo}
+          />
+        </ToastProvider>
       )
       const grupo = await vi.waitFor(() => {
         const el = document.querySelector<HTMLElement>(

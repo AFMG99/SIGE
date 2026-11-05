@@ -105,9 +105,6 @@ export function DashboardHeader({
     setDark(getCurrentTheme() === 'dark')
   }
 
-  /** Submits the (hidden) logout form kept next to the trigger. */
-  const logoutFormRef = useRef<HTMLFormElement>(null)
-
   const goToSettingsTab = (tab: string) =>
     router.push(`/dashboard/configuracion?tab=${tab}`)
 
@@ -683,13 +680,11 @@ export function DashboardHeader({
                         <line x1="21" y1="12" x2="9" y2="12" />
                       </svg>
                     ),
-                    onClick: () => logoutFormRef.current?.requestSubmit(),
+                    onClick: () => router.push('/logout'),
                   },
                 ]}
               />
             )}
-            <form ref={logoutFormRef} action="/api/auth/logout" method="POST" hidden />
-
             {/* position cycle: left → normal bar → right */}
             <button
               type="button"

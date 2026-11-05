@@ -96,6 +96,13 @@ interface CalendarioFestivosProps {
   bloques?: BloqueInfo[]
   espacios?: EspacioInfo[]
   equipos?: EquipoExistente[]
+  /**
+   * «Crear ajuste desde este evento» (opcional): por cada evento del detalle
+   * del día se ofrece la acción, que notifica el `EventoInfo` completo al
+   * padre (`DatosContent` abre el modal de `AjustesSection` precargado). Sin
+   * callback no se renderiza nada (p. ej. roles sin permiso de carga).
+   */
+  onCrearAjusteDesdeEvento?: (evento: EventoInfo) => void
 }
 
 export function CalendarioFestivos({
@@ -109,6 +116,7 @@ export function CalendarioFestivos({
   bloques = [],
   espacios = [],
   equipos = [],
+  onCrearAjusteDesdeEvento,
 }: CalendarioFestivosProps = {}) {
   const [ref, setRef] = useState(() => {
     const d = new Date()
@@ -637,6 +645,24 @@ export function CalendarioFestivos({
                               <span className="ui-muted text-xs">
                                 ({etiquetaDeTipoEvento(ev.tipo)})
                               </span>
+                              {/* Acción hacia el pre-fill del modal de Ajustes:
+                                  se resuelve el `EventoInfo` completo (con
+                                  bloque/edificación) por id del item del día. */}
+                              {onCrearAjusteDesdeEvento &&
+                                (() => {
+                                  const completo = eventosVisibles.find((e) => e.id === ev.id)
+                                  if (!completo) return null
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => onCrearAjusteDesdeEvento(completo)}
+                                      aria-label={`Crear ajuste desde ${ev.nombre}`}
+                                      className="focus-ring ml-auto min-h-10 rounded px-2 text-xs font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 lg:min-h-0"
+                                    >
+                                      Crear ajuste
+                                    </button>
+                                  )
+                                })()}
                             </li>
                           ))}
                         </ul>
