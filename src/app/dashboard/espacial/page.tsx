@@ -15,6 +15,7 @@ export default async function EspacialPage() {
 
   const edificaciones = await getDatosEspaciales()
   const puedeImportarCad = await canWithOverrides(user, 'plans', 'modify')
+  const puedeImportarModelo = await canWithOverrides(user, 'plans', 'modify')
 
-  return <EspacialDashboard edificaciones={edificaciones} puedeImportarCad={puedeImportarCad} />
+  return <EspacialDashboard edificaciones={edificaciones} puedeImportarCad={puedeImportarCad} puedeImportarModelo={puedeImportarModelo} />
 }
