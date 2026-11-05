@@ -5,6 +5,7 @@ import { Canvas } from '@react-three/fiber'
 import { Html, OrbitControls, useGLTF } from '@react-three/drei'
 import { Box3, Object3D, Vector3 } from 'three'
 import { AsociacionEspacioModelo } from './AsociacionEspacioModelo'
+import { EnergiaEspacioModelo } from './EnergiaEspacioModelo'
 
 interface NodoModelo {
   nodeKey: string
@@ -383,6 +384,11 @@ export function ModeloArquitectonicoPreview({ edificacionId, puedeImportar }: Mo
                     modeloId={selectedModelId}
                     node={selected}
                     puedeEditar={puedeImportar}
+                  />
+                  <EnergiaEspacioModelo
+                    key={`energia:${selectedModelId}:${selected.nodeKey}`}
+                    modeloId={selectedModelId}
+                    nodeKey={selected.nodeKey}
                   />
                 )}
               </div>
