@@ -66,7 +66,7 @@ export async function GET(_request: NextRequest, { params }: Context) {
     headers: {
       'Content-Type': 'application/octet-stream',
       'Content-Length': String(parte.tamanoBytes),
-      'Cache-Control': 'private, max-age=3600',
+      'Cache-Control': 'private, no-store',
     },
   })
 }
