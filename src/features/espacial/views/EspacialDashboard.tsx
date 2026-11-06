@@ -9,6 +9,7 @@ import { EspacialInspector } from './ui/EspacialInspector'
 import { EspacialLegend } from './ui/EspacialLegend'
 import { EspaciosPorPiso } from './ui/EspaciosPorPiso'
 import { PlanosCad } from './ui/PlanosCad'
+const ModeloArquitectonicoPreview = dynamic(() => import('./ui/ModeloArquitectonicoPreview').then((mod) => mod.ModeloArquitectonicoPreview), { ssr: false })
 
 const EspacialCanvas = dynamic(() => import('./EspacialCanvas'), {
   ssr: false,
@@ -27,14 +28,16 @@ const EspacialCanvas = dynamic(() => import('./EspacialCanvas'), {
 interface EspacialDashboardProps {
   edificaciones: Edificacion3DScene[]
   puedeImportarCad: boolean
+  puedeImportarModelo: boolean
 }
 
 export function EspacialDashboard({
   edificaciones,
   puedeImportarCad,
+  puedeImportarModelo,
 }: EspacialDashboardProps) {
   const router = useRouter()
-  const [vista, setVista] = useState<'campus' | 'pisos' | 'cad'>('campus')
+  const [vista, setVista] = useState<'campus' | 'pisos' | 'cad' | 'modelo'>('campus')
   const [pisoSeleccionado, setPisoSeleccionado] = useState(TODOS_LOS_PISOS)
   const [selectedEdificacionId, setSelectedEdificacionId] = useState<string>(
     edificaciones[0]?.id || ''
@@ -145,14 +148,14 @@ export function EspacialDashboard({
               ? 'Representación Espacial 3D'
               : vista === 'pisos'
                 ? 'Espacios por piso'
-                : 'Planos CAD'}
+                : vista === 'cad' ? 'Planos CAD' : 'Modelo arquitectónico'}
           </h1>
           <p className="ui-muted text-sm leading-relaxed">
             {vista === 'campus'
               ? 'Haga clic y arrastre con el mouse directamente sobre cualquier bloque para ubicarlo en el campus.'
               : vista === 'pisos'
                 ? 'Explore los espacios registrados por piso, con sus dimensiones, áreas y equipos asociados.'
-                : 'Cargue y revise un plano localmente; confirme las medidas antes de actualizar espacios existentes.'}
+                : vista === 'cad' ? 'Cargue y revise un plano localmente; confirme las medidas antes de actualizar espacios existentes.' : 'Inspeccione un modelo GLB, sus nodos y dimensiones geométricas.'}
           </p>
         </div>
 
@@ -239,9 +242,17 @@ export function EspacialDashboard({
         >
           Planos CAD
         </button>
+        <button
+          type="button"
+          aria-pressed={vista === 'modelo'}
+          onClick={() => setVista('modelo')}
+          className={`ui-btn ${vista === 'modelo' ? 'ui-btn-primary' : 'ui-btn-ghost'}`}
+        >
+          Modelo arquitectónico
+        </button>
       </div>
 
-      {vista !== 'cad' && (
+      {vista !== 'cad' && vista !== 'modelo' && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -313,12 +324,14 @@ export function EspacialDashboard({
             setVista('campus')
           }}
         />
-      ) : (
+      ) : vista === 'cad' ? (
         <PlanosCad
           key={activeEdificacion.id}
           edificacion={activeEdificacion}
           puedeImportar={puedeImportarCad}
         />
+      ) : (
+        <ModeloArquitectonicoPreview edificacionId={activeEdificacion.id} puedeImportar={puedeImportarModelo} />
       )}
     </main>
   )
