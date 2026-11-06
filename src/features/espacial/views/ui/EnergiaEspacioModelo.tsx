@@ -74,7 +74,7 @@ export function EnergiaEspacioModelo({ modeloId, nodeKey, onEnergyChange }: Prop
   }, [modeloId, mes, ano, onEnergyChange])
 
   const elemento = useMemo(() => elementos.find((item) => item.nodeKey === nodeKey), [elementos, nodeKey])
-  const total = elemento?.consumoKwh
+  const total = elemento?.consumoKwh ?? null
   const fuente = elemento ? COPIA_FUENTE[elemento.fuente] ?? elemento.fuente : null
   const formato = (value: number | null) => value === null ? '—' : value.toLocaleString('es-CO', { maximumFractionDigits: 2 })
 
