@@ -812,37 +812,33 @@ describe('Fase 3 — objetivos táctiles y desplegables', () => {
       )
     })
 
-    it('Menú de cuenta: Cerrar sesión envía el form de logout', async () => {
+    it('Menú de cuenta: Cerrar sesión navega a la página de confirmación', async () => {
       render(shell)
-      const submitSpy = vi
-        .spyOn(HTMLFormElement.prototype, 'requestSubmit')
-        .mockImplementation(() => {})
-      try {
-        const trigger = await vi.waitFor(() => {
-          const el = document.querySelector<HTMLButtonElement>(
-            'header button[title="Menú de cuenta"]'
-          )
-          expect(el).not.toBeNull()
-          return el as HTMLButtonElement
-        })
-        trigger.click()
-
-        const salir = await vi.waitFor(() => {
-          const el = Array.from(
-            document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
-          ).find((b) => b.textContent?.trim() === 'Cerrar sesión')
-          expect(el).toBeInstanceOf(HTMLButtonElement)
-          return el as HTMLButtonElement
-        })
-        salir.click()
-        expect(submitSpy).toHaveBeenCalledTimes(1)
-        const form = document.querySelector<HTMLFormElement>(
-          'form[action="/api/auth/logout"]'
+      routerPushSpy.mockClear()
+      const trigger = await vi.waitFor(() => {
+        const el = document.querySelector<HTMLButtonElement>(
+          'header button[title="Menú de cuenta"]'
         )
-        expect(form).not.toBeNull()
-      } finally {
-        submitSpy.mockRestore()
-      }
+        expect(el).not.toBeNull()
+        return el as HTMLButtonElement
+      })
+      trigger.click()
+
+      const salir = await vi.waitFor(() => {
+        const el = Array.from(
+          document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
+        ).find((b) => b.textContent?.trim() === 'Cerrar sesión')
+        expect(el).toBeInstanceOf(HTMLButtonElement)
+        return el as HTMLButtonElement
+      })
+      salir.click()
+
+      // El logout dejó de ser un form: el menú navega a la página de
+      // confirmación, que es la que llama a /api/auth/logout.
+      await vi.waitFor(() => expect(routerPushSpy).toHaveBeenCalledWith('/logout'))
+      expect(
+        document.querySelector('form[action="/api/auth/logout"]')
+      ).toBeNull()
     })
 
     it('Barra central: los módulos no se solapan ni salen de pantalla', async () => {
