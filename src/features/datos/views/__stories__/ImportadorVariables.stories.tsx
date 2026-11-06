@@ -65,35 +65,44 @@ export const CalculoGde: Story = {
   name: 'Cálculo de la GDE: entradas efectivas y botón único (S2)',
   args: { rangos: [RANGO_GDE_STORY] },
   play: async ({ canvas, canvasElement, userEvent }) => {
-    const screen = within(canvasElement.ownerDocument.body)
     await elegirEdificacion(canvas, userEvent)
+    await subirArchivo(canvasElement, userEvent, archivoVariables())
 
-    // Fórmula visible + entradas efectivas ANTES de guardar.
-    await expect(await canvas.findByText('GDE = Σ (Tp − Tb) · Xe')).toBeVisible()
-    await expect(canvas.getByText('06:00–18:00 (12 h/día)')).toBeVisible()
-    await expect(canvas.getByText('Xe = H (fijo, 12 h)')).toBeVisible()
-    // Fijar octubre para que la interacción no dependa del mes actual.
-    await userEvent.selectOptions(canvas.getByLabelText(/^mes/i), '10')
+    const previsualizar = await canvas.findByRole(
+      'button',
+      { name: /continuar a vista previa/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(previsualizar)
+    await expect(await canvas.findByText(/listo para importar/i)).toBeVisible()
+
+    // La vista previa ya no importa ni calcula: la GDE vive en el paso de
+    // cálculos opcionales que separó el importador.
+    const aCalculos = await canvas.findByRole(
+      'button',
+      { name: /continuar a cálculos opcionales/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(aCalculos)
+
     await expect(
-      canvas.getByText(
-        new RegExp(`Configurado · 0 día\\(s\\) operativo\\(s\\) en octubre de ${ANO_GDE_STORY}`)
+      await canvas.findByRole(
+        'heading',
+        { name: /cálculo de variables operativas \(opcional\)/i },
+        { timeout: 5000 }
       )
     ).toBeVisible()
 
-    // Marzo del año actual está dentro del rango lectivo → 31 días operativos.
-    await userEvent.selectOptions(canvas.getByLabelText(/^mes/i), '3')
-    await expect(
-      await canvas.findByText(
-        new RegExp(`31 día\\(s\\) operativo\\(s\\) en marzo de ${ANO_GDE_STORY}`)
-      )
-    ).toBeVisible()
+    // La GDE viene marcada por defecto y expone su modo de escritura.
+    const gde = await canvas.findByRole('checkbox', {
+      name: /gde \(grados día de enfriamiento\)/i,
+    })
+    expect(gde).toBeChecked()
 
-    // Un solo botón: calcula en el servidor y registra (mocks deterministas).
-    const boton = await canvas.findByRole('button', { name: /calcular y guardar gde/i })
-    await userEvent.click(boton)
-    await expect(await canvas.findByText('41,2 °C·día', {}, { timeout: 3000 })).toBeVisible()
-    await expect(await canvas.findByText(/Registrada en variables operativas/)).toBeVisible()
-    await screen.findByText(/registrada en 2 variables operativas/i, {}, { timeout: 3000 })
+    const grupo = within(canvasElement).getByRole('group', { name: /modo: gde/i })
+    expect(within(grupo).getAllByRole('radio')).toHaveLength(2)
+    expect(within(grupo).getByLabelText(/solo campos vacíos/i)).toBeChecked()
+    expect(within(grupo).getByLabelText(/reemplazar existentes/i)).not.toBeChecked()
   },
 }
 
@@ -124,9 +133,32 @@ export const Paso3VistaPrevia: Story = {
     await userEvent.click(continuar)
 
     await expect(await canvas.findByText(/listo para importar/i)).toBeVisible()
-    await expect(canvas.getByRole('button', { name: /importar \d+ filas/i })).toBeVisible()
     // La última fila del CSV trae mes 13: debe aparecer marcada con error.
     await expect(await canvas.findByText('Mes inválido en la fila')).toBeVisible()
+
+    // La vista previa ya no importa directo: el flujo pasa por cálculos
+    // opcionales antes de llegar a la importación.
+    const aCalculos = await canvas.findByRole(
+      'button',
+      { name: /continuar a cálculos opcionales/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(aCalculos)
+
+    const aImportacion = await canvas.findByRole(
+      'button',
+      { name: /continuar a importación/i },
+      { timeout: 5000 }
+    )
+    await userEvent.click(aImportacion)
+
+    await expect(
+      await canvas.findByRole(
+        'button',
+        { name: /importar \d+ filas/i },
+        { timeout: 5000 }
+      )
+    ).toBeVisible()
   },
 }
 
